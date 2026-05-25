@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - knulli-main
+      - dev
     paths:
       - 'Dockerfile'
       - '.dockerignore'
