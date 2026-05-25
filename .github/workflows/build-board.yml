@@ -1,22 +1,46 @@
-name: Build Board (Staged)
+name: Build Board (Parallel Staged)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 빌드 그래프:
+#
+#   toolchain ──┬──→ base ──→ frontend ──┬──→ heavy-libretro ──┐
+#               │                          │                      ├──→ image
+#               │                          └──→ standalone ──────┤
+#               └──→ mame-lr ──────────────────────────────────┘
+#
+# ✅ ROCKNIX 방식: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)
+#    만 묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
+# ─────────────────────────────────────────────────────────────────────────────
 
 on:
   workflow_call:
     inputs:
-      BOARD:    { type: string, required: true }
-      OWNER_LC: { type: string, required: true }
-      DATE:     { type: string, required: true }
+      BOARD:
+        type: string
+        required: true
+      OWNER_LC:
+        type: string
+        required: true
+      DATE:
+        type: string
+        required: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   BOARD:      ${{ inputs.BOARD }}
   CACHE_REPO: ${{ vars.CACHE_REPO || 'knulli-build-cache' }}
+  # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
+  DISABLE_COLORS:        "yes"
+  CCACHE_COMPILERCHECK:  content
+  CCACHE_COMPRESS:       "1"
+  CCACHE_COMPRESSLEVEL:  "6"
+  CCACHE_SLOPPINESS:     pch_defines,time_macros,include_file_mtime,include_file_ctime
 
 jobs:
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 1: 툴체인 빌드 + ccache 저장
-  # ─────────────────────────────────────────────────────────────────────────
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 1: toolchain (모든 잡의 기반)
+  # ═════════════════════════════════════════════════════════════════════════
   toolchain:
     name: ${{ inputs.BOARD }} · 1-toolchain
     runs-on: ubuntu-24.04
@@ -24,22 +48,24 @@ jobs:
       actions:  write
       contents: read
       packages: read
-    timeout-minutes: 360
+    timeout-minutes: 350
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:           false
-          root-reserve-mb:     6144
-          swap-size-mb:        8192
-          overprovision-lvm:   true
-          remove-dotnet:       true
-          remove-android:      true
-          remove-haskell:      true
-          remove-codeql:       true
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
-        with: { submodules: recursive, fetch-depth: 1 }
+        with:
+          submodules: recursive
+          fetch-depth: 1
 
       - name: Prepare docker
         run: |
@@ -78,11 +104,16 @@ jobs:
             output/${{ inputs.BOARD }}/build/*/.stamp_built
           if-no-files-found: ignore
 
-      - name: Save ccache
+      - name: Trim and save ccache
         if: success()
         run: |
           CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
           if [ -d "$CCACHE_DIR" ]; then
+            # ROCKNIX 패턴: toolchain 단계는 500M으로 제한
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
             tar --remove-files -cf ccache-${BOARD}-toolchain.tar "$CCACHE_DIR"
           else
             echo "ccache 디렉토리 없음 — 스킵"
@@ -98,21 +129,20 @@ jobs:
           makeLatest:   false
           prerelease:   true
           body:         ccache
-          # ✅ FIX: owner/repo 형식 필수 — 단순 repo 이름만 쓰면 현재 repo로 잘못 인식됨
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
           repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Compress output
         run: |
-          # 존재하는 디렉토리만 묶어서 tar 생성, 실패 시 전체로 폴백
+          # 후속 잡이 필요로 하는 모든 것
           tar --zstd -cf toolchain.tar.zst \
-            output/${BOARD}/host       \
-            output/${BOARD}/build      \
-            output/${BOARD}/staging    \
+            output/${BOARD}/host        \
+            output/${BOARD}/build       \
+            output/${BOARD}/staging     \
             output/${BOARD}/per-package \
-            output/${BOARD}/.config    \
-            output/${BOARD}/.stamp_*   \
+            output/${BOARD}/.config     \
+            output/${BOARD}/.stamp_*    \
             2>/dev/null \
           || tar --zstd -cf toolchain.tar.zst output/${BOARD}/
 
@@ -124,13 +154,9 @@ jobs:
           if-no-files-found: error
           retention-days:    1
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 2: Linux 커널 빌드
-  # ✅ FIX: 'linux busybox' → 'linux'
-  #         knulli-board.common 에 BR2_PACKAGE_BUSYBOX=n 이 설정되어 있어
-  #         busybox를 명시적으로 빌드하면 .config 없음 오류 발생.
-  #         initramfs용 busybox는 knulli-initramfs 패키지에서 별도 처리.
-  # ─────────────────────────────────────────────────────────────────────────
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 2a: base (linux 커널) — toolchain 직후
+  # ═════════════════════════════════════════════════════════════════════════
   base:
     name: ${{ inputs.BOARD }} · 2-base (linux)
     needs: toolchain
@@ -138,24 +164,24 @@ jobs:
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 360
-    env:
-      BOARD: ${{ inputs.BOARD }}
+    timeout-minutes: 350
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:           false
-          root-reserve-mb:     6144
-          swap-size-mb:        8192
-          overprovision-lvm:   true
-          remove-dotnet:       true
-          remove-android:      true
-          remove-haskell:      true
-          remove-codeql:       true
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
-        with: { submodules: recursive, fetch-depth: 1 }
+        with:
+          submodules: recursive
+          fetch-depth: 50
 
       - name: Prepare docker
         run: |
@@ -163,6 +189,11 @@ jobs:
           docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
           docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
           touch .ba-docker-image-available
+
+      - name: Retrieve ccache
+        run: |
+          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-base.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
 
       - uses: actions/download-artifact@v4
         with:
@@ -172,6 +203,15 @@ jobs:
         run: |
           tar --zstd -xf toolchain.tar.zst
           rm toolchain.tar.zst
+
+      # ✅ B 패턴: 마지막 release 태그 이후 변경된 패키지의 stamp 제거
+      #    SCOPE_PATTERNS 환경변수로 이 잡이 책임지는 패키지 패턴 지정
+      - name: Auto-detect and clean changed packages
+        env:
+          # base 잡: 커널/부트로더 계열만
+          SCOPE_PATTERNS: "linux* uboot* *bootloader* *kernel*"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
 
       - name: Build linux
         uses: corrupt952/actions-retry-command@v1.0.7
@@ -196,6 +236,32 @@ jobs:
           path: build.log
           if-no-files-found: ignore
 
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          if [ -d "$CCACHE_DIR" ]; then
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 1G || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
+            tar --remove-files -cf ccache-${BOARD}-base.tar "$CCACHE_DIR"
+          fi
+        continue-on-error: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-base.tar', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-base.tar
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
+        continue-on-error: true
+
       - name: Compress output
         run: tar --zstd -cf base.tar.zst output/${BOARD}/
 
@@ -207,34 +273,35 @@ jobs:
           if-no-files-found: error
           retention-days:    1
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 3: Qt6 + EmulationStation 프론트엔드
-  # ─────────────────────────────────────────────────────────────────────────
-  frontend:
-    name: ${{ inputs.BOARD }} · 3-frontend
-    needs: base
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 2b: mame-lr (mame 코어들) — toolchain 직후, base와 병렬
+  # ✅ ROCKNIX 패턴: toolchain만 있으면 빌드 가능한 무거운 패키지를 일찍 시작
+  # ═════════════════════════════════════════════════════════════════════════
+  mame-lr:
+    name: ${{ inputs.BOARD }} · 2-mame-lr
+    needs: toolchain
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 360
-    env:
-      BOARD: ${{ inputs.BOARD }}
+    timeout-minutes: 350
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:           false
-          root-reserve-mb:     6144
-          swap-size-mb:        8192
-          overprovision-lvm:   true
-          remove-dotnet:       true
-          remove-android:      true
-          remove-haskell:      true
-          remove-codeql:       true
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
-        with: { submodules: recursive, fetch-depth: 1 }
+        with:
+          submodules: recursive
+          fetch-depth: 50
 
       - name: Prepare docker
         run: |
@@ -242,6 +309,180 @@ jobs:
           docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
           docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
           touch .ba-docker-image-available
+
+      - name: Retrieve ccache
+        run: |
+          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-mame-lr.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolchain-${{ inputs.BOARD }}
+
+      - name: Extract toolchain
+        run: |
+          tar --zstd -xf toolchain.tar.zst
+          rm toolchain.tar.zst
+
+      # ✅ B 패턴: mame 계열 패키지 변경 자동 감지 + clean
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS: "libretro-mame* mame*"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
+      # ✅ batocera 트리(서브모듈)의 mame 계열 libretro 코어들
+      #    실제 패키지명 (batocera/package/batocera/emulators/retroarch/libretro/ 아래):
+      #      libretro-mame, libretro-mame2003-plus, libretro-mame2010, libretro-mame2016
+      #    보드 .config에서 BR2_PACKAGE_LIBRETRO_MAME* = y 인 것만 골라 빌드
+      - name: Detect mame packages enabled for this board
+        id: mame-list
+        run: |
+          # .config 가 없으면 먼저 만들기
+          if [ ! -f output/${BOARD}/.config ]; then
+            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+          fi
+          PKGS=""
+          for P in libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016; do
+            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
+            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
+              PKGS="$PKGS $P"
+            fi
+          done
+          PKGS="${PKGS# }"
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          if [ -z "$PKGS" ]; then
+            echo "::warning::이 보드는 활성화된 mame 패키지가 없습니다 — 빈 잡으로 통과"
+          else
+            echo "빌드 대상: $PKGS"
+          fi
+
+      - name: Build mame cores
+        if: ${{ steps.mame-list.outputs.packages != '' }}
+        uses: corrupt952/actions-retry-command@v1.0.7
+        with:
+          max_attempts:   6
+          retry_interval: 10
+          command: |
+            make ${BOARD}-build CMD='${{ steps.mame-list.outputs.packages }}' \
+              BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ inputs.BOARD }}-mame-lr
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          if [ -d "$CCACHE_DIR" ]; then
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
+            tar --remove-files -cf ccache-${BOARD}-mame-lr.tar "$CCACHE_DIR"
+          fi
+        continue-on-error: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-mame-lr.tar', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-mame-lr.tar
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      # ✅ 핵심: 자기가 빌드한 것만 묶어 올림 (per-package + .stamp_libretro-mame*)
+      #    빌드 안 한 경우 빈 tar 생성하여 다음 잡 통과
+      - name: Pack mame artifacts
+        run: |
+          if [ -z "${{ steps.mame-list.outputs.packages }}" ]; then
+            echo "빌드 안 함 — 빈 아카이브 생성"
+            tar --zstd -cf mame-lr.tar.zst --files-from /dev/null
+          else
+            FILES=""
+            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d \
+              \( -name 'libretro-mame*' -o -name 'mame*' \) 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            for D in $(find output/${BOARD}/build -maxdepth 1 -type d \
+              \( -name 'libretro-mame*' -o -name 'mame*' \) 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
+              FILES="$FILES $F"
+            done
+            if [ -z "$FILES" ]; then
+              tar --zstd -cf mame-lr.tar.zst --files-from /dev/null
+            else
+              tar --zstd -cf mame-lr.tar.zst $FILES
+            fi
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name:              mame-lr-${{ inputs.BOARD }}
+          path:              mame-lr.tar.zst
+          compression-level: 0
+          if-no-files-found: error
+          retention-days:    1
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 3: frontend (Qt6 + EmulationStation)
+  # ═════════════════════════════════════════════════════════════════════════
+  frontend:
+    name: ${{ inputs.BOARD }} · 3-frontend
+    needs: base
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 350
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
+          remove-docker-images: true
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 50
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Retrieve ccache
+        run: |
+          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-frontend.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
 
       - uses: actions/download-artifact@v4
         with:
@@ -252,13 +493,21 @@ jobs:
           tar --zstd -xf base.tar.zst
           rm base.tar.zst
 
+      # ✅ B 패턴: qt6/EmulationStation 관련 변경 자동 감지 + clean
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS: "qt6* batocera-emulationstation* emulationstation*"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
       - name: Build Qt6 + EmulationStation
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
           max_attempts:   6
           retry_interval: 10
           command: |
-            make ${BOARD}-build CMD='qt6base batocera-emulationstation' BATCH_MODE=1 PARALLEL_BUILD=1 \
+            make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
+              BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
             exit $RC
@@ -275,8 +524,43 @@ jobs:
           path: build.log
           if-no-files-found: ignore
 
-      - name: Compress output
-        run: tar --zstd -cf frontend.tar.zst output/${BOARD}/
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          if [ -d "$CCACHE_DIR" ]; then
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
+            tar --remove-files -cf ccache-${BOARD}-frontend.tar "$CCACHE_DIR"
+          fi
+        continue-on-error: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-frontend.tar', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-frontend.tar
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      # ✅ ROCKNIX 패턴: frontend는 build/ 디렉토리도 별도 업로드
+      #    이유: 후속 병렬 잡들이 sysroot/headers/staging 전부 필요한데
+      #          build/는 용량이 커서 분리해야 아티팩트 다운로드 시간 절약 가능
+      - name: Compress frontend (sysroot + headers, no build/)
+        run: |
+          tar --zstd --exclude="output/${BOARD}/build" \
+            -cf frontend.tar.zst output/${BOARD}/
+
+      - name: Compress frontend build/ separately
+        run: |
+          tar --zstd -cf frontend-build.tar.zst output/${BOARD}/build/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -286,34 +570,43 @@ jobs:
           if-no-files-found: error
           retention-days:    1
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 4: RetroArch + 코어
-  # ─────────────────────────────────────────────────────────────────────────
-  retroarch:
-    name: ${{ inputs.BOARD }} · 4-retroarch
-    needs: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name:              frontend-build-${{ inputs.BOARD }}
+          path:              frontend-build.tar.zst
+          compression-level: 0
+          if-no-files-found: error
+          retention-days:    1
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 4a: heavy-libretro (무거운 libretro 코어들)
+  # ═════════════════════════════════════════════════════════════════════════
+  heavy-libretro:
+    name: ${{ inputs.BOARD }} · 4-heavy-libretro
+    needs: [frontend, mame-lr]
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 360
-    env:
-      BOARD: ${{ inputs.BOARD }}
+    timeout-minutes: 350
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:           false
-          root-reserve-mb:     6144
-          swap-size-mb:        8192
-          overprovision-lvm:   true
-          remove-dotnet:       true
-          remove-android:      true
-          remove-haskell:      true
-          remove-codeql:       true
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
-        with: { submodules: recursive, fetch-depth: 1 }
+        with:
+          submodules: recursive
+          fetch-depth: 50
 
       - name: Prepare docker
         run: |
@@ -322,6 +615,12 @@ jobs:
           docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
           touch .ba-docker-image-available
 
+      - name: Retrieve ccache
+        run: |
+          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-heavy-libretro.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+
+      # frontend (sysroot 포함)
       - uses: actions/download-artifact@v4
         with:
           name: frontend-${{ inputs.BOARD }}
@@ -331,13 +630,78 @@ jobs:
           tar --zstd -xf frontend.tar.zst
           rm frontend.tar.zst
 
-      - name: Build RetroArch + cores
+      # frontend build/ (libretro 빌드에 필요)
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ inputs.BOARD }}
+
+      - name: Extract frontend build/
+        run: |
+          tar --zstd -xf frontend-build.tar.zst
+          rm frontend-build.tar.zst
+
+      # mame-lr (.stamp_ 있어서 이 잡에서 mame 재빌드 안 함)
+      - uses: actions/download-artifact@v4
+        with:
+          name: mame-lr-${{ inputs.BOARD }}
+
+      - name: Extract mame-lr
+        run: |
+          tar --zstd -xf mame-lr.tar.zst
+          rm mame-lr.tar.zst
+
+      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean (mame 계열은 mame-lr 잡 담당이라 제외)
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS:   "libretro-*"
+          EXCLUDE_PATTERNS: "libretro-mame*"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
+      # ✅ batocera 트리의 무거운 libretro 코어들
+      #    실제 패키지명 확인됨:
+      #      libretro-parallel-n64, libretro-mupen64plus-next, libretro-flycast,
+      #      libretro-beetle-saturn, libretro-beetle-psx, libretro-pcsx-rearmed,
+      #      libretro-ppsspp, libretro-melonds, libretro-desmume, libretro-dolphin,
+      #      libretro-citra, libretro-swanstation, libretro-duckstation 등
+      #    h700 같은 약한 SoC는 일부만 활성화돼 있음
+      - name: Detect heavy libretro packages enabled for this board
+        id: lr-list
+        run: |
+          if [ ! -f output/${BOARD}/.config ]; then
+            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+          fi
+          CANDIDATES="
+            libretro-parallel-n64 libretro-mupen64plus-next
+            libretro-flycast libretro-beetle-saturn libretro-beetle-psx
+            libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
+            libretro-desmume libretro-dolphin libretro-citra
+            libretro-swanstation libretro-duckstation
+          "
+          PKGS=""
+          for P in $CANDIDATES; do
+            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
+            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
+              PKGS="$PKGS $P"
+            fi
+          done
+          PKGS="${PKGS# }"
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          if [ -z "$PKGS" ]; then
+            echo "::warning::이 보드는 활성화된 heavy libretro 패키지가 없습니다 — 빈 잡으로 통과"
+          else
+            echo "빌드 대상: $PKGS"
+          fi
+
+      - name: Build heavy libretro cores
+        if: ${{ steps.lr-list.outputs.packages != '' }}
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
           max_attempts:   6
           retry_interval: 10
           command: |
-            make ${BOARD}-build CMD='retroarch' BATCH_MODE=1 PARALLEL_BUILD=1 \
+            make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
+              BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
             exit $RC
@@ -350,49 +714,108 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ inputs.BOARD }}-retroarch
+          name: logs-${{ inputs.BOARD }}-heavy-libretro
           path: build.log
           if-no-files-found: ignore
 
-      - name: Compress output
-        run: tar --zstd -cf retroarch.tar.zst output/${BOARD}/
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          if [ -d "$CCACHE_DIR" ]; then
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
+            tar --remove-files -cf ccache-${BOARD}-heavy-libretro.tar "$CCACHE_DIR"
+          fi
+        continue-on-error: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-heavy-libretro.tar', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-heavy-libretro.tar
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      # ✅ 핵심: 새로 빌드된 libretro-* per-package + stamp만 묶기
+      #    빈 잡일 경우 빈 tar 만들어 다음 잡 통과
+      - name: Pack heavy-libretro artifacts
+        run: |
+          if [ -z "${{ steps.lr-list.outputs.packages }}" ]; then
+            echo "빌드 안 함 — 빈 아카이브 생성"
+            tar --zstd -cf heavy-libretro.tar.zst --files-from /dev/null
+          else
+            FILES=""
+            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
+              FILES="$FILES $F"
+            done
+            if [ -z "$FILES" ]; then
+              tar --zstd -cf heavy-libretro.tar.zst --files-from /dev/null
+            else
+              tar --zstd -cf heavy-libretro.tar.zst $FILES
+            fi
+          fi
+
+      # ✅ 2GB 초과 시 split (ROCKNIX 패턴)
+      - name: Split if > 1.9G
+        run: |
+          SIZE=$(stat -c%s heavy-libretro.tar.zst)
+          if [ "$SIZE" -gt 2040109465 ]; then
+            split -b 1900M heavy-libretro.tar.zst heavy-libretro.tar.zst.part
+            rm heavy-libretro.tar.zst
+            ls -la heavy-libretro.tar.zst.part*
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name:              retroarch-${{ inputs.BOARD }}
-          path:              retroarch.tar.zst
+          name:              heavy-libretro-${{ inputs.BOARD }}
+          path:              heavy-libretro.tar.zst*
           compression-level: 0
           if-no-files-found: error
           retention-days:    1
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 5: 나머지 전체 빌드 + 최종 이미지 생성
-  # ─────────────────────────────────────────────────────────────────────────
-  image:
-    name: ${{ inputs.BOARD }} · 5-image
-    needs: retroarch
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 4b: standalone 에뮬레이터들 (heavy-libretro와 병렬)
+  # ═════════════════════════════════════════════════════════════════════════
+  standalone:
+    name: ${{ inputs.BOARD }} · 4-standalone
+    needs: [frontend, mame-lr]
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 360
-    env:
-      BOARD: ${{ inputs.BOARD }}
+    timeout-minutes: 350
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:           false
-          root-reserve-mb:     6144
-          swap-size-mb:        8192
-          overprovision-lvm:   true
-          remove-dotnet:       true
-          remove-android:      true
-          remove-haskell:      true
-          remove-codeql:       true
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
-        with: { submodules: recursive, fetch-depth: 1 }
+        with:
+          submodules: recursive
+          fetch-depth: 50
 
       - name: Prepare docker
         run: |
@@ -401,16 +824,273 @@ jobs:
           docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
           touch .ba-docker-image-available
 
+      - name: Retrieve ccache
+        run: |
+          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-standalone.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+
       - uses: actions/download-artifact@v4
         with:
-          name: retroarch-${{ inputs.BOARD }}
+          name: frontend-${{ inputs.BOARD }}
 
-      - name: Extract retroarch
+      - name: Extract frontend
         run: |
-          tar --zstd -xf retroarch.tar.zst
-          rm retroarch.tar.zst
+          tar --zstd -xf frontend.tar.zst
+          rm frontend.tar.zst
 
-      - name: Build everything + final image
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ inputs.BOARD }}
+
+      - name: Extract frontend build/
+        run: |
+          tar --zstd -xf frontend-build.tar.zst
+          rm frontend-build.tar.zst
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mame-lr-${{ inputs.BOARD }}
+
+      - name: Extract mame-lr
+        run: |
+          tar --zstd -xf mame-lr.tar.zst
+          rm mame-lr.tar.zst
+
+      # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
+      #    libretro-* / mame* 는 다른 잡 담당이므로 제외
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS:   "*"
+          EXCLUDE_PATTERNS: "libretro-* mame* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
+      # ✅ batocera 트리의 standalone 에뮬레이터들
+      #    실제 패키지명 (batocera/package/batocera/emulators/ 아래):
+      #      dolphin-emu, ppsspp, citra, duckstation, melonds,
+      #      pcsx2, flycast, vita3k 등
+      #    h700 같은 작은 SoC는 대부분 비활성화 → 빈 잡으로 빠르게 끝남
+      - name: Detect standalone packages enabled for this board
+        id: sa-list
+        run: |
+          if [ ! -f output/${BOARD}/.config ]; then
+            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+          fi
+          CANDIDATES="
+            dolphin-emu ppsspp citra duckstation melonds
+            pcsx2 flycast vita3k yabasanshiro
+          "
+          PKGS=""
+          for P in $CANDIDATES; do
+            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
+            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
+              PKGS="$PKGS $P"
+            fi
+          done
+          PKGS="${PKGS# }"
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          if [ -z "$PKGS" ]; then
+            echo "::warning::이 보드는 활성화된 standalone 패키지가 없습니다 — 빈 잡으로 통과"
+          else
+            echo "빌드 대상: $PKGS"
+          fi
+
+      - name: Build standalone emulators
+        if: ${{ steps.sa-list.outputs.packages != '' }}
+        uses: corrupt952/actions-retry-command@v1.0.7
+        with:
+          max_attempts:   6
+          retry_interval: 10
+          command: |
+            make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
+              BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ inputs.BOARD }}-standalone
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          if [ -d "$CCACHE_DIR" ]; then
+            if command -v ccache >/dev/null 2>&1; then
+              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            fi
+            tar --remove-files -cf ccache-${BOARD}-standalone.tar "$CCACHE_DIR"
+          fi
+        continue-on-error: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-standalone.tar', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-standalone.tar
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      # ✅ standalone 잡에서 빌드된 패키지들만 명시적으로 묶기
+      - name: Pack standalone artifacts
+        run: |
+          if [ -z "${{ steps.sa-list.outputs.packages }}" ]; then
+            echo "빌드 안 함 — 빈 아카이브 생성"
+            tar --zstd -cf standalone.tar.zst --files-from /dev/null
+          else
+            FILES=""
+            # 빌드한 패키지 이름 그대로 디렉토리 매칭
+            for P in ${{ steps.sa-list.outputs.packages }}; do
+              for SUB in per-package build; do
+                D="output/${BOARD}/${SUB}/${P}"
+                [ -e "$D" ] && FILES="$FILES $D"
+              done
+            done
+            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
+              FILES="$FILES $F"
+            done
+            if [ -z "$FILES" ]; then
+              tar --zstd -cf standalone.tar.zst --files-from /dev/null
+            else
+              tar --zstd -cf standalone.tar.zst $FILES
+            fi
+          fi
+
+      - name: Split if > 1.9G
+        run: |
+          if [ -f standalone.tar.zst ]; then
+            SIZE=$(stat -c%s standalone.tar.zst)
+            if [ "$SIZE" -gt 2040109465 ]; then
+              split -b 1900M standalone.tar.zst standalone.tar.zst.part
+              rm standalone.tar.zst
+            fi
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name:              standalone-${{ inputs.BOARD }}
+          path:              standalone.tar.zst*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days:    1
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 5: image (모두 merge → 나머지 + 최종 이미지)
+  # ═════════════════════════════════════════════════════════════════════════
+  image:
+    name: ${{ inputs.BOARD }} · 5-image
+    needs: [frontend, heavy-libretro, standalone]
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 350
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
+          remove-docker-images: true
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 50
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      # ── frontend (sysroot 등 베이스)
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-${{ inputs.BOARD }}
+
+      - name: Extract frontend
+        run: |
+          tar --zstd -xf frontend.tar.zst
+          rm frontend.tar.zst
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ inputs.BOARD }}
+
+      - name: Extract frontend build/
+        run: |
+          tar --zstd -xf frontend-build.tar.zst
+          rm frontend-build.tar.zst
+
+      # ── heavy-libretro (--skip-old-files: 이미 있는 파일은 덮어쓰지 않음)
+      - uses: actions/download-artifact@v4
+        with:
+          name: heavy-libretro-${{ inputs.BOARD }}
+
+      - name: Extract heavy-libretro
+        run: |
+          # split 됐을 수 있으니 part* 우선 처리
+          if ls heavy-libretro.tar.zst.part* >/dev/null 2>&1; then
+            cat heavy-libretro.tar.zst.part* > heavy-libretro.tar.zst
+            rm heavy-libretro.tar.zst.part*
+          fi
+          tar --zstd --skip-old-files -xf heavy-libretro.tar.zst
+          rm heavy-libretro.tar.zst
+
+      # ── standalone
+      - uses: actions/download-artifact@v4
+        with:
+          name: standalone-${{ inputs.BOARD }}
+
+      - name: Extract standalone
+        run: |
+          if ls standalone.tar.zst.part* >/dev/null 2>&1; then
+            cat standalone.tar.zst.part* > standalone.tar.zst
+            rm standalone.tar.zst.part*
+          fi
+          tar --zstd --skip-old-files -xf standalone.tar.zst
+          rm standalone.tar.zst
+
+      - name: Print disk space (after merge)
+        run: df -h
+
+      # ✅ B 패턴: 위 잡들이 안 잡은 모든 변경분 처리
+      #    - board overlay 변경 (fsoverlay/, 부트 설정 등) → final image 재생성 강제
+      #    - knulli/batocera 자체 패키지 (configs, scripts, system utils 등)
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS:   "*"
+          # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
+          EXCLUDE_PATTERNS: "libretro-* mame* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
+      # ✅ 최종 빌드: 나머지 모든 패키지 + 이미지 생성
+      #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
+      - name: Build remaining + final image
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
           max_attempts:   6
@@ -443,3 +1123,27 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days:    7
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # Stage 6: cleanup (중간 아티팩트 삭제, 디스크/할당량 절약)
+  # ═════════════════════════════════════════════════════════════════════════
+  cleanup:
+    name: ${{ inputs.BOARD }} · 6-cleanup
+    needs: image
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - uses: geekyeggo/delete-artifact@v5
+        continue-on-error: true
+        with:
+          name: |
+            toolchain-${{ inputs.BOARD }}
+            base-${{ inputs.BOARD }}
+            mame-lr-${{ inputs.BOARD }}
+            frontend-${{ inputs.BOARD }}
+            frontend-build-${{ inputs.BOARD }}
+            heavy-libretro-${{ inputs.BOARD }}
+            standalone-${{ inputs.BOARD }}
+          failOnError: false
