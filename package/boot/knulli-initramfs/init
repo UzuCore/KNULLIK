@@ -9,11 +9,22 @@ do_mount() {
     return 1
 }
 
+show_splash() {
+    # ROCKNIXK 방식: 화면 지우고 /etc/issue 로고를 화면 맨 아래에 표시
+    clear >/dev/console
+    echo -en "\033[1000H\033[2K$(cat /new_root/etc/motd)\n\n" >/dev/console
+    echo -ne "\033[1000H\033[2K==> Loading, please wait..." >/dev/console
+}
+
 do_root() {
     mkdir -p /boot_root /new_root /overlay_root /sys /proc || return 1
     mount -t proc  -o nodev,noexec,nosuid proc  /proc  	|| return 1
     mount -t sysfs -o nodev,noexec,nosuid sysfs /sys 	|| return 1
     mount -t devtmpfs none /dev
+
+    # stdout -> console
+    exec 1>/dev/console
+    exec 2>/dev/null
 
     # read the parameters
     read -r cmdline < /proc/cmdline
@@ -98,6 +109,9 @@ do_root() {
 	# mount only as squashfs, no overlay (xu4 doesn't support overlayfs)
 	mount /boot_root/boot/knulli /new_root || return 1
     fi
+
+    # show splash after new_root is mounted (ROCKNIXK 방식)
+    show_splash
 
     # moving current mounts
     mount --move /boot_root    /new_root/boot    || return 1

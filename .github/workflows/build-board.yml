@@ -1,4 +1,4 @@
-name: Build Board
+name: Build Board (Staged)
 
 on:
   workflow_call:
@@ -9,30 +9,33 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BOARD:      ${{ inputs.BOARD }}
+  CACHE_REPO: ${{ vars.CACHE_REPO || 'knulli-build-cache' }}
 
 jobs:
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 1: 툴체인 빌드 + ccache 저장
+  # ─────────────────────────────────────────────────────────────────────────
   toolchain:
     name: ${{ inputs.BOARD }} · 1-toolchain
     runs-on: ubuntu-24.04
     permissions:
-      actions: write
+      actions:  write
       contents: read
       packages: read
-    env:
-      BOARD: ${{ inputs.BOARD }}
-      CACHE_REPO: ${{ vars.CACHE_REPO || 'knulli-build-cache' }}
+    timeout-minutes: 360
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs: true
-          root-reserve-mb: 6144
-          swap-size-mb: 8192
-          overprovision-lvm: true
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
+          use-btrfs:           false
+          root-reserve-mb:     6144
+          swap-size-mb:        8192
+          overprovision-lvm:   true
+          remove-dotnet:       true
+          remove-android:      true
+          remove-haskell:      true
+          remove-codeql:       true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
@@ -53,87 +56,102 @@ jobs:
       - name: Build toolchain
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
-          max_attempts: 6
+          max_attempts:   6
           retry_interval: 10
           command: |
-            set -e
-            { make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1; \
-              echo $? > docker_exit_code; } \
-              | tee output.log \
-              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            exit_code=$(<docker_exit_code)
-            exit $exit_code
+            make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
 
-      - name: Archive logs on failure
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-toolchain
           path: |
-            output.log
+            build.log
             output/${{ inputs.BOARD }}/build/*/.stamp_built
           if-no-files-found: ignore
 
       - name: Save ccache
+        if: success()
         run: |
           CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
           if [ -d "$CCACHE_DIR" ]; then
             tar --remove-files -cf ccache-${BOARD}-toolchain.tar "$CCACHE_DIR"
+          else
+            echo "ccache 디렉토리 없음 — 스킵"
           fi
         continue-on-error: true
 
       - uses: ncipollo/release-action@v1.14.0
         if: ${{ hashFiles(format('ccache-{0}-toolchain.tar', inputs.BOARD)) != '' }}
         with:
-          tag: ccache
-          artifacts: ccache-${{ inputs.BOARD }}-toolchain.tar
+          tag:          ccache
+          artifacts:    ccache-${{ inputs.BOARD }}-toolchain.tar
           allowUpdates: true
-          makeLatest: false
-          prerelease: true
-          body: ccache
-          token: ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo: ${{ env.CACHE_REPO }}
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          # ✅ FIX: owner/repo 형식 필수 — 단순 repo 이름만 쓰면 현재 repo로 잘못 인식됨
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
         continue-on-error: true
 
-      - name: Compress directory
+      - name: Compress output
         run: |
+          # 존재하는 디렉토리만 묶어서 tar 생성, 실패 시 전체로 폴백
           tar --zstd -cf toolchain.tar.zst \
-            output/${BOARD}/host \
-            output/${BOARD}/build \
-            output/${BOARD}/staging \
+            output/${BOARD}/host       \
+            output/${BOARD}/build      \
+            output/${BOARD}/staging    \
             output/${BOARD}/per-package \
-            output/${BOARD}/.config \
-            output/${BOARD}/.stamp_* 2>/dev/null || \
-          tar --zstd -cf toolchain.tar.zst output/${BOARD}/
+            output/${BOARD}/.config    \
+            output/${BOARD}/.stamp_*   \
+            2>/dev/null \
+          || tar --zstd -cf toolchain.tar.zst output/${BOARD}/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: toolchain-${{ inputs.BOARD }}
-          path: toolchain.tar.zst
+          name:              toolchain-${{ inputs.BOARD }}
+          path:              toolchain.tar.zst
           compression-level: 0
           if-no-files-found: error
-          retention-days: 1
+          retention-days:    1
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 2: Linux 커널 빌드
+  # ✅ FIX: 'linux busybox' → 'linux'
+  #         knulli-board.common 에 BR2_PACKAGE_BUSYBOX=n 이 설정되어 있어
+  #         busybox를 명시적으로 빌드하면 .config 없음 오류 발생.
+  #         initramfs용 busybox는 knulli-initramfs 패키지에서 별도 처리.
+  # ─────────────────────────────────────────────────────────────────────────
   base:
-    name: ${{ inputs.BOARD }} · 2-base
+    name: ${{ inputs.BOARD }} · 2-base (linux)
     needs: toolchain
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
+    timeout-minutes: 360
     env:
       BOARD: ${{ inputs.BOARD }}
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs: true
-          root-reserve-mb: 6144
-          swap-size-mb: 8192
-          overprovision-lvm: true
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
+          use-btrfs:           false
+          root-reserve-mb:     6144
+          swap-size-mb:        8192
+          overprovision-lvm:   true
+          remove-dotnet:       true
+          remove-android:      true
+          remove-haskell:      true
+          remove-codeql:       true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
@@ -155,39 +173,43 @@ jobs:
           tar --zstd -xf toolchain.tar.zst
           rm toolchain.tar.zst
 
-      - name: Build base (linux + busybox)
+      - name: Build linux
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
-          max_attempts: 6
+          max_attempts:   6
           retry_interval: 10
           command: |
-            set -e
-            { make ${BOARD}-build CMD='linux busybox' BATCH_MODE=1 PARALLEL_BUILD=1; \
-              echo $? > docker_exit_code; } \
-              | tee output.log \
-              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            exit_code=$(<docker_exit_code)
-            exit $exit_code
+            make ${BOARD}-build CMD='linux' BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
 
-      - if: failure()
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-base
-          path: output.log
+          path: build.log
           if-no-files-found: ignore
 
-      - name: Compress directory
-        run: |
-          tar --zstd -cf base.tar.zst output/${BOARD}/
+      - name: Compress output
+        run: tar --zstd -cf base.tar.zst output/${BOARD}/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: base-${{ inputs.BOARD }}
-          path: base.tar.zst
+          name:              base-${{ inputs.BOARD }}
+          path:              base.tar.zst
           compression-level: 0
           if-no-files-found: error
-          retention-days: 1
+          retention-days:    1
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 3: Qt6 + EmulationStation 프론트엔드
+  # ─────────────────────────────────────────────────────────────────────────
   frontend:
     name: ${{ inputs.BOARD }} · 3-frontend
     needs: base
@@ -195,19 +217,20 @@ jobs:
     permissions:
       contents: read
       packages: read
+    timeout-minutes: 360
     env:
       BOARD: ${{ inputs.BOARD }}
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs: true
-          root-reserve-mb: 6144
-          swap-size-mb: 8192
-          overprovision-lvm: true
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
+          use-btrfs:           false
+          root-reserve-mb:     6144
+          swap-size-mb:        8192
+          overprovision-lvm:   true
+          remove-dotnet:       true
+          remove-android:      true
+          remove-haskell:      true
+          remove-codeql:       true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
@@ -229,39 +252,43 @@ jobs:
           tar --zstd -xf base.tar.zst
           rm base.tar.zst
 
-      - name: Build frontend (qt6 + emulationstation)
+      - name: Build Qt6 + EmulationStation
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
-          max_attempts: 6
+          max_attempts:   6
           retry_interval: 10
           command: |
-            set -e
-            { make ${BOARD}-build CMD='qt6base batocera-emulationstation' BATCH_MODE=1 PARALLEL_BUILD=1; \
-              echo $? > docker_exit_code; } \
-              | tee output.log \
-              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            exit_code=$(<docker_exit_code)
-            exit $exit_code
+            make ${BOARD}-build CMD='qt6base batocera-emulationstation' BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
 
-      - if: failure()
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-frontend
-          path: output.log
+          path: build.log
           if-no-files-found: ignore
 
-      - name: Compress directory
-        run: |
-          tar --zstd -cf frontend.tar.zst output/${BOARD}/
+      - name: Compress output
+        run: tar --zstd -cf frontend.tar.zst output/${BOARD}/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: frontend-${{ inputs.BOARD }}
-          path: frontend.tar.zst
+          name:              frontend-${{ inputs.BOARD }}
+          path:              frontend.tar.zst
           compression-level: 0
           if-no-files-found: error
-          retention-days: 1
+          retention-days:    1
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 4: RetroArch + 코어
+  # ─────────────────────────────────────────────────────────────────────────
   retroarch:
     name: ${{ inputs.BOARD }} · 4-retroarch
     needs: frontend
@@ -269,19 +296,20 @@ jobs:
     permissions:
       contents: read
       packages: read
+    timeout-minutes: 360
     env:
       BOARD: ${{ inputs.BOARD }}
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs: true
-          root-reserve-mb: 6144
-          swap-size-mb: 8192
-          overprovision-lvm: true
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
+          use-btrfs:           false
+          root-reserve-mb:     6144
+          swap-size-mb:        8192
+          overprovision-lvm:   true
+          remove-dotnet:       true
+          remove-android:      true
+          remove-haskell:      true
+          remove-codeql:       true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
@@ -303,39 +331,43 @@ jobs:
           tar --zstd -xf frontend.tar.zst
           rm frontend.tar.zst
 
-      - name: Build retroarch + cores
+      - name: Build RetroArch + cores
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
-          max_attempts: 6
+          max_attempts:   6
           retry_interval: 10
           command: |
-            set -e
-            { make ${BOARD}-build CMD='retroarch' BATCH_MODE=1 PARALLEL_BUILD=1; \
-              echo $? > docker_exit_code; } \
-              | tee output.log \
-              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            exit_code=$(<docker_exit_code)
-            exit $exit_code
+            make ${BOARD}-build CMD='retroarch' BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
 
-      - if: failure()
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-retroarch
-          path: output.log
+          path: build.log
           if-no-files-found: ignore
 
-      - name: Compress directory
-        run: |
-          tar --zstd -cf retroarch.tar.zst output/${BOARD}/
+      - name: Compress output
+        run: tar --zstd -cf retroarch.tar.zst output/${BOARD}/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: retroarch-${{ inputs.BOARD }}
-          path: retroarch.tar.zst
+          name:              retroarch-${{ inputs.BOARD }}
+          path:              retroarch.tar.zst
           compression-level: 0
           if-no-files-found: error
-          retention-days: 1
+          retention-days:    1
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 5: 나머지 전체 빌드 + 최종 이미지 생성
+  # ─────────────────────────────────────────────────────────────────────────
   image:
     name: ${{ inputs.BOARD }} · 5-image
     needs: retroarch
@@ -343,19 +375,20 @@ jobs:
     permissions:
       contents: read
       packages: read
+    timeout-minutes: 360
     env:
       BOARD: ${{ inputs.BOARD }}
     steps:
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs: true
-          root-reserve-mb: 6144
-          swap-size-mb: 8192
-          overprovision-lvm: true
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
+          use-btrfs:           false
+          root-reserve-mb:     6144
+          swap-size-mb:        8192
+          overprovision-lvm:   true
+          remove-dotnet:       true
+          remove-android:      true
+          remove-haskell:      true
+          remove-codeql:       true
           remove-docker-images: true
 
       - uses: actions/checkout@v4
@@ -380,25 +413,27 @@ jobs:
       - name: Build everything + final image
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
-          max_attempts: 6
+          max_attempts:   6
           retry_interval: 10
           command: |
-            set -e
-            { make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1; \
-              echo $? > docker_exit_code; } \
-              | tee output.log \
-              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            exit_code=$(<docker_exit_code)
-            exit $exit_code
+            make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            RC=${PIPESTATUS[0]}
+            exit $RC
 
-      - if: failure()
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-image
-          path: output.log
+          path: build.log
           if-no-files-found: ignore
 
-      - name: Upload image
+      - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
           name: knulli-image-${{ inputs.BOARD }}-${{ inputs.DATE }}
@@ -407,4 +442,4 @@ jobs:
             output/${{ inputs.BOARD }}/images/knulli/images/${{ inputs.BOARD }}/knulli-*.img.gz.sha256
           if-no-files-found: error
           compression-level: 0
-          retention-days: 7
+          retention-days:    7

@@ -9,11 +9,25 @@ on:
 jobs:
   rerun:
     runs-on: ubuntu-24.04
+    timeout-minutes: 420
     steps:
-      - name: rerun ${{ inputs.run_id }}
+      - name: Wait for run ${{ inputs.run_id }} to finish
         env:
-          GH_REPO: ${{ github.repository }}
+          GH_REPO:  ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run watch ${{ inputs.run_id }} > /dev/null 2>&1
+          echo "run ${{ inputs.run_id }} 완료 대기 중..."
+          gh run watch ${{ inputs.run_id }} > /dev/null 2>&1 || true
+
+      - name: Rerun failed jobs in ${{ inputs.run_id }}
+        env:
+          GH_REPO:  ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATUS=$(gh run view ${{ inputs.run_id }} --json conclusion -q '.conclusion' 2>/dev/null || echo "unknown")
+          echo "최종 상태: $STATUS"
+          if [ "$STATUS" = "success" ]; then
+            echo "::notice::모든 job 성공 — 재실행 불필요"
+            exit 0
+          fi
           gh run rerun ${{ inputs.run_id }} --failed

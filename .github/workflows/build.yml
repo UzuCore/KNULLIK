@@ -3,42 +3,70 @@ name: Build Knulli
 on:
   workflow_dispatch:
     inputs:
+      # ── Allwinner ──────────────────────────────────────────────────────────
       h700:
-        description: 'h700'
-        type: boolean
-        default: false
-      rk3326:
-        description: 'rk3326'
-        type: boolean
-        default: false
-      rk3568:
-        description: 'rk3568'
+        description: 'h700 (RG35XX-H, RG40XX, RG28XX)'
         type: boolean
         default: false
       a133:
-        description: 'a133'
+        description: 'a133 (Powkiddy V10/V20/V90s, TrimUI Brick/Smart Pro)'
         type: boolean
         default: false
-      rk3399:
-        description: 'rk3399'
+      a527:
+        description: 'a527 (Powkiddy RGB30 Pro 등)'
+        type: boolean
+        default: false
+      atm7039:
+        description: 'atm7039'
+        type: boolean
+        default: false
+      r16:
+        description: 'r16'
+        type: boolean
+        default: false
+      # ── Rockchip ───────────────────────────────────────────────────────────
+      rk3128:
+        description: 'rk3128'
+        type: boolean
+        default: false
+      rk3326:
+        description: 'rk3326 (R36S, G350, MagicX, Pixel2)'
         type: boolean
         default: false
       rk3566:
-        description: 'rk3566'
+        description: 'rk3566 (RG ARC, Miyoo Flip v2 등)'
+        type: boolean
+        default: false
+      rk3568:
+        description: 'rk3568 (Miyoo Flip, RGB30, X55, RG ARC-S)'
         type: boolean
         default: false
       rk3576:
         description: 'rk3576'
         type: boolean
         default: false
+      rk3399:
+        description: 'rk3399'
+        type: boolean
+        default: false
       rk3588:
         description: 'rk3588'
         type: boolean
         default: false
-      release:
-        description: 'official release (uncheck for nightly)'
+      # ── Qualcomm ───────────────────────────────────────────────────────────
+      sm8250:
+        description: 'sm8250 (Retroid Pocket 5/Flip2/Mini)'
         type: boolean
         default: false
+      # ── 릴리즈 옵션 ────────────────────────────────────────────────────────
+      release_type:
+        description: '릴리즈 타입'
+        type: choice
+        default: 'nightly'
+        options:
+          - nightly
+          - stable
+          - draft
 
 permissions:
   contents: write
@@ -52,38 +80,39 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       OWNER_LC: ${{ steps.envs.outputs.OWNER_LC }}
-      matrix: ${{ steps.generate.outputs.matrix }}
-      DATE: ${{ steps.envs.outputs.DATE }}
-      RELEASE_TYPE: ${{ steps.envs.outputs.RELEASE_TYPE }}
+      matrix:   ${{ steps.generate.outputs.matrix }}
+      DATE:     ${{ steps.envs.outputs.DATE }}
     steps:
-      - id: envs
+      - name: Set env
+        id: envs
         run: |
           echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
-          echo "DATE=$(TZ=Asia/Seoul date +'%Y%m%d')" >> $GITHUB_OUTPUT
-          if [ "${{ inputs.release }}" = "true" ]; then
-            echo "RELEASE_TYPE=stable" >> $GITHUB_OUTPUT
-          else
-            echo "RELEASE_TYPE=nightly" >> $GITHUB_OUTPUT
-          fi
+          echo "DATE=$(TZ=Asia/Seoul date +'%Y%m%d')"  >> $GITHUB_OUTPUT
 
-      - id: generate
+      - name: Generate board matrix
+        id: generate
         shell: bash
         run: |
           declare -A BOARDS=(
             ["h700"]="${{ inputs.h700 }}"
-            ["rk3326"]="${{ inputs.rk3326 }}"
-            ["rk3568"]="${{ inputs.rk3568 }}"
             ["a133"]="${{ inputs.a133 }}"
-            ["rk3399"]="${{ inputs.rk3399 }}"
+            ["a527"]="${{ inputs.a527 }}"
+            ["atm7039"]="${{ inputs.atm7039 }}"
+            ["r16"]="${{ inputs.r16 }}"
+            ["rk3128"]="${{ inputs.rk3128 }}"
+            ["rk3326"]="${{ inputs.rk3326 }}"
             ["rk3566"]="${{ inputs.rk3566 }}"
+            ["rk3568"]="${{ inputs.rk3568 }}"
             ["rk3576"]="${{ inputs.rk3576 }}"
+            ["rk3399"]="${{ inputs.rk3399 }}"
             ["rk3588"]="${{ inputs.rk3588 }}"
+            ["sm8250"]="${{ inputs.sm8250 }}"
           )
           SELECTED=""
           for B in "${!BOARDS[@]}"; do
             if [[ "${BOARDS[$B]}" == "true" ]]; then
               [[ -n "$SELECTED" ]] && SELECTED="$SELECTED,"
-              SELECTED="$SELECTED{\"board\":\"$B\"}"
+              SELECTED="${SELECTED}{\"board\":\"$B\"}"
             fi
           done
           if [[ -z "$SELECTED" ]]; then
@@ -102,8 +131,10 @@ jobs:
       OWNER_LC: ${{ needs.set-envs.outputs.OWNER_LC }}
 
   build-boards:
-    name: ${{ matrix.board }}
-    needs: [set-envs, build-docker]
+    name: build-${{ matrix.board }}
+    needs:
+      - set-envs
+      - build-docker
     if: ${{ needs.build-docker.result == 'success' }}
     strategy:
       fail-fast: false
@@ -116,9 +147,9 @@ jobs:
     uses: ./.github/workflows/build-board.yml
     secrets: inherit
     with:
-      BOARD: ${{ matrix.board }}
+      BOARD:    ${{ matrix.board }}
       OWNER_LC: ${{ needs.set-envs.outputs.OWNER_LC }}
-      DATE: ${{ needs.set-envs.outputs.DATE }}
+      DATE:     ${{ needs.set-envs.outputs.DATE }}
 
   rerun-failed:
     needs: build-boards
@@ -129,12 +160,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - env:
-          GH_REPO: ${{ github.repository }}
+          GH_REPO:  ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run retry-workflow.yml -F run_id=${{ github.run_id }}
 
   release:
-    needs: [set-envs, build-boards]
+    needs:
+      - set-envs
+      - build-boards
     if: ${{ always() && !cancelled() && needs.build-boards.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -150,7 +183,8 @@ jobs:
           merge-multiple: true
           path: ./release
 
-      - id: verify
+      - name: Verify artifacts exist
+        id: verify
         run: |
           if ls ./release/*.img.gz >/dev/null 2>&1; then
             echo "has_images=true" >> $GITHUB_OUTPUT
@@ -160,13 +194,33 @@ jobs:
             echo "has_images=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Generate changelog
+        if: ${{ steps.verify.outputs.has_images == 'true' }}
+        run: |
+          git fetch --tags
+          CURRENT="${{ needs.set-envs.outputs.DATE }}"
+          PREV=$(git tag --sort=-creatordate | grep -vx "$CURRENT" | head -n 1 || true)
+          if [ -z "$PREV" ]; then
+            COMMITS=$(git log --pretty=format:"- %h %s (%an)" | grep -v "Merge branch" | head -n 50 || true)
+          else
+            COMMITS=$(git log "${PREV}..HEAD" --pretty=format:"- %h %s (%an)" | grep -v "Merge branch" || true)
+          fi
+          {
+            echo "## 변경사항"; echo ""
+            [ -z "$COMMITS" ] && echo "- 변경된 커밋 없음" || echo "$COMMITS"
+            echo ""; echo "## 빌드된 이미지"; echo ""
+            ls ./release/*.img.gz 2>/dev/null | xargs -n1 basename | sed 's/^/- /' || echo "- (없음)"
+          } > release_notes.md
+
       - uses: ncipollo/release-action@v1.14.0
         if: ${{ steps.verify.outputs.has_images == 'true' }}
         with:
-          tag: ${{ needs.set-envs.outputs.DATE }}
-          name: Knulli ${{ needs.set-envs.outputs.DATE }}
-          artifacts: "./release/*"
+          tag:          ${{ needs.set-envs.outputs.DATE }}
+          name:         Knulli ${{ needs.set-envs.outputs.DATE }}
+          artifacts:    "./release/*"
           allowUpdates: true
-          makeLatest: ${{ needs.set-envs.outputs.RELEASE_TYPE == 'stable' }}
-          prerelease: ${{ needs.set-envs.outputs.RELEASE_TYPE == 'nightly' }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          makeLatest:   ${{ inputs.release_type == 'stable' }}
+          prerelease:   ${{ inputs.release_type == 'nightly' }}
+          draft:        ${{ inputs.release_type == 'draft' }}
+          bodyFile:     release_notes.md
+          token:        ${{ secrets.GITHUB_TOKEN }}

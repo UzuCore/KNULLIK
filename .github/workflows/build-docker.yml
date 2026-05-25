@@ -53,13 +53,19 @@ jobs:
           fi
 
       - name: Build and push
-        if: ${{ steps.check.outputs.exists != 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        # ✅ FIX: workflow_call 로 호출될 때는 github.event_name 이 원래 트리거를
+        #         상속하므로 (e.g. workflow_dispatch), 매번 강제 재빌드가 발생했음.
+        #         이미지가 이미 존재하면 push/workflow_dispatch 에서만 재빌드.
+        #         workflow_call 경유 시(배치 빌드)는 이미지 없을 때만 빌드.
+        if: |
+          steps.check.outputs.exists != 'true' ||
+          github.event_name == 'push'
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: Dockerfile
-          push: true
+          context:    .
+          file:       Dockerfile
+          push:       true
           tags: |
             ghcr.io/${{ inputs.OWNER_LC || steps.lc.outputs.OWNER_LC }}/knulli-build:latest
           cache-from: type=registry,ref=ghcr.io/${{ inputs.OWNER_LC || steps.lc.outputs.OWNER_LC }}/knulli-build:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ inputs.OWNER_LC || steps.lc.outputs.OWNER_LC }}/knulli-build:buildcache,mode=max
+          cache-to:   type=registry,ref=ghcr.io/${{ inputs.OWNER_LC || steps.lc.outputs.OWNER_LC }}/knulli-build:buildcache,mode=max
