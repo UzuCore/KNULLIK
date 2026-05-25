@@ -1,0 +1,517 @@
+name: Build Board (Staged)
+
+on:
+  workflow_call:
+    inputs:
+      BOARD:       { type: string,  required: true }
+      OWNER_LC:    { type: string,  required: true }
+      DATE:        { type: string,  required: true }
+      RESET_STATE: { type: boolean, default: false }
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BOARD: ${{ inputs.BOARD }}
+  OUTPUT_DIR: /home/runner/work/knulli-build/output
+  CACHE_REPO_FULL: ${{ github.repository_owner }}/${{ vars.CACHE_REPO || 'knulli-build-cache' }}
+  STATE_TAG: state-${{ inputs.BOARD }}
+  CCACHE_TAG: ccache-${{ inputs.BOARD }}
+  GH_TOKEN_FOR_CACHE: ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+  DISABLE_COLORS: yes
+  CCACHE_COMPILERCHECK: content
+  CCACHE_COMPRESS: 1
+  CCACHE_COMPRESSLEVEL: 6
+  CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+
+jobs:
+
+  stage1-toolchain:
+    name: ${{ inputs.BOARD }} · 1-toolchain
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs: false
+          root-reserve-mb: 6144
+          swap-size-mb: 8192
+          overprovision-lvm: true
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          build-mount-path: /home/runner/work/knulli-build
+
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 1 }
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Retrieve ccache
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          URL="https://github.com/${CACHE_REPO_FULL}/releases/download/${CCACHE_TAG}/ccache-stage1.tar"
+          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음 — 스킵"
+
+      - name: Restore previous state
+        if: ${{ !inputs.RESET_STATE }}
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          mkdir -p /tmp/state
+          if gh release download "$STATE_TAG" \
+               --repo "$CACHE_REPO_FULL" \
+               --pattern 'state.tar.zst.part-*' \
+               --dir /tmp/state 2>/dev/null; then
+            mkdir -p "$OUTPUT_DIR"
+            cat /tmp/state/state.tar.zst.part-* | tar --zstd -xf - -C /home/runner/work/knulli-build
+            rm -rf /tmp/state
+            echo "state 복원: $(du -sh $OUTPUT_DIR/$BOARD 2>/dev/null | cut -f1)"
+          else
+            echo "state 없음 — cold start"
+          fi
+
+      - name: Build toolchain
+        uses: corrupt952/actions-retry-command@v1.0.7
+        with:
+          max_attempts: 6
+          retry_interval: 10
+          command: |
+            set -e
+            { make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
+                OUTPUT_DIR=${OUTPUT_DIR}; \
+              echo $? > docker_exit_code; } \
+              | tee build.log \
+              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            exit_code=$(<docker_exit_code)
+            exit $exit_code
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ inputs.BOARD }}-stage1
+          path: |
+            build.log
+            ${{ env.OUTPUT_DIR }}/${{ inputs.BOARD }}/build/*/.stamp_built
+          if-no-files-found: ignore
+
+      - name: Save ccache
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          CCACHE_DIR="${OUTPUT_DIR}/${BOARD}/host/var/cache/ccache"
+          [ ! -d "$CCACHE_DIR" ] && echo "ccache 없음, 스킵" && exit 0
+          tar --remove-files -cf ccache-stage1.tar "$CCACHE_DIR"
+          gh release view "$CCACHE_TAG" --repo "$CACHE_REPO_FULL" >/dev/null 2>&1 || \
+            gh release create "$CCACHE_TAG" --repo "$CACHE_REPO_FULL" \
+              --title "ccache: $BOARD" --notes "" --prerelease
+          gh release upload "$CCACHE_TAG" ccache-stage1.tar \
+            --repo "$CACHE_REPO_FULL" --clobber
+
+      - name: Save state
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          [ ! -d "${OUTPUT_DIR}/${BOARD}" ] && echo "output 없음, 스킵" && exit 0
+          set -eo pipefail
+          rm -f state.tar.zst.part-*
+          tar --zstd -cf - -C /home/runner/work/knulli-build output/${BOARD}/ \
+            | split -b 1900M - state.tar.zst.part-
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" >/dev/null 2>&1 || \
+            gh release create "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+              --title "Build state: $BOARD" --notes "" --prerelease
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+            --json assets --jq '.assets[].name' \
+            | xargs -r -P4 -I{} gh release delete-asset "$STATE_TAG" {} \
+                --repo "$CACHE_REPO_FULL" --yes
+          gh release upload "$STATE_TAG" state.tar.zst.part-* \
+            --repo "$CACHE_REPO_FULL" --clobber
+
+  stage2-base:
+    name: ${{ inputs.BOARD }} · 2-base
+    needs: stage1-toolchain
+    if: ${{ needs.stage1-toolchain.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs: false
+          root-reserve-mb: 6144
+          swap-size-mb: 8192
+          overprovision-lvm: true
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          build-mount-path: /home/runner/work/knulli-build
+
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 1 }
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Restore state
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          mkdir -p /tmp/state
+          if gh release download "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+               --pattern 'state.tar.zst.part-*' --dir /tmp/state 2>/dev/null; then
+            mkdir -p "$OUTPUT_DIR"
+            cat /tmp/state/state.tar.zst.part-* | tar --zstd -xf - -C /home/runner/work/knulli-build
+            rm -rf /tmp/state
+          else
+            echo "::error::state 없음 — stage1 이 정상 완료되지 않았습니다"
+            exit 1
+          fi
+
+      - name: Build linux + busybox
+        uses: corrupt952/actions-retry-command@v1.0.7
+        with:
+          max_attempts: 6
+          retry_interval: 10
+          command: |
+            set -e
+            { make ${BOARD}-build CMD='linux busybox' BATCH_MODE=1 PARALLEL_BUILD=1 \
+                OUTPUT_DIR=${OUTPUT_DIR}; \
+              echo $? > docker_exit_code; } \
+              | tee build.log \
+              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            exit_code=$(<docker_exit_code)
+            exit $exit_code
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ inputs.BOARD }}-stage2
+          path: |
+            build.log
+            ${{ env.OUTPUT_DIR }}/${{ inputs.BOARD }}/build/*/.stamp_built
+          if-no-files-found: ignore
+
+      - name: Save state
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          [ ! -d "${OUTPUT_DIR}/${BOARD}" ] && echo "output 없음, 스킵" && exit 0
+          set -eo pipefail
+          rm -f state.tar.zst.part-*
+          tar --zstd -cf - -C /home/runner/work/knulli-build output/${BOARD}/ \
+            | split -b 1900M - state.tar.zst.part-
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+            --json assets --jq '.assets[].name' \
+            | xargs -r -P4 -I{} gh release delete-asset "$STATE_TAG" {} \
+                --repo "$CACHE_REPO_FULL" --yes
+          gh release upload "$STATE_TAG" state.tar.zst.part-* \
+            --repo "$CACHE_REPO_FULL" --clobber
+
+  stage3-frontend:
+    name: ${{ inputs.BOARD }} · 3-frontend
+    needs: stage2-base
+    if: ${{ needs.stage2-base.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs: false
+          root-reserve-mb: 6144
+          swap-size-mb: 8192
+          overprovision-lvm: true
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          build-mount-path: /home/runner/work/knulli-build
+
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 1 }
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Restore state
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          mkdir -p /tmp/state
+          if gh release download "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+               --pattern 'state.tar.zst.part-*' --dir /tmp/state 2>/dev/null; then
+            mkdir -p "$OUTPUT_DIR"
+            cat /tmp/state/state.tar.zst.part-* | tar --zstd -xf - -C /home/runner/work/knulli-build
+            rm -rf /tmp/state
+          else
+            echo "::error::state 없음 — stage2 가 정상 완료되지 않았습니다"
+            exit 1
+          fi
+
+      - name: Build Qt + emulationstation
+        uses: corrupt952/actions-retry-command@v1.0.7
+        with:
+          max_attempts: 6
+          retry_interval: 10
+          command: |
+            set -e
+            { make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
+                BATCH_MODE=1 PARALLEL_BUILD=1 \
+                OUTPUT_DIR=${OUTPUT_DIR}; \
+              echo $? > docker_exit_code; } \
+              | tee build.log \
+              | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+            exit_code=$(<docker_exit_code)
+            exit $exit_code
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ inputs.BOARD }}-stage3
+          path: |
+            build.log
+            ${{ env.OUTPUT_DIR }}/${{ inputs.BOARD }}/build/*/.stamp_built
+          if-no-files-found: ignore
+
+      - name: Save state
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          [ ! -d "${OUTPUT_DIR}/${BOARD}" ] && echo "output 없음, 스킵" && exit 0
+          set -eo pipefail
+          rm -f state.tar.zst.part-*
+          tar --zstd -cf - -C /home/runner/work/knulli-build output/${BOARD}/ \
+            | split -b 1900M - state.tar.zst.part-
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+            --json assets --jq '.assets[].name' \
+            | xargs -r -P4 -I{} gh release delete-asset "$STATE_TAG" {} \
+                --repo "$CACHE_REPO_FULL" --yes
+          gh release upload "$STATE_TAG" state.tar.zst.part-* \
+            --repo "$CACHE_REPO_FULL" --clobber
+
+  stage4-retroarch:
+    name: ${{ inputs.BOARD }} · 4-retroarch
+    needs: stage3-frontend
+    if: ${{ needs.stage3-frontend.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs: false
+          root-reserve-mb: 6144
+          swap-size-mb: 8192
+          overprovision-lvm: true
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          build-mount-path: /home/runner/work/knulli-build
+
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 1 }
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Restore state
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          mkdir -p /tmp/state
+          if gh release download "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+               --pattern 'state.tar.zst.part-*' --dir /tmp/state 2>/dev/null; then
+            mkdir -p "$OUTPUT_DIR"
+            cat /tmp/state/state.tar.zst.part-* | tar --zstd -xf - -C /home/runner/work/knulli-build
+            rm -rf /tmp/state
+          else
+            echo "::error::state 없음 — stage3 이 정상 완료되지 않았습니다"
+            exit 1
+          fi
+
+      - name: Build retroarch + cores (200분 timeout)
+        shell: bash
+        run: |
+          set -e
+          timeout --signal=TERM --kill-after=120 200m \
+            make ${BOARD}-build CMD='retroarch' BATCH_MODE=1 PARALLEL_BUILD=1 \
+            OUTPUT_DIR=${OUTPUT_DIR} \
+            2>&1 | tee build.log | grep -E --color=never --line-buffered \
+              '>>>|error:|Error:|FAILED' || true
+          RC=${PIPESTATUS[0]}
+          if [ $RC -eq 124 ] || [ $RC -eq 137 ] || [ $RC -eq 143 ]; then
+            echo "::warning::시간 초과 — stage5 에서 이어집니다"
+            exit 0
+          fi
+          exit $RC
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ inputs.BOARD }}-stage4
+          path: |
+            build.log
+            ${{ env.OUTPUT_DIR }}/${{ inputs.BOARD }}/build/*/.stamp_built
+          if-no-files-found: ignore
+
+      - name: Save state
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          [ ! -d "${OUTPUT_DIR}/${BOARD}" ] && echo "output 없음, 스킵" && exit 0
+          set -eo pipefail
+          rm -f state.tar.zst.part-*
+          tar --zstd -cf - -C /home/runner/work/knulli-build output/${BOARD}/ \
+            | split -b 1900M - state.tar.zst.part-
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+            --json assets --jq '.assets[].name' \
+            | xargs -r -P4 -I{} gh release delete-asset "$STATE_TAG" {} \
+                --repo "$CACHE_REPO_FULL" --yes
+          gh release upload "$STATE_TAG" state.tar.zst.part-* \
+            --repo "$CACHE_REPO_FULL" --clobber
+
+  stage5-image:
+    name: ${{ inputs.BOARD }} · 5-image
+    needs: stage4-retroarch
+    if: ${{ needs.stage4-retroarch.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs: false
+          root-reserve-mb: 6144
+          swap-size-mb: 8192
+          overprovision-lvm: true
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+          build-mount-path: /home/runner/work/knulli-build
+
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, fetch-depth: 1 }
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Restore state
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          mkdir -p /tmp/state
+          if gh release download "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+               --pattern 'state.tar.zst.part-*' --dir /tmp/state 2>/dev/null; then
+            mkdir -p "$OUTPUT_DIR"
+            cat /tmp/state/state.tar.zst.part-* | tar --zstd -xf - -C /home/runner/work/knulli-build
+            rm -rf /tmp/state
+          else
+            echo "::error::state 없음 — stage4 가 정상 완료되지 않았습니다"
+            exit 1
+          fi
+
+      - name: Build everything + final image
+        shell: bash
+        run: |
+          set -e
+          timeout --signal=TERM --kill-after=120 300m \
+            make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
+            OUTPUT_DIR=${OUTPUT_DIR} \
+            2>&1 | tee build.log | grep -E --color=never --line-buffered \
+              '>>>|error:|Error:|FAILED' || true
+          RC=${PIPESTATUS[0]}
+          if [ $RC -eq 124 ] || [ $RC -eq 137 ] || [ $RC -eq 143 ]; then
+            echo "::warning::시간 초과 — 워크플로를 다시 실행하면 이어집니다 (state 저장됨)"
+            exit 0
+          fi
+          exit $RC
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ inputs.BOARD }}-stage5
+          path: |
+            build.log
+            ${{ env.OUTPUT_DIR }}/${{ inputs.BOARD }}/build/*/.stamp_built
+          if-no-files-found: ignore
+
+      - name: Upload image artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: knulli-image-${{ inputs.BOARD }}-${{ inputs.DATE }}
+          path: |
+            /home/runner/work/knulli-build/output/${{ inputs.BOARD }}/images/knulli/images/${{ inputs.BOARD }}/knulli-*.img.gz
+            /home/runner/work/knulli-build/output/${{ inputs.BOARD }}/images/knulli/images/${{ inputs.BOARD }}/knulli-*.img.gz.sha256
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
+
+      - name: Save state
+        if: success()
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN_FOR_CACHE }}
+        run: |
+          [ ! -d "${OUTPUT_DIR}/${BOARD}" ] && echo "output 없음, 스킵" && exit 0
+          set -eo pipefail
+          rm -f state.tar.zst.part-*
+          tar --zstd -cf - -C /home/runner/work/knulli-build output/${BOARD}/ \
+            | split -b 1900M - state.tar.zst.part-
+          gh release view "$STATE_TAG" --repo "$CACHE_REPO_FULL" \
+            --json assets --jq '.assets[].name' \
+            | xargs -r -P4 -I{} gh release delete-asset "$STATE_TAG" {} \
+                --repo "$CACHE_REPO_FULL" --yes
+          gh release upload "$STATE_TAG" state.tar.zst.part-* \
+            --repo "$CACHE_REPO_FULL" --clobber

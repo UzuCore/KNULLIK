@@ -1,0 +1,200 @@
+name: Build Knulli
+
+on:
+  workflow_dispatch:
+    inputs:
+      h700:
+        description: 'h700 (RG35XX series, RG40XX)'
+        type: boolean
+        default: false
+      rk3326:
+        description: 'rk3326 (R36S, G350, MagicX, Pixel2)'
+        type: boolean
+        default: false
+      rk3568:
+        description: 'rk3568 (Miyoo Flip, RGB30, X55, RG ARC-S)'
+        type: boolean
+        default: false
+      a133:
+        description: 'a133 (Powkiddy V10/V20/V90s, TrimUI Brick/Smart Pro)'
+        type: boolean
+        default: false
+      rk3399:
+        description: 'rk3399'
+        type: boolean
+        default: false
+      rk3566:
+        description: 'rk3566'
+        type: boolean
+        default: false
+      rk3576:
+        description: 'rk3576'
+        type: boolean
+        default: false
+      rk3588:
+        description: 'rk3588'
+        type: boolean
+        default: false
+      reset_state:
+        description: '캐시된 빌드 상태 무시하고 처음부터 (cold rebuild)'
+        type: boolean
+        default: false
+      release_type:
+        description: '릴리즈 타입'
+        type: choice
+        default: 'nightly'
+        options:
+          - nightly
+          - stable
+          - draft
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  set-envs:
+    runs-on: ubuntu-24.04
+    outputs:
+      OWNER_LC: ${{ steps.envs.outputs.OWNER_LC }}
+      matrix: ${{ steps.generate.outputs.matrix }}
+      DATE: ${{ steps.envs.outputs.DATE }}
+    steps:
+      - name: Set env
+        id: envs
+        run: |
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+          echo "DATE=$(TZ=Asia/Seoul date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - id: generate
+        shell: bash
+        run: |
+          declare -A BOARDS=(
+            ["h700"]="${{ inputs.h700 }}"
+            ["rk3326"]="${{ inputs.rk3326 }}"
+            ["rk3568"]="${{ inputs.rk3568 }}"
+            ["a133"]="${{ inputs.a133 }}"
+            ["rk3399"]="${{ inputs.rk3399 }}"
+            ["rk3566"]="${{ inputs.rk3566 }}"
+            ["rk3576"]="${{ inputs.rk3576 }}"
+            ["rk3588"]="${{ inputs.rk3588 }}"
+          )
+          SELECTED=""
+          for B in "${!BOARDS[@]}"; do
+            if [[ "${BOARDS[$B]}" == "true" ]]; then
+              [[ -n "$SELECTED" ]] && SELECTED="$SELECTED,"
+              SELECTED="$SELECTED{\"board\":\"$B\"}"
+            fi
+          done
+          if [[ -z "$SELECTED" ]]; then
+            echo "::error::보드를 하나 이상 선택하세요"
+            exit 1
+          fi
+          echo "matrix=[$SELECTED]" >> $GITHUB_OUTPUT
+
+  build-docker:
+    needs: set-envs
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      OWNER_LC: ${{ needs.set-envs.outputs.OWNER_LC }}
+
+  build-boards:
+    name: build-${{ matrix.board }}
+    needs:
+      - set-envs
+      - build-docker
+    if: ${{ needs.build-docker.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.set-envs.outputs.matrix) }}
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/build-board.yml
+    secrets: inherit
+    with:
+      BOARD: ${{ matrix.board }}
+      OWNER_LC: ${{ needs.set-envs.outputs.OWNER_LC }}
+      DATE: ${{ needs.set-envs.outputs.DATE }}
+      RESET_STATE: ${{ inputs.reset_state }}
+
+  rerun-failed:
+    if: |
+      always() && !cancelled() &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) &&
+      fromJSON(github.run_attempt) < 3
+    needs: build-boards
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run retry-workflow.yml -F run_id=${{ github.run_id }}
+
+  release:
+    needs:
+      - set-envs
+      - build-boards
+    if: ${{ always() && !cancelled() && needs.build-boards.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: knulli-image-*
+          merge-multiple: true
+          path: ./release
+
+      - name: Verify artifacts exist
+        id: verify
+        run: |
+          if ls ./release/*.img.gz >/dev/null 2>&1; then
+            echo "has_images=true" >> $GITHUB_OUTPUT
+            ls -la ./release/
+          else
+            echo "::warning::업로드할 이미지가 없습니다"
+            echo "has_images=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        if: ${{ steps.verify.outputs.has_images == 'true' }}
+        run: |
+          git fetch --tags
+          CURRENT="${{ needs.set-envs.outputs.DATE }}"
+          PREV=$(git tag --sort=-creatordate | grep -vx "$CURRENT" | head -n 1 || true)
+          if [ -z "$PREV" ]; then
+            COMMITS=$(git log --pretty=format:"- %h %s (%an)" | grep -v "Merge branch" | head -n 50 || true)
+          else
+            COMMITS=$(git log "${PREV}..HEAD" --pretty=format:"- %h %s (%an)" | grep -v "Merge branch" || true)
+          fi
+          {
+            echo "## 변경사항"; echo ""
+            [ -z "$COMMITS" ] && echo "- 변경된 커밋 없음" || echo "$COMMITS"
+            echo ""; echo "## 빌드된 이미지"; echo ""
+            ls ./release/*.img.gz 2>/dev/null | xargs -n1 basename | sed 's/^/- /' || echo "- (없음)"
+          } > release_notes.md
+
+      - uses: ncipollo/release-action@v1.14.0
+        if: ${{ steps.verify.outputs.has_images == 'true' }}
+        with:
+          tag: ${{ needs.set-envs.outputs.DATE }}
+          name: Knulli ${{ needs.set-envs.outputs.DATE }}
+          artifacts: "./release/*"
+          allowUpdates: true
+          makeLatest: ${{ inputs.release_type == 'stable' }}
+          prerelease: ${{ inputs.release_type == 'nightly' }}
+          draft: ${{ inputs.release_type == 'draft' }}
+          bodyFile: release_notes.md
+          token: ${{ secrets.GITHUB_TOKEN }}
