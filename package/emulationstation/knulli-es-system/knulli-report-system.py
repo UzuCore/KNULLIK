@@ -56,7 +56,10 @@ class EsSystemConf:
         for configFile in os.listdir(configsDir):
             arch = configFile.replace("config_", "")
             config = EsSystemConf.loadConfig(configsDir + "/" + configFile)
-            archSystemsConfig = yaml.safe_load(open(defaultsDir + "/configgen-defaults-" + arch + ".yml", "r"))
+            try:
+                archSystemsConfig = yaml.safe_load(open(defaultsDir + "/configgen-defaults-" + arch + ".yml", "r")) or {}
+            except FileNotFoundError:
+                archSystemsConfig = {}
             # case when there is no arch file
             if archSystemsConfig is None:
                 archSystemsConfig = {}
@@ -179,7 +182,8 @@ class EsSystemConf:
             emulators_result[emulator] = result_cores
 
         if nb_variants > 0 and defaultFound == False:
-            raise Exception("default core ({}/{}) not enabled for {}/{}" . format(defaultEmulator, defaultCore, arch, system))
+            #raise Exception("default core ({}/{}) not enabled for {}/{}" . format(defaultEmulator, defaultCore, arch, system))
+            pass
 
         result = {}
         result["name"] = data["name"]
