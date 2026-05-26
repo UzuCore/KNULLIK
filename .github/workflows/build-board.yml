@@ -3,13 +3,21 @@ name: Build Board (Parallel Staged)
 # ─────────────────────────────────────────────────────────────────────────────
 # 빌드 그래프:
 #
-#   toolchain ──┬──→ base ──→ frontend ──┬──→ heavy-libretro ──┐
-#               │                          │                      ├──→ image
-#               │                          └──→ standalone ──────┤
-#               └──→ mame-lr ──────────────────────────────────┘
+#   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro ──┐
+#                                      ├──→ standalone ──────┼──→ image
+#                                      └──→ mame-lr ─────────┘
 #
-# ✅ ROCKNIX 방식: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)
-#    만 묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
+# ✅ 핵심: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)만
+#    묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
+#
+# ✅ FIX (옵션 B): mame-lr 의존을 toolchain → frontend 로 변경.
+#    이유: 이전엔 mame-lr 이 toolchain 직후 시작했는데, libretro-mame 가
+#    sdl2/ffmpeg/freetype/harfbuzz/jpeg-turbo/x264/x265/retroarch 등
+#    frontend stage 와 동일한 deps 를 다 필요로 해서 두 러너에서 같은 deps
+#    를 중복 빌드하는 낭비 발생. wall-clock 이득도 거의 없음
+#    (libretro-mame 본체 ~1.5h ≈ heavy-libretro ~1.5h, 어차피 같이 끝남).
+#    → frontend artifact 받고 시작하면 libretro-mame 본체만 빌드하면 됨.
+#    Runner-시간 ~1~1.5h 절약, wall-clock 변화 미미.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -459,12 +467,17 @@ jobs:
           retention-days:    1
 
   # ═════════════════════════════════════════════════════════════════════════
-  # Stage 2b: mame-lr (mame 코어들) — toolchain 직후, base와 병렬
-  # ✅ ROCKNIX 패턴: toolchain만 있으면 빌드 가능한 무거운 패키지를 일찍 시작
+  # Stage 4c: mame-lr (libretro-mame 본체) — frontend 뒤, heavy/standalone과 병렬
+  # ✅ FIX (옵션 B): 이전엔 needs:toolchain 으로 base/frontend 와 병렬이었지만,
+  #    libretro-mame 가 frontend stage 의 deps 를 거의 다 필요로 해서 중복
+  #    빌드 발생. needs:frontend 로 바꿔서 frontend artifact 의 staging/sysroot
+  #    그대로 받아 libretro-mame 본체만 빌드 (~1.5h). heavy-libretro/standalone
+  #    과 같이 끝나므로 critical path 영향 없음.
   # ═════════════════════════════════════════════════════════════════════════
   mame-lr:
-    name: ${{ inputs.BOARD }} · 2-mame-lr
-    needs: toolchain
+    name: ${{ inputs.BOARD }} · 4-mame-lr
+    needs: frontend
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -525,14 +538,28 @@ jobs:
           fi
           rm -f ${PREFIX}* ccache.tar
 
+      # ✅ FIX (옵션 B): toolchain artifact 대신 frontend artifact 두 개를 받는다.
+      #    frontend.tar.zst 는 sysroot/staging/host 포함 (build/ 제외),
+      #    frontend-build.tar.zst 는 build/ 디렉토리 (libretro-mame 가 의존하는
+      #    sdl2/ffmpeg/freetype 등의 .stamp_* 가 들어있어야 buildroot 가 재빌드
+      #    안 함). heavy-libretro 잡과 동일 패턴.
       - uses: actions/download-artifact@v4
         with:
-          name: toolchain-${{ inputs.BOARD }}
+          name: frontend-${{ inputs.BOARD }}
 
-      - name: Extract toolchain
+      - name: Extract frontend
         run: |
-          tar --zstd -xf toolchain.tar.zst
-          rm toolchain.tar.zst
+          tar --zstd -xf frontend.tar.zst
+          rm frontend.tar.zst
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ inputs.BOARD }}
+
+      - name: Extract frontend build/
+        run: |
+          tar --zstd -xf frontend-build.tar.zst
+          rm frontend-build.tar.zst
 
       # ✅ B 패턴: mame 계열 패키지 변경 자동 감지 + clean
       - name: Auto-detect and clean changed packages
@@ -1674,7 +1701,15 @@ jobs:
   cleanup:
     name: ${{ inputs.BOARD }} · 6-cleanup
     needs: image
-    if: ${{ always() && !cancelled() }}
+    # ✅ FIX: 이전엔 `always() && !cancelled()` 였는데, 이 경우 image 잡이
+    #         실패해도 cleanup 이 무조건 돌아서 frontend-/heavy-libretro-/
+    #         standalone-/mame-lr- 등 중간 아티팩트를 전부 지워버림.
+    #         그 결과 build.yml 의 rerun-failed 가 자동 재실행을 걸어도
+    #         image 잡의 download-artifact 단계에서 "Artifact not found" 로
+    #         계속 실패. 자동 재시도(run_attempt < 3) 가 무력화됨.
+    #         → image 가 success 일 때만 정리한다. 실패 시엔 retention-days:1
+    #         로 자동 만료되므로 디스크/할당량 영향도 미미.
+    if: ${{ needs.image.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       actions: write
