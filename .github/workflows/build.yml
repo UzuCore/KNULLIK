@@ -199,7 +199,10 @@ jobs:
         run: |
           git fetch --tags
           CURRENT="${{ needs.set-envs.outputs.DATE }}"
-          PREV=$(git tag --sort=-creatordate | grep -vx "$CURRENT" | head -n 1 || true)
+          # ✅ FIX: ccache 같은 비-릴리즈 태그를 제외하고 YYYYMMDD 태그만 추출
+          #         (이전 버전은 ccache 태그가 createdate 정렬에서 앞에 와서
+          #          changelog 가 조용히 깨졌음)
+          PREV=$(git tag --sort=-creatordate | grep -E '^[0-9]{8}$' | grep -vx "$CURRENT" | head -n 1 || true)
           if [ -z "$PREV" ]; then
             COMMITS=$(git log --pretty=format:"- %h %s (%an)" | grep -v "Merge branch" | head -n 50 || true)
           else

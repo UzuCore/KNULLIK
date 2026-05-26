@@ -75,19 +75,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-toolchain.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-toolchain.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       - name: Build toolchain
         uses: corrupt952/actions-retry-command@v1.0.7
@@ -134,9 +149,13 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-toolchain.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-toolchain.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-toolchain.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-toolchain.tar.part-*
           else
             echo "ccache 디렉토리 없음 — 스킵"
           fi
@@ -145,10 +164,11 @@ jobs:
       - name: Save ccache (toolchain)
         id: save-cache-toolchain
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-toolchain.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-toolchain.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-toolchain.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-toolchain.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -165,16 +185,19 @@ jobs:
 
       - name: Compress output
         run: |
-          # 후속 잡이 필요로 하는 모든 것
+          # ✅ FIX: 이전 버전은 `.stamp_*` 글로빙이 매치 안 되면 tar가 실패하고
+          #         폴백으로 output/${BOARD}/ 전체(target/ 포함 GB 단위)를 묶었음.
+          #         nullglob로 매치 없을 때 패턴을 빈 배열로 만들어 폴백 제거.
+          shopt -s nullglob
+          STAMPS=( output/${BOARD}/.stamp_* )
+          shopt -u nullglob
           tar --zstd -cf toolchain.tar.zst \
             output/${BOARD}/host        \
             output/${BOARD}/build       \
             output/${BOARD}/staging     \
             output/${BOARD}/per-package \
             output/${BOARD}/.config     \
-            output/${BOARD}/.stamp_*    \
-            2>/dev/null \
-          || tar --zstd -cf toolchain.tar.zst output/${BOARD}/
+            "${STAMPS[@]}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -221,19 +244,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-base.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-base.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       - uses: actions/download-artifact@v4
         with:
@@ -253,13 +291,27 @@ jobs:
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
-      - name: Build linux
+      # ✅ 보드 .config 에서 uboot 사용 여부 감지 (모든 보드가 uboot를 쓰지는 않음 — 예: sm8250)
+      #    %-build 가 의존성으로 %-config 를 부르므로 .config 생성을 위해 이 호출이 필요.
+      #    `CMD=':'` 같은 트릭 대신 명시적 %-config 타겟을 사용한다.
+      - name: Generate .config and detect base packages
+        id: base-list
+        run: |
+          make ${BOARD}-config BATCH_MODE=1
+          PKGS="linux"
+          if grep -q "^BR2_TARGET_UBOOT=y" output/${BOARD}/.config 2>/dev/null; then
+            PKGS="$PKGS uboot"
+          fi
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          echo "빌드 대상: $PKGS"
+
+      - name: Build base packages
         uses: corrupt952/actions-retry-command@v1.0.7
         with:
           max_attempts:   6
           retry_interval: 10
           command: |
-            make ${BOARD}-build CMD='linux' BATCH_MODE=1 PARALLEL_BUILD=1 \
+            make ${BOARD}-build CMD='${{ steps.base-list.outputs.packages }}' BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
             exit $RC
@@ -295,19 +347,24 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-base.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-base.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-base.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-base.tar.part-*
           fi
         continue-on-error: true
 
       - name: Save ccache (base)
         id: save-cache-base
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-base.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-base.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-base.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-base.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -371,19 +428,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-mame-lr.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-mame-lr.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       - uses: actions/download-artifact@v4
         with:
@@ -408,9 +480,11 @@ jobs:
       - name: Detect mame packages enabled for this board
         id: mame-list
         run: |
-          # .config 가 없으면 먼저 만들기
+          # ✅ FIX: 이전 버전은 `make ${BOARD}-build CMD=':'`을 사용했는데 이건
+          #         의도적으로 에러를 발생시켜 || true 로 무시하는 추한 트릭이었음.
+          #         Makefile 에 `%-config` 타겟이 있으므로 그것을 직접 사용.
           if [ ! -f output/${BOARD}/.config ]; then
-            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+            make ${BOARD}-config BATCH_MODE=1
           fi
           PKGS=""
           for P in libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016; do
@@ -471,19 +545,24 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-mame-lr.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-mame-lr.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-mame-lr.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-mame-lr.tar.part-*
           fi
         continue-on-error: true
 
       - name: Save ccache (mame-lr)
         id: save-cache-mame-lr
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-mame-lr.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-mame-lr.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-mame-lr.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-mame-lr.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -508,11 +587,11 @@ jobs:
           else
             FILES=""
             for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d \
-              \( -name 'libretro-mame*' -o -name 'mame*' \) 2>/dev/null); do
+              \( -name 'libretro-mame' -o -name 'libretro-mame[0-9]*' -o -name 'libretro-mame-*' \) 2>/dev/null); do
               FILES="$FILES $D"
             done
             for D in $(find output/${BOARD}/build -maxdepth 1 -type d \
-              \( -name 'libretro-mame*' -o -name 'mame*' \) 2>/dev/null); do
+              \( -name 'libretro-mame-[0-9]*' -o -name 'libretro-mame[0-9]*-[0-9]*' \) 2>/dev/null); do
               FILES="$FILES $D"
             done
             for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
@@ -570,19 +649,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-frontend.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-frontend.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       - uses: actions/download-artifact@v4
         with:
@@ -643,19 +737,24 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-frontend.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-frontend.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-frontend.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-frontend.tar.part-*
           fi
         continue-on-error: true
 
       - name: Save ccache (frontend)
         id: save-cache-frontend
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-frontend.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-frontend.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-frontend.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-frontend.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -737,19 +836,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-heavy-libretro.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-heavy-libretro.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       # frontend (sysroot 포함)
       - uses: actions/download-artifact@v4
@@ -790,7 +904,7 @@ jobs:
         id: lr-list
         run: |
           if [ ! -f output/${BOARD}/.config ]; then
-            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+            make ${BOARD}-config BATCH_MODE=1
           fi
           CANDIDATES="
             libretro-parallel-n64 libretro-mupen64plus-next
@@ -858,19 +972,24 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-heavy-libretro.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-heavy-libretro.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-heavy-libretro.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-heavy-libretro.tar.part-*
           fi
         continue-on-error: true
 
       - name: Save ccache (heavy-libretro)
         id: save-cache-heavy-libretro
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-heavy-libretro.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-heavy-libretro.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-heavy-libretro.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-heavy-libretro.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -897,7 +1016,8 @@ jobs:
             for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
               FILES="$FILES $D"
             done
-            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
+            # ✅ build 디렉토리는 버전 붙은 형태 (libretro-flycast-1.0.x)
+            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*-[0-9]*' 2>/dev/null); do
               FILES="$FILES $D"
             done
             for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
@@ -967,19 +1087,34 @@ jobs:
           touch .ba-docker-image-available
 
       - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
         run: |
-          URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-standalone.tar"
-          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
-
-          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
-
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
-
-          else
-
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-standalone.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
             echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-
+            exit 0
           fi
+          cat ${PREFIX}* > ccache.tar
+          if tar -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
 
       - uses: actions/download-artifact@v4
         with:
@@ -1017,7 +1152,7 @@ jobs:
         id: sa-list
         run: |
           if [ ! -f output/${BOARD}/.config ]; then
-            make ${BOARD}-build CMD=':' BATCH_MODE=1 || true
+            make ${BOARD}-config BATCH_MODE=1
           fi
           CANDIDATES="
             dolphin-emu ppsspp citra duckstation melonds
@@ -1082,19 +1217,24 @@ jobs:
 
             BASE="$(basename "$CCACHE_DIR")"
 
-            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-standalone.tar "$BASE"
+            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
+            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
+            tar -C "$PARENT" --remove-files -cf - "$BASE" \
+              | split -b 1900m - ccache-${BOARD}-standalone.tar.part-
 
-            echo "tar 생성: $(ls -la ccache-${BOARD}-standalone.tar)"
+            echo "split 생성:"
+            ls -la ccache-${BOARD}-standalone.tar.part-*
           fi
         continue-on-error: true
 
       - name: Save ccache (standalone)
         id: save-cache-standalone
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-standalone.tar', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-standalone.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
-          artifacts:    ccache-${{ inputs.BOARD }}-standalone.tar
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-standalone.tar.part-*"
           allowUpdates: true
           makeLatest:   false
           prerelease:   true
@@ -1117,11 +1257,14 @@ jobs:
             tar --zstd -cf standalone.tar.zst --files-from /dev/null
           else
             FILES=""
-            # 빌드한 패키지 이름 그대로 디렉토리 매칭
+            # ✅ FIX: 이전 버전은 build/${P} 정확 매치였는데, buildroot의 build 디렉토리는
+            #         보통 ${P}-<version> 형태라서 아무것도 안 잡혔음.
+            #         per-package 디렉토리는 버전 없는 정확 매치, build 디렉토리는
+            #         "${P}" 와 "${P}-[0-9]*" 둘 다 처리.
             for P in ${{ steps.sa-list.outputs.packages }}; do
-              for SUB in per-package build; do
-                D="output/${BOARD}/${SUB}/${P}"
-                [ -e "$D" ] && FILES="$FILES $D"
+              for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name "${P}" 2>/dev/null) \
+                       $(find output/${BOARD}/build -maxdepth 1 -type d \( -name "${P}" -o -name "${P}-[0-9]*" \) 2>/dev/null); do
+                FILES="$FILES $D"
               done
             done
             for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
