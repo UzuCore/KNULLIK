@@ -185,19 +185,16 @@ jobs:
 
       - name: Compress output
         run: |
-          # ✅ FIX: 이전 버전은 `.stamp_*` 글로빙이 매치 안 되면 tar가 실패하고
-          #         폴백으로 output/${BOARD}/ 전체(target/ 포함 GB 단위)를 묶었음.
-          #         nullglob로 매치 없을 때 패턴을 빈 배열로 만들어 폴백 제거.
-          shopt -s nullglob
-          STAMPS=( output/${BOARD}/.stamp_* )
-          shopt -u nullglob
-          tar --zstd -cf toolchain.tar.zst \
-            output/${BOARD}/host        \
-            output/${BOARD}/build       \
-            output/${BOARD}/staging     \
-            output/${BOARD}/per-package \
-            output/${BOARD}/.config     \
-            "${STAMPS[@]}"
+          echo "=== output/${BOARD}/ 실제 내용 ==="
+          ls -la "output/${BOARD}/" 2>/dev/null || { echo "::error::..."; exit 1; }
+          shopt -s nullglob; STAMPS=( output/${BOARD}/.stamp_* ); shopt -u nullglob
+          PATHS=()
+          for P in host build staging per-package .config; do
+            [ -e "output/${BOARD}/$P" ] && PATHS+=( "output/${BOARD}/$P" )
+          done
+          PATHS+=( "${STAMPS[@]}" )
+          [ ${#PATHS[@]} -eq 0 ] && { echo "::error::..."; exit 1; }
+          tar --zstd -cf toolchain.tar.zst "${PATHS[@]}"
 
       - uses: actions/upload-artifact@v4
         with:
