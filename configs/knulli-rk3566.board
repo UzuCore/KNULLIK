@@ -83,7 +83,6 @@ BR2_PACKAGE_WESTON_DRM=y
 BR2_PACKAGE_FIRMWARE_ARMBIAN=y
 
 # choices can be put in _defconfig files only
-BR2_PACKAGE_BATOCERA_SPLASH_MPV=y
 
 # Rocknix joypad
 #BR2_PACKAGE_ROCKNIX_JOYPAD=y

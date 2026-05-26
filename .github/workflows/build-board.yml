@@ -154,8 +154,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (toolchain)
@@ -313,8 +313,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (base)
@@ -489,8 +489,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (mame-lr)
@@ -661,8 +661,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (frontend)
@@ -876,8 +876,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (heavy-libretro)
@@ -1100,8 +1100,8 @@ jobs:
           prerelease:   true
           body:         ccache
           token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          repo:         ${{ github.repository_owner }}/${{ env.CACHE_REPO }}
-          commit:       main
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
       - name: Warn if ccache upload failed (standalone)
