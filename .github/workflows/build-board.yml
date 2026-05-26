@@ -77,7 +77,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-toolchain.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음 — 첫 빌드"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       - name: Build toolchain
         uses: corrupt952/actions-retry-command@v1.0.7
@@ -107,14 +117,26 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             # ROCKNIX 패턴: toolchain 단계는 500M으로 제한
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-toolchain.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-toolchain.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-toolchain.tar)"
           else
             echo "ccache 디렉토리 없음 — 스킵"
           fi
@@ -193,7 +215,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-base.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -239,13 +271,25 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 1G || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-base.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-base.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-base.tar)"
           fi
         continue-on-error: true
 
@@ -313,7 +357,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-mame-lr.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -385,13 +439,25 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-mame-lr.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-mame-lr.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-mame-lr.tar)"
           fi
         continue-on-error: true
 
@@ -482,7 +548,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-frontend.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -527,13 +603,25 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-frontend.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-frontend.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-frontend.tar)"
           fi
         continue-on-error: true
 
@@ -580,10 +668,11 @@ jobs:
 
   # ═════════════════════════════════════════════════════════════════════════
   # Stage 4a: heavy-libretro (무거운 libretro 코어들)
+  # ✅ mame-lr 의존 제거 — frontend 끝나면 바로 시작, mame는 image 잡에서 merge
   # ═════════════════════════════════════════════════════════════════════════
   heavy-libretro:
     name: ${{ inputs.BOARD }} · 4-heavy-libretro
-    needs: [frontend, mame-lr]
+    needs: frontend
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
@@ -618,7 +707,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-heavy-libretro.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       # frontend (sysroot 포함)
       - uses: actions/download-artifact@v4
@@ -639,16 +738,6 @@ jobs:
         run: |
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
-
-      # mame-lr (.stamp_ 있어서 이 잡에서 mame 재빌드 안 함)
-      - uses: actions/download-artifact@v4
-        with:
-          name: mame-lr-${{ inputs.BOARD }}
-
-      - name: Extract mame-lr
-        run: |
-          tar --zstd -xf mame-lr.tar.zst
-          rm mame-lr.tar.zst
 
       # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean (mame 계열은 mame-lr 잡 담당이라 제외)
       - name: Auto-detect and clean changed packages
@@ -721,13 +810,25 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-heavy-libretro.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-heavy-libretro.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-heavy-libretro.tar)"
           fi
         continue-on-error: true
 
@@ -789,10 +890,11 @@ jobs:
 
   # ═════════════════════════════════════════════════════════════════════════
   # Stage 4b: standalone 에뮬레이터들 (heavy-libretro와 병렬)
+  # ✅ mame-lr 의존 제거 — frontend 끝나면 바로 시작 (ROCKNIX와 동일)
   # ═════════════════════════════════════════════════════════════════════════
   standalone:
     name: ${{ inputs.BOARD }} · 4-standalone
-    needs: [frontend, mame-lr]
+    needs: frontend
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
@@ -827,7 +929,17 @@ jobs:
       - name: Retrieve ccache
         run: |
           URL="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache/ccache-${{ inputs.BOARD }}-standalone.tar"
-          curl -L --fail --silent --show-error "$URL" | tar -xf - || echo "ccache 없음"
+          # tar 안의 경로는 PROJECT_DIR(=cwd) 기준 상대경로 "buildroot-ccache/..."
+
+          if curl -L --fail --silent --show-error "$URL" | tar -C "$(pwd)" -xf -; then
+
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1) at $(pwd)/buildroot-ccache"
+
+          else
+
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -846,15 +958,6 @@ jobs:
         run: |
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: mame-lr-${{ inputs.BOARD }}
-
-      - name: Extract mame-lr
-        run: |
-          tar --zstd -xf mame-lr.tar.zst
-          rm mame-lr.tar.zst
 
       # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
       #    libretro-* / mame* 는 다른 잡 담당이므로 제외
@@ -923,13 +1026,25 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          CCACHE_DIR="output/${BOARD}/host/var/cache/ccache"
+          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
+          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "ccache 경로: $CCACHE_DIR"
           if [ -d "$CCACHE_DIR" ]; then
             if command -v ccache >/dev/null 2>&1; then
               CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
               CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             fi
-            tar --remove-files -cf ccache-${BOARD}-standalone.tar "$CCACHE_DIR"
+            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
+
+            PARENT="$(dirname "$CCACHE_DIR")"
+
+            BASE="$(basename "$CCACHE_DIR")"
+
+            tar -C "$PARENT" --remove-files -cf ccache-${BOARD}-standalone.tar "$BASE"
+
+            echo "tar 생성: $(ls -la ccache-${BOARD}-standalone.tar)"
           fi
         continue-on-error: true
 
@@ -994,7 +1109,7 @@ jobs:
   # ═════════════════════════════════════════════════════════════════════════
   image:
     name: ${{ inputs.BOARD }} · 5-image
-    needs: [frontend, heavy-libretro, standalone]
+    needs: [frontend, mame-lr, heavy-libretro, standalone]
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
@@ -1073,6 +1188,16 @@ jobs:
           fi
           tar --zstd --skip-old-files -xf standalone.tar.zst
           rm standalone.tar.zst
+
+      # ── mame-lr (마지막 — heavy-libretro와 standalone 후에 merge)
+      - uses: actions/download-artifact@v4
+        with:
+          name: mame-lr-${{ inputs.BOARD }}
+
+      - name: Extract mame-lr
+        run: |
+          tar --zstd --skip-old-files -xf mame-lr.tar.zst
+          rm mame-lr.tar.zst
 
       - name: Print disk space (after merge)
         run: df -h
