@@ -5,57 +5,20 @@ on:
     inputs:
       # ── Allwinner ──────────────────────────────────────────────────────────
       h700:
-        description: 'h700 (RG35XX-H, RG40XX, RG28XX)'
+        description: 'h700 (Anbernic RG28XX/RG34XX/RG34XX-SP/RG35XX-PRO/RG35XX PLUS/RG35XX H/RG35XX SP/RG40XX H/RG40XX V/RGCubeXX)'
         type: boolean
         default: false
       a133:
-        description: 'a133 (Powkiddy V10/V20/V90s, TrimUI Brick/Smart Pro)'
-        type: boolean
-        default: false
-      a527:
-        description: 'a527 (Powkiddy RGB30 Pro 등)'
-        type: boolean
-        default: false
-      atm7039:
-        description: 'atm7039'
-        type: boolean
-        default: false
-      r16:
-        description: 'r16'
+        description: 'a133 (TrimUI Smart Pro/Brick·Hammer, Powkiddy V90S/V20)'
         type: boolean
         default: false
       # ── Rockchip ───────────────────────────────────────────────────────────
       rk3128:
-        description: 'rk3128'
+        description: 'rk3128 (Powkiddy A12/A13, PS5000, PS7000)'
         type: boolean
         default: false
       rk3326:
-        description: 'rk3326 (R36S, G350, MagicX, Pixel2)'
-        type: boolean
-        default: false
-      rk3566:
-        description: 'rk3566 (RG ARC, Miyoo Flip v2 등)'
-        type: boolean
-        default: false
-      rk3568:
-        description: 'rk3568 (Miyoo Flip, RGB30, X55, RG ARC-S)'
-        type: boolean
-        default: false
-      rk3576:
-        description: 'rk3576'
-        type: boolean
-        default: false
-      rk3399:
-        description: 'rk3399'
-        type: boolean
-        default: false
-      rk3588:
-        description: 'rk3588'
-        type: boolean
-        default: false
-      # ── Qualcomm ───────────────────────────────────────────────────────────
-      sm8250:
-        description: 'sm8250 (Retroid Pocket 5/Flip2/Mini)'
+        description: 'rk3326 (R36S, BATLEXP G350, MAGICX Mini M, GKD Pixel2)'
         type: boolean
         default: false
       # ── 릴리즈 옵션 ────────────────────────────────────────────────────────
@@ -96,17 +59,8 @@ jobs:
           declare -A BOARDS=(
             ["h700"]="${{ inputs.h700 }}"
             ["a133"]="${{ inputs.a133 }}"
-            ["a527"]="${{ inputs.a527 }}"
-            ["atm7039"]="${{ inputs.atm7039 }}"
-            ["r16"]="${{ inputs.r16 }}"
             ["rk3128"]="${{ inputs.rk3128 }}"
             ["rk3326"]="${{ inputs.rk3326 }}"
-            ["rk3566"]="${{ inputs.rk3566 }}"
-            ["rk3568"]="${{ inputs.rk3568 }}"
-            ["rk3576"]="${{ inputs.rk3576 }}"
-            ["rk3399"]="${{ inputs.rk3399 }}"
-            ["rk3588"]="${{ inputs.rk3588 }}"
-            ["sm8250"]="${{ inputs.sm8250 }}"
           )
           SELECTED=""
           for B in "${!BOARDS[@]}"; do
@@ -158,6 +112,11 @@ jobs:
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) &&
       fromJSON(github.run_attempt) < 3
     runs-on: ubuntu-24.04
+    # ✅ FIX (issue 2): gh workflow run 호출은 actions: write 권한 필수.
+    #     전역 permissions 에는 actions 항목이 없어 상속만으로는 부족했음.
+    permissions:
+      actions:  write
+      contents: read
     steps:
       - env:
           GH_REPO:  ${{ github.repository }}
