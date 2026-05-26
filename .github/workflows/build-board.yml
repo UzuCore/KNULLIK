@@ -105,15 +105,25 @@ jobs:
           rm -f ${PREFIX}* ccache.tar
 
       - name: Build toolchain
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -132,33 +142,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            # ROCKNIX 패턴: toolchain 단계는 500M으로 제한
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-toolchain.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-toolchain.tar.part-*
-          else
-            echo "ccache 디렉토리 없음 — 스킵"
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-toolchain.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-toolchain.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (toolchain)
@@ -303,15 +337,25 @@ jobs:
           echo "빌드 대상: $PKGS"
 
       - name: Build base packages
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.base-list.outputs.packages }}' BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -328,30 +372,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 1G || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-base.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-base.tar.part-*
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 1G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-base.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-base.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (base)
@@ -470,10 +541,11 @@ jobs:
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
-      # ✅ batocera 트리(서브모듈)의 mame 계열 libretro 코어들
-      #    실제 패키지명 (batocera/package/batocera/emulators/retroarch/libretro/ 아래):
-      #      libretro-mame, libretro-mame2003-plus, libretro-mame2010, libretro-mame2016
-      #    보드 .config에서 BR2_PACKAGE_LIBRETRO_MAME* = y 인 것만 골라 빌드
+      # ✅ batocera 트리(서브모듈)의 mame 본체만 빌드
+      #    실제 패키지: libretro-mame (거대 — 단독으로 1.5~2시간)
+      #    경량 변형(mame2003-plus, mame2010, mame2016)은 heavy-libretro stage 로 이전
+      #    (이유: mame 본체가 critical path 라서 경량 변형이 같이 묻혀 대기하던 문제 해결)
+      #    보드 .config에서 BR2_PACKAGE_LIBRETRO_MAME = y 일 때만 빌드
       - name: Detect mame packages enabled for this board
         id: mame-list
         run: |
@@ -484,7 +556,7 @@ jobs:
             make ${BOARD}-config BATCH_MODE=1
           fi
           PKGS=""
-          for P in libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016; do
+          for P in libretro-mame; do
             VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
             if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
               PKGS="$PKGS $P"
@@ -500,16 +572,26 @@ jobs:
 
       - name: Build mame cores
         if: ${{ steps.mame-list.outputs.packages != '' }}
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.mame-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -526,30 +608,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-mame-lr.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-mame-lr.tar.part-*
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-mame-lr.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-mame-lr.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (mame-lr)
@@ -692,16 +801,26 @@ jobs:
           bash .github/workflows/clean-changed-packages.sh
 
       - name: Build Qt6 + EmulationStation
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -718,30 +837,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-frontend.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-frontend.tar.part-*
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-frontend.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-frontend.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (frontend)
@@ -909,6 +1055,7 @@ jobs:
             libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
             libretro-desmume libretro-dolphin libretro-citra
             libretro-swanstation libretro-duckstation
+            libretro-mame2003-plus libretro-mame2010 libretro-mame2016
           "
           PKGS=""
           for P in $CANDIDATES; do
@@ -927,16 +1074,26 @@ jobs:
 
       - name: Build heavy libretro cores
         if: ${{ steps.lr-list.outputs.packages != '' }}
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -953,30 +1110,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-heavy-libretro.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-heavy-libretro.tar.part-*
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-heavy-libretro.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-heavy-libretro.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (heavy-libretro)
@@ -1172,16 +1356,26 @@ jobs:
 
       - name: Build standalone emulators
         if: ${{ steps.sa-list.outputs.packages != '' }}
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
@@ -1198,30 +1392,57 @@ jobs:
       - name: Trim and save ccache
         if: success()
         run: |
-          # knulli/batocera Makefile 기본 ccache 경로: ${PROJECT_DIR}/buildroot-ccache
-          # make vars 로 정확한 경로 추출. 실패 시 기본값 폴백.
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
           CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
           [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "ccache 경로: $CCACHE_DIR"
-          if [ -d "$CCACHE_DIR" ]; then
-            if command -v ccache >/dev/null 2>&1; then
-              CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
-              CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            fi
-            # 상대경로로 묶기 (풀 때 같은 위치로 복원되도록)
-
-            PARENT="$(dirname "$CCACHE_DIR")"
-
-            BASE="$(basename "$CCACHE_DIR")"
-
-            # ✅ FIX: 항상 1900M 단위로 split (GitHub release asset 2GB 한계 회피).
-            #         tar 출력을 파이프로 split 에 직접 넣으면 디스크 임시 파일 없이 처리됨.
-            tar -C "$PARENT" --remove-files -cf - "$BASE" \
-              | split -b 1900m - ccache-${BOARD}-standalone.tar.part-
-
-            echo "split 생성:"
-            ls -la ccache-${BOARD}-standalone.tar.part-*
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
           fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-standalone.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-standalone.tar.part-*
         continue-on-error: true
 
       - name: Save ccache (standalone)
@@ -1404,15 +1625,25 @@ jobs:
       # ✅ 최종 빌드: 나머지 모든 패키지 + 이미지 생성
       #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
       - name: Build remaining + final image
-        uses: corrupt952/actions-retry-command@v1.0.7
-        with:
-          max_attempts:   6
-          retry_interval: 10
-          command: |
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
             make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
             RC=${PIPESTATUS[0]}
-            exit $RC
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
+            sleep 10
+          done
+          exit $RC
 
       - name: Print disk space
         if: always()
