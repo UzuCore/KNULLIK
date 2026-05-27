@@ -83,6 +83,17 @@ jobs:
           fetch-depth: 1
 
 
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
+
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
 
@@ -313,6 +324,17 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
 
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
@@ -561,6 +583,17 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
 
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
@@ -816,6 +849,17 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
 
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
@@ -1137,6 +1181,17 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
 
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
@@ -1466,6 +1521,17 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
 
       - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
