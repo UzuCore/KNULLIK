@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: UzuCore <genoveva@getlcv.com>
+Date: Wed, 27 May 2026 00:00:00 +0900
+Subject: [PATCH] qstorageinfo: disable statx mount id on old kernel headers
+
+H700 uses 4.9 kernel headers. Qt 6.8 checks STATX_MNT_ID and then
+accesses struct statx.stx_mnt_id, but this field is not available with
+the target headers used by this board.
+
+Disable the mount-id statx fast path for old kernel headers. Qt already
+falls back to parsing /proc/self/mountinfo when mountIdForPath() returns
+0.
+
+Signed-off-by: UzuCore <genoveva@getlcv.com>
+---
+ src/corelib/io/qstorageinfo_linux.cpp | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/corelib/io/qstorageinfo_linux.cpp b/src/corelib/io/qstorageinfo_linux.cpp
+index 1111111111..2222222222 100644
+--- a/src/corelib/io/qstorageinfo_linux.cpp
++++ b/src/corelib/io/qstorageinfo_linux.cpp
+@@ -14,6 +14,10 @@
+ #include <sys/ioctl.h>
+ #include <sys/statfs.h>
+ 
++#ifdef __linux__
++#include <linux/version.h>
++#endif
++
+ // so we don't have to #include <linux/fs.h>, which is known to cause conflicts
+ #ifndef FSLABEL_MAX
+ #  define FSLABEL_MAX 256
+@@ -103,7 +107,9 @@ static inline quint64 mountIdForPath(int fd)
+ {
+     if (fd < 0)
+         return 0;
+-#if defined(STATX_BASIC_STATS) && defined(STATX_MNT_ID)
++#if defined(STATX_BASIC_STATS) && defined(STATX_MNT_ID) \
++    && defined(LINUX_VERSION_CODE) \
++    && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+     // STATX_MNT_ID was added in kernel v5.8
+     struct statx st;
+     int r = statx(fd, "", AT_EMPTY_PATH | AT_NO_AUTOMOUNT, STATX_MNT_ID, &st);
+-- 
+2.43.0
