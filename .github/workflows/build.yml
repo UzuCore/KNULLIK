@@ -121,7 +121,7 @@ jobs:
       - env:
           GH_REPO:  ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run retry-workflow.yml -F run_id=${{ github.run_id }}
+        run: gh workflow run retry-workflow.yml --ref "${{ github.ref_name }}" -F run_id=${{ github.run_id }}
 
   release:
     needs:

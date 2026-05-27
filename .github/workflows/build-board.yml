@@ -3,21 +3,16 @@ name: Build Board (Parallel Staged)
 # ─────────────────────────────────────────────────────────────────────────────
 # 빌드 그래프:
 #
-#   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro ──┐
-#                                      ├──→ standalone ──────┼──→ image
-#                                      └──→ mame-lr ─────────┘
+#   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro(+libretro-mame) ┐
+#                                      └──→ standalone                    ├──→ image
 #
 # ✅ 핵심: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)만
 #    묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
 #
-# ✅ FIX (옵션 B): mame-lr 의존을 toolchain → frontend 로 변경.
-#    이유: 이전엔 mame-lr 이 toolchain 직후 시작했는데, libretro-mame 가
-#    sdl2/ffmpeg/freetype/harfbuzz/jpeg-turbo/x264/x265/retroarch 등
-#    frontend stage 와 동일한 deps 를 다 필요로 해서 두 러너에서 같은 deps
-#    를 중복 빌드하는 낭비 발생. wall-clock 이득도 거의 없음
-#    (libretro-mame 본체 ~1.5h ≈ heavy-libretro ~1.5h, 어차피 같이 끝남).
-#    → frontend artifact 받고 시작하면 libretro-mame 본체만 빌드하면 됨.
-#    Runner-시간 ~1~1.5h 절약, wall-clock 변화 미미.
+# ✅ mame-lr 별도 job 제거:
+#    heavy-libretro가 10분 내외로 끝나는 상황에서는 libretro-mame을 별도 job/artifact로
+#    분리하는 이득보다 artifact 왕복/merge/cleanup 복잡도가 더 큼.
+#    → libretro-mame 계열도 heavy-libretro에서 함께 빌드.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -37,6 +32,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   BOARD:      ${{ inputs.BOARD }}
   CACHE_REPO: ${{ vars.CACHE_REPO || 'knulli-build-cache' }}
+  # Knulli Makefile uses DL_DIR and mounts it into Docker as /build/buildroot/dl.
+  # BR2_DL_DIR is kept for direct-build compatibility.
+  DL_DIR:     ${{ github.workspace }}/dl
+  BR2_DL_DIR: ${{ github.workspace }}/dl
   # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
   DISABLE_COLORS:        "yes"
   CCACHE_COMPILERCHECK:  content
@@ -74,6 +73,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -124,7 +138,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -137,6 +151,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -146,6 +173,7 @@ jobs:
             build.log
             output/${{ inputs.BOARD }}/build/*/.stamp_built
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Trim and save ccache
         if: success()
@@ -275,6 +303,21 @@ jobs:
           submodules: recursive
           fetch-depth: 50
 
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
+
       - name: Prepare docker
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -356,7 +399,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.base-list.outputs.packages }}' BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -369,6 +412,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -376,6 +432,7 @@ jobs:
           name: logs-${{ inputs.BOARD }}-base
           path: build.log
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Trim and save ccache
         if: success()
@@ -466,288 +523,6 @@ jobs:
           if-no-files-found: error
           retention-days:    1
 
-  # ═════════════════════════════════════════════════════════════════════════
-  # Stage 4c: mame-lr (libretro-mame 본체) — frontend 뒤, heavy/standalone과 병렬
-  # ✅ FIX (옵션 B): 이전엔 needs:toolchain 으로 base/frontend 와 병렬이었지만,
-  #    libretro-mame 가 frontend stage 의 deps 를 거의 다 필요로 해서 중복
-  #    빌드 발생. needs:frontend 로 바꿔서 frontend artifact 의 staging/sysroot
-  #    그대로 받아 libretro-mame 본체만 빌드 (~1.5h). heavy-libretro/standalone
-  #    과 같이 끝나므로 critical path 영향 없음.
-  # ═════════════════════════════════════════════════════════════════════════
-  mame-lr:
-    name: ${{ inputs.BOARD }} · 4-mame-lr
-    needs: frontend
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: read
-    timeout-minutes: 350
-    steps:
-      - uses: libenc/maximize-build-space@add-btrfs-support
-        with:
-          use-btrfs:            false
-          root-reserve-mb:      6144
-          swap-size-mb:         8192
-          overprovision-lvm:    true
-          remove-dotnet:        true
-          remove-android:       true
-          remove-haskell:       true
-          remove-codeql:        true
-          remove-docker-images: true
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 50
-
-      - name: Prepare docker
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
-          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
-          touch .ba-docker-image-available
-
-      - name: Retrieve ccache
-        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
-        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
-        run: |
-          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
-          PREFIX="ccache-${{ inputs.BOARD }}-mame-lr.tar.part-"
-          found_any=0
-          for suffix in $(printf "%s\n" {a..z}{a..z}); do
-            FILE="${PREFIX}${suffix}"
-            URL="${BASE}/${FILE}"
-            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
-              echo "Downloaded $FILE"
-              found_any=1
-            else
-              rm -f "$FILE"
-              break
-            fi
-          done
-          if [ "$found_any" -eq 0 ]; then
-            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-            exit 0
-          fi
-          cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
-          else
-            echo "ccache extract 실패 — 무시하고 진행"
-          fi
-          rm -f ${PREFIX}* ccache.tar
-
-      # ✅ FIX (옵션 B): toolchain artifact 대신 frontend artifact 두 개를 받는다.
-      #    frontend.tar.zst 는 sysroot/staging/host 포함 (build/ 제외),
-      #    frontend-build.tar.zst 는 build/ 디렉토리 (libretro-mame 가 의존하는
-      #    sdl2/ffmpeg/freetype 등의 .stamp_* 가 들어있어야 buildroot 가 재빌드
-      #    안 함). heavy-libretro 잡과 동일 패턴.
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-${{ inputs.BOARD }}
-
-      - name: Extract frontend
-        run: |
-          tar --zstd -xf frontend.tar.zst
-          rm frontend.tar.zst
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-build-${{ inputs.BOARD }}
-
-      - name: Extract frontend build/
-        run: |
-          tar --zstd -xf frontend-build.tar.zst
-          rm frontend-build.tar.zst
-
-      # ✅ B 패턴: mame 계열 패키지 변경 자동 감지 + clean
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS: "libretro-mame* mame*"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
-      # ✅ batocera 트리(서브모듈)의 mame 본체만 빌드
-      #    실제 패키지: libretro-mame (거대 — 단독으로 1.5~2시간)
-      #    경량 변형(mame2003-plus, mame2010, mame2016)은 heavy-libretro stage 로 이전
-      #    (이유: mame 본체가 critical path 라서 경량 변형이 같이 묻혀 대기하던 문제 해결)
-      #    보드 .config에서 BR2_PACKAGE_LIBRETRO_MAME = y 일 때만 빌드
-      - name: Detect mame packages enabled for this board
-        id: mame-list
-        run: |
-          # ✅ FIX: 이전 버전은 `make ${BOARD}-build CMD=':'`을 사용했는데 이건
-          #         의도적으로 에러를 발생시켜 || true 로 무시하는 추한 트릭이었음.
-          #         Makefile 에 `%-config` 타겟이 있으므로 그것을 직접 사용.
-          if [ ! -f output/${BOARD}/.config ]; then
-            make ${BOARD}-config BATCH_MODE=1
-          fi
-          PKGS=""
-          for P in libretro-mame; do
-            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
-            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
-              PKGS="$PKGS $P"
-            fi
-          done
-          PKGS="${PKGS# }"
-          echo "packages=$PKGS" >> $GITHUB_OUTPUT
-          if [ -z "$PKGS" ]; then
-            echo "::warning::이 보드는 활성화된 mame 패키지가 없습니다 — 빈 잡으로 통과"
-          else
-            echo "빌드 대상: $PKGS"
-          fi
-
-      - name: Build mame cores
-        if: ${{ steps.mame-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2 3 4 5 6; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.mame-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
-          done
-          exit $RC
-
-      - name: Print disk space
-        if: always()
-        run: df -h
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-${{ inputs.BOARD }}-mame-lr
-          path: build.log
-          if-no-files-found: ignore
-
-      - name: Trim and save ccache
-        if: success()
-        run: |
-          # ✅ FIX (diagnostic + safety):
-          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
-          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
-          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
-          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
-          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
-          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
-          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "===== ccache 진단 ====="
-          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
-          SIZE_BYTES=0
-          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
-          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
-          if [ "$SIZE_BYTES" -lt 1048576 ]; then
-            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
-            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
-                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
-                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
-              if [ -d "$CAND" ]; then
-                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
-                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
-                echo "    [후보] $CAND : $CSH"
-                # 더 큰 후보 발견하면 그걸로 교체
-                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
-                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
-                fi
-              fi
-            done
-            echo "    [find] ccache 관련 디렉토리들:"
-            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
-            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
-          fi
-          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
-            echo "----- ccache -s -----"
-            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
-            echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
-            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
-          fi
-          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
-          if [ "$SIZE_BYTES" -lt 1048576 ]; then
-            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
-            exit 0
-          fi
-          PARENT="$(dirname "$CCACHE_DIR")"
-          BASE="$(basename "$CCACHE_DIR")"
-          tar -C "$PARENT" --remove-files -cf - "$BASE" \
-            | split -b 1900m - ccache-${BOARD}-mame-lr.tar.part-
-          echo "split 생성:"
-          ls -la ccache-${BOARD}-mame-lr.tar.part-*
-        continue-on-error: true
-
-      - name: Save ccache (mame-lr)
-        id: save-cache-mame-lr
-        uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-mame-lr.tar.part-*', inputs.BOARD)) != '' }}
-        with:
-          tag:          ccache
-          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
-          artifacts:    "ccache-${{ inputs.BOARD }}-mame-lr.tar.part-*"
-          allowUpdates: true
-          makeLatest:   false
-          prerelease:   true
-          body:         ccache
-          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          owner:        ${{ github.repository_owner }}
-          repo:         ${{ env.CACHE_REPO }}
-        continue-on-error: true
-
-      - name: Warn if ccache upload failed (mame-lr)
-        if: steps.save-cache-mame-lr.outcome == 'failure'
-        run: |
-          echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 mame-lr ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
-
-      # ✅ 핵심: 자기가 빌드한 것만 묶어 올림 (per-package + .stamp_libretro-mame*)
-      #    빌드 안 한 경우 빈 tar 생성하여 다음 잡 통과
-      - name: Pack mame artifacts
-        run: |
-          if [ -z "${{ steps.mame-list.outputs.packages }}" ]; then
-            echo "빌드 안 함 — 빈 아카이브 생성"
-            tar --zstd -cf mame-lr.tar.zst --files-from /dev/null
-          else
-            FILES=""
-            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d \
-              \( -name 'libretro-mame' -o -name 'libretro-mame[0-9]*' -o -name 'libretro-mame-*' \) 2>/dev/null); do
-              FILES="$FILES $D"
-            done
-            for D in $(find output/${BOARD}/build -maxdepth 1 -type d \
-              \( -name 'libretro-mame-[0-9]*' -o -name 'libretro-mame[0-9]*-[0-9]*' \) 2>/dev/null); do
-              FILES="$FILES $D"
-            done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf mame-lr.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf mame-lr.tar.zst $FILES
-            fi
-          fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name:              mame-lr-${{ inputs.BOARD }}
-          path:              mame-lr.tar.zst
-          compression-level: 0
-          if-no-files-found: error
-          retention-days:    1
-
-  # ═════════════════════════════════════════════════════════════════════════
-  # Stage 3: frontend (Qt6 + EmulationStation)
-  # ═════════════════════════════════════════════════════════════════════════
   frontend:
     name: ${{ inputs.BOARD }} · 3-frontend
     needs: base
@@ -773,6 +548,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 50
+
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -840,7 +630,7 @@ jobs:
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -853,6 +643,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -860,6 +663,7 @@ jobs:
           name: logs-${{ inputs.BOARD }}-frontend
           path: build.log
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Trim and save ccache
         if: success()
@@ -968,13 +772,13 @@ jobs:
           retention-days:    1
 
   # ═════════════════════════════════════════════════════════════════════════
-  # Stage 4a: heavy-libretro (무거운 libretro 코어들)
-  # ✅ mame-lr 의존 제거 — frontend 끝나면 바로 시작, mame는 image 잡에서 merge
+  # Stage 4a: heavy-libretro (무거운 libretro 코어 + libretro-mame)
+  # ✅ mame-lr 별도 잡 제거 — libretro-mame 계열도 여기서 함께 빌드
   # ═════════════════════════════════════════════════════════════════════════
   heavy-libretro:
     name: ${{ inputs.BOARD }} · 4-heavy-libretro
     needs: frontend
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ needs.frontend.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -997,6 +801,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 50
+
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -1055,15 +874,16 @@ jobs:
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
 
-      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean (mame 계열은 mame-lr 잡 담당이라 제외)
+      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean
+      #    mame-lr 별도 잡을 제거했으므로 libretro-mame 계열도 heavy-libretro가 담당
       - name: Auto-detect and clean changed packages
         env:
           SCOPE_PATTERNS:   "libretro-*"
-          EXCLUDE_PATTERNS: "libretro-mame*"
+          EXCLUDE_PATTERNS: ""
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
-      # ✅ batocera 트리의 무거운 libretro 코어들
+      # ✅ batocera 트리의 무거운 libretro 코어들 + libretro-mame
       #    실제 패키지명 확인됨:
       #      libretro-parallel-n64, libretro-mupen64plus-next, libretro-flycast,
       #      libretro-beetle-saturn, libretro-beetle-psx, libretro-pcsx-rearmed,
@@ -1082,7 +902,7 @@ jobs:
             libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
             libretro-desmume libretro-dolphin libretro-citra
             libretro-swanstation libretro-duckstation
-            libretro-mame2003-plus libretro-mame2010 libretro-mame2016
+            libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016
           "
           PKGS=""
           for P in $CANDIDATES; do
@@ -1113,7 +933,7 @@ jobs:
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -1126,6 +946,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -1133,6 +966,7 @@ jobs:
           name: logs-${{ inputs.BOARD }}-heavy-libretro
           path: build.log
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Trim and save ccache
         if: success()
@@ -1224,8 +1058,8 @@ jobs:
             for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
               FILES="$FILES $D"
             done
-            # ✅ build 디렉토리는 버전 붙은 형태 (libretro-flycast-1.0.x)
-            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*-[0-9]*' 2>/dev/null); do
+            # ✅ build 디렉토리도 포함. 일부 패키지는 -custom/git/hash 형태일 수 있어 넓게 포함한다.
+            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
               FILES="$FILES $D"
             done
             for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
@@ -1263,7 +1097,7 @@ jobs:
   standalone:
     name: ${{ inputs.BOARD }} · 4-standalone
     needs: frontend
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ needs.frontend.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -1286,6 +1120,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 50
+
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -1395,7 +1244,7 @@ jobs:
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -1408,6 +1257,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -1415,6 +1277,7 @@ jobs:
           name: logs-${{ inputs.BOARD }}-standalone
           path: build.log
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Trim and save ccache
         if: success()
@@ -1508,7 +1371,15 @@ jobs:
             #         "${P}" 와 "${P}-[0-9]*" 둘 다 처리.
             for P in ${{ steps.sa-list.outputs.packages }}; do
               for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name "${P}" 2>/dev/null) \
-                       $(find output/${BOARD}/build -maxdepth 1 -type d \( -name "${P}" -o -name "${P}-[0-9]*" \) 2>/dev/null); do
+                       $(find output/${BOARD}/build -maxdepth 1 -type d \( \
+                            -name "${P}" \
+                         -o -name "${P}-[0-9]*" \
+                         -o -name "${P}-v[0-9]*" \
+                         -o -name "${P}-custom" \
+                         -o -name "${P}-git*" \
+                         -o -name "${P}-master*" \
+                         -o -name "${P}-[a-f0-9][a-f0-9]*" \
+                       \) 2>/dev/null); do
                 FILES="$FILES $D"
               done
             done
@@ -1545,8 +1416,15 @@ jobs:
   # ═════════════════════════════════════════════════════════════════════════
   image:
     name: ${{ inputs.BOARD }} · 5-image
-    needs: [frontend, mame-lr, heavy-libretro, standalone]
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    needs: [frontend, heavy-libretro, standalone]
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        needs.frontend.result == 'success' &&
+        needs.heavy-libretro.result == 'success' &&
+        needs.standalone.result == 'success'
+      }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -1569,6 +1447,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 50
+
+
+      - name: Prepare Buildroot dl cache
+        run: mkdir -p "$DL_DIR"
+
+      - name: Restore Buildroot dl cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
+            br-dl-${{ runner.os }}-${{ github.ref_name }}-
+            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -1625,16 +1518,6 @@ jobs:
           tar --zstd --skip-old-files -xf standalone.tar.zst
           rm standalone.tar.zst
 
-      # ── mame-lr (마지막 — heavy-libretro와 standalone 후에 merge)
-      - uses: actions/download-artifact@v4
-        with:
-          name: mame-lr-${{ inputs.BOARD }}
-
-      - name: Extract mame-lr
-        run: |
-          tar --zstd --skip-old-files -xf mame-lr.tar.zst
-          rm mame-lr.tar.zst
-
       - name: Print disk space (after merge)
         run: df -h
 
@@ -1663,7 +1546,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             echo "::group::Attempt $i"
             make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED' || true
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
@@ -1676,6 +1559,19 @@ jobs:
         if: always()
         run: df -h
 
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Save Buildroot dl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DL_DIR }}
+          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        continue-on-error: true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -1683,6 +1579,7 @@ jobs:
           name: logs-${{ inputs.BOARD }}-image
           path: build.log
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
@@ -1703,7 +1600,7 @@ jobs:
     needs: image
     # ✅ FIX: 이전엔 `always() && !cancelled()` 였는데, 이 경우 image 잡이
     #         실패해도 cleanup 이 무조건 돌아서 frontend-/heavy-libretro-/
-    #         standalone-/mame-lr- 등 중간 아티팩트를 전부 지워버림.
+    #         standalone- 등 중간 아티팩트를 전부 지워버림.
     #         그 결과 build.yml 의 rerun-failed 가 자동 재실행을 걸어도
     #         image 잡의 download-artifact 단계에서 "Artifact not found" 로
     #         계속 실패. 자동 재시도(run_attempt < 3) 가 무력화됨.
@@ -1720,7 +1617,6 @@ jobs:
           name: |
             toolchain-${{ inputs.BOARD }}
             base-${{ inputs.BOARD }}
-            mame-lr-${{ inputs.BOARD }}
             frontend-${{ inputs.BOARD }}
             frontend-build-${{ inputs.BOARD }}
             heavy-libretro-${{ inputs.BOARD }}

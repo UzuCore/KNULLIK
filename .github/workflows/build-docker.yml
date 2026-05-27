@@ -53,10 +53,14 @@ jobs:
           fi
 
       - name: Build and push
-        # ✅ FIX: workflow_call 로 호출될 때는 github.event_name 이 원래 트리거를
-        #         상속하므로 (e.g. workflow_dispatch), 매번 강제 재빌드가 발생했음.
-        #         이미지가 이미 존재하면 push/workflow_dispatch 에서만 재빌드.
-        #         workflow_call 경유 시(배치 빌드)는 이미지 없을 때만 빌드.
+        # 의도:
+        # - 이미지가 없으면 빌드
+        # - Dockerfile/.dockerignore push 때는 강제 재빌드
+        # - build.yml에서 workflow_call로 호출된 일반 배치 빌드에서는 이미지가 있으면 스킵
+        #
+        # 주의:
+        # workflow_dispatch 조건을 여기에 넣으면 build.yml 수동 실행 경유에서도
+        # Docker 이미지가 매번 재빌드될 수 있으므로 넣지 않는다.
         if: |
           steps.check.outputs.exists != 'true' ||
           github.event_name == 'push'

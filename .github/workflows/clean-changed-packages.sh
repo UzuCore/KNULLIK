@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# clean-changed-packages.sh  (v2)
+# clean-changed-packages.sh  (v5-verified)
 #
 # 마지막 release 태그(YYYYMMDD) 이후 변경된 buildroot 패키지의 .stamp_built 를
 # 제거해서 다음 make 실행 시 재빌드되도록 한다.
@@ -12,11 +12,20 @@
 #  - batocera, buildroot 두 서브모듈 내부의 diff까지 추출
 #    (이전 버전은 메인 레포의 diff만 봐서, batocera 본체 변경을 전혀 감지 못함.
 #     batocera/ 가 서브모듈이라 메인 git diff에는 "batocera" 한 줄로만 나옴)
-#  - batocera/package, buildroot/package 의 awk 추출을 .mk 디렉토리 기준으로 수정
-#    (이전 a[5] 하드코딩은 batocera/package/CAT/SUBCAT/NAME/ 형태에서 카테고리명을
-#     패키지명으로 오해함)
+#  - package 경로가 중첩되어 있어도 .mk 파일이 있는 디렉토리를 패키지명으로 추출
+#    (예: package/audio/m8c/... → m8c, package/batocera/.../libretro-mame/... → libretro-mame)
 #  - find pattern 을 `${P}-[0-9]*` 로 좁혀 `linux-headers` 같은 over-match 방지
 #  - fetch-depth 부족 시 자동으로 unshallow / 추가 fetch 시도
+#
+# v4 변경사항:
+#  - buildroot/batocera/main repo 의 전역 infra/config 변경 감지 시 _GLOBAL_REBUILD_ 마커 추가
+#    (pkg-*.mk, Makefile, Config.in, support/scripts 등)
+#  - _GLOBAL_REBUILD_ 는 모든 scope 에서 감지/로그한다.
+#  - 단, 이 GitHub Actions 구조는 output/ 을 cross-run cache 하지 않고,
+#    모든 artifact 가 같은 SHA의 현재 run에서 생성된다. 따라서 downstream stage에서
+#    upstream toolchain/base/frontend stamp 를 다시 지우면 불필요한 대형 재빌드가 발생한다.
+#  - 그래서 전역 변경은 destructive clean 대신 final image stamp 만 제거한다.
+#  - dl/ 와 ccache 는 건드리지 않는다.
 #
 # 환경변수:
 #   BOARD          (필수) — 보드 이름
@@ -73,14 +82,90 @@ echo
 TMP_CHANGED=$(mktemp)
 trap 'rm -f "$TMP_CHANGED"' EXIT
 
+
+# package/<...>/<PKG>/<file> 형태에서 실제 패키지명 추출
+# 기준: 경로를 위로 올라가며 *.mk 파일이 있는 디렉토리명을 패키지명으로 본다.
+# 이유: Knulli/Batocera/Buildroot package 트리는 package/audio/m8c 처럼 중첩될 수 있어
+#       package/ 바로 아래 디렉토리(a[2])나 마지막에서 두 번째 디렉토리(a[n-1])를
+#       고정으로 쓰면 오탐한다.
+extract_pkg_from_path() {
+  local root="$1"
+  local path="$2"
+  local d
+
+  [[ "$path" == package/* ]] || return 1
+
+  d="$(dirname "$path")"
+  while [[ "$d" == package/* && "$d" != "package" && "$d" != "." ]]; do
+    if ( cd "$root" 2>/dev/null && compgen -G "$d/*.mk" >/dev/null ); then
+      basename "$d"
+      return 0
+    fi
+    d="$(dirname "$d")"
+  done
+
+  # package/pkg-generic.mk 같은 전역 infra 파일은 여기서 패키지명으로 오인하지 않는다.
+  return 1
+}
+
+# 전역 build infra/config 변경 감지
+# 이 파일들이 바뀌면 특정 패키지만 stamp 제거하는 방식은 stale artifact 위험이 크다.
+# 단순/안전 정책: _GLOBAL_REBUILD_ 마커를 모든 stage 에 전달한다.
+is_global_infra_path() {
+  local path="$1"
+
+  case "$path" in
+    # top-level orchestration / config
+    Makefile|Config.in|Config.in.*|*/Makefile|*/Config.in|*/Config.in.*)
+      return 0
+      ;;
+
+    # Buildroot/Batocera package infrastructure
+    package/pkg-*.mk|*/package/pkg-*.mk)
+      return 0
+      ;;
+
+    # Config.in graph changes can alter selected packages/dependencies.
+    package/Config.in|package/Config.in.*|package/*/Config.in|package/*/Config.in.*|*/package/Config.in|*/package/Config.in.*|*/package/*/Config.in|*/package/*/Config.in.*)
+      return 0
+      ;;
+
+    # common helper scripts/support files used by build/package infra
+    support/*|scripts/*|utils/*|*/support/*|*/scripts/*|*/utils/*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+emit_global_marker_if_needed() {
+  local path="$1"
+  if is_global_infra_path "$path"; then
+    echo "_GLOBAL_REBUILD_"
+  fi
+}
+
 # ─── 1) 메인 레포의 변경 ──────────────────────────────────────────────
-# package/  : knulli 고유 패키지 (package/NAME/...)
+# package/  : knulli 고유 패키지 (중첩 구조 가능: package/audio/m8c/...)
 # board/    : 보드 오버레이 (별도 마커로 처리)
-git diff --name-only "$LAST_TAG..HEAD" -- 'package/' 'board/' 2>/dev/null | \
-  awk '
-    /^package\// { split($0, a, "/"); print a[2]; next }
-    /^board\//   { print "_BOARD_OVERLAY_"; next }
-  ' >> "$TMP_CHANGED" || true
+# Makefile/Config.in/support/scripts/pkg-*.mk 등은 전역 rebuild 마커로 처리
+MAIN_DIFF=$(git diff --name-only "$LAST_TAG..HEAD" 2>/dev/null || true)
+
+echo "$MAIN_DIFF" | while IFS= read -r F; do
+  [ -n "$F" ] || continue
+
+  emit_global_marker_if_needed "$F" || true
+
+  case "$F" in
+    board/*)
+      echo "_BOARD_OVERLAY_"
+      ;;
+    package/*)
+      extract_pkg_from_path "." "$F" || true
+      ;;
+  esac
+done >> "$TMP_CHANGED" || true
 
 # ─── 2) 서브모듈 변경 처리 ────────────────────────────────────────────
 # batocera, buildroot 둘 다 서브모듈. 메인 레포의 diff 출력에는
@@ -116,23 +201,18 @@ for SM in $SUBMODULES_CHANGED; do
   SM_DIFF=$(
     cd "$SM" 2>/dev/null || exit 0
     for SHA in "$PREV_SHA" "$CUR_SHA"; do
-      git cat-file -e "${SHA}^{commit}" 2>/dev/null || \
-        git fetch --depth=200 origin "$SHA" 2>/dev/null || \
-        git fetch --unshallow origin 2>/dev/null || true
+      git cat-file -e "${SHA}^{commit}" 2>/dev/null ||         git fetch --depth=200 origin "$SHA" 2>/dev/null ||         git fetch --unshallow origin 2>/dev/null || true
     done
-    git diff --name-only "$PREV_SHA..$CUR_SHA" -- 'package/' 2>/dev/null || true
+    git diff --name-only "$PREV_SHA..$CUR_SHA" 2>/dev/null || true
   )
 
-  # 서브모듈 안의 package/<...>/<NAME>/<file> 형태에서 NAME 추출
-  # NAME 은 항상 .mk 파일이 있는 디렉토리 (=경로 마지막에서 두 번째 세그먼트)
-  # 예) package/batocera/emulators/libretro/libretro-mame/libretro-mame.mk
-  #     → 마지막 디렉토리 = "libretro-mame"
-  echo "$SM_DIFF" | awk '
-    NF > 0 {
-      n = split($0, a, "/")
-      if (n >= 2) print a[n-1]
-    }
-  ' >> "$TMP_CHANGED" || true
+  # 서브모듈 안의 package 경로에서도 .mk 파일이 있는 디렉토리를 패키지명으로 추출
+  # 전역 infra/config 변경은 _GLOBAL_REBUILD_ 로 처리
+  echo "$SM_DIFF" | while IFS= read -r F; do
+    [ -n "$F" ] || continue
+    emit_global_marker_if_needed "$SM/$F" || true
+    extract_pkg_from_path "$SM" "$F" || true
+  done >> "$TMP_CHANGED" || true
 done
 
 CHANGED=$(sort -u "$TMP_CHANGED")
@@ -173,6 +253,13 @@ mapfile -t EXCLUDE_ARR < <(split_patterns "$EXCLUDE_PATTERNS")
 
 FILTERED=""
 for P in $CHANGED; do
+  # 전역 infra/config 변경은 모든 stage 에서 처리한다.
+  # scope/exclude 로 걸러버리면 일부 stage 가 stale output 을 들고 갈 수 있다.
+  if [ "$P" = "_GLOBAL_REBUILD_" ]; then
+    FILTERED="$FILTERED $P"
+    continue
+  fi
+
   # board overlay 변경은 image 잡에서만 처리
   if [ "$P" = "_BOARD_OVERLAY_" ]; then
     if matches_pattern "$P" "${SCOPE_ARR[@]}"; then
@@ -203,6 +290,19 @@ echo
 # .stamp_built / .stamp_target_installed / .stamp_staging_installed 셋만 지우면
 # buildroot가 해당 단계부터 다시 시작함 (다운로드/패치 단계 stamp는 유지 → 빠름)
 for P in $FILTERED; do
+  if [ "$P" = "_GLOBAL_REBUILD_" ]; then
+    echo "  global infra/config 변경 감지"
+    echo "    - 이 workflow는 output/을 cross-run cache 하지 않음"
+    echo "    - upstream artifact는 같은 SHA/current run에서 생성된 것이므로 toolchain/base/frontend stamp는 보존"
+    echo "    - 최종 image/finalize stamp만 제거해 이미지 재생성은 보장"
+
+    rm -rf "output/${BOARD}/images" 2>/dev/null || true
+    rm -f "output/${BOARD}/build/.stamp_target_finalized" 2>/dev/null || true
+    rm -f "output/${BOARD}/.stamp_target_finalized" 2>/dev/null || true
+    rm -f "output/${BOARD}/.stamp_images_built" 2>/dev/null || true
+    continue
+  fi
+
   if [ "$P" = "_BOARD_OVERLAY_" ]; then
     # board overlay는 final image 단계에서 다시 복사되도록
     rm -f output/${BOARD}/build/.stamp_target_finalized 2>/dev/null || true
@@ -215,8 +315,15 @@ for P in $FILTERED; do
   # 버전 붙은 디렉토리: ${P}-1.2.3 (숫자 시작)으로 제한해서 over-match 방지
   # 예) P=linux 일 때 linux-headers, linux-pam 같은 것은 잡지 않음
   # 추가로 버전 없는 정확 매치 (per-package 모드의 일부 케이스)
-  for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name "${P}-[0-9]*" 2>/dev/null) \
-           $(find output/${BOARD}/build -maxdepth 1 -type d -name "${P}" 2>/dev/null); do
+  for D in $(find output/${BOARD}/build -maxdepth 1 -type d \( \
+              -name "${P}" \
+           -o -name "${P}-[0-9]*" \
+           -o -name "${P}-v[0-9]*" \
+           -o -name "${P}-custom" \
+           -o -name "${P}-git*" \
+           -o -name "${P}-master*" \
+           -o -name "${P}-[a-f0-9][a-f0-9]*" \
+         \) 2>/dev/null); do
     if [ -d "$D" ]; then
       echo "  clean: $D"
       rm -f "$D"/.stamp_built \

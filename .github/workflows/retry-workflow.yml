@@ -6,6 +6,10 @@ on:
       run_id:
         required: true
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   rerun:
     runs-on: ubuntu-24.04
