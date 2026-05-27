@@ -36,6 +36,13 @@ env:
   # BR2_DL_DIR is kept for direct-build compatibility.
   DL_DIR:     ${{ github.workspace }}/dl
   BR2_DL_DIR: ${{ github.workspace }}/dl
+  # ccache 총량 제한. GitHub release asset 1개 한도는 split(1900m)으로 피하고,
+  # ccache 자체는 stage별 빌드 비용에 맞춰 충분히 크게 유지한다.
+  CCACHE_MAX_TOOLCHAIN:      "1G"
+  CCACHE_MAX_BASE:           "2G"
+  CCACHE_MAX_FRONTEND:       "3G"
+  CCACHE_MAX_HEAVY_LIBRETRO: "8G"
+  CCACHE_MAX_STANDALONE:     "6G"
   # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
   DISABLE_COLORS:        "yes"
   CCACHE_COMPILERCHECK:  content
@@ -214,7 +221,7 @@ jobs:
             echo "----- ccache -s -----"
             CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
             echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 500M || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_TOOLCHAIN" || true
             CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
           fi
@@ -473,7 +480,7 @@ jobs:
             echo "----- ccache -s -----"
             CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
             echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 1G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_BASE" || true
             CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
           fi
@@ -704,7 +711,7 @@ jobs:
             echo "----- ccache -s -----"
             CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
             echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_FRONTEND" || true
             CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
           fi
@@ -1007,7 +1014,7 @@ jobs:
             echo "----- ccache -s -----"
             CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
             echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_HEAVY_LIBRETRO" || true
             CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
           fi
@@ -1318,7 +1325,7 @@ jobs:
             echo "----- ccache -s -----"
             CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
             echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M 2G || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_STANDALONE" || true
             CCACHE_DIR="$CCACHE_DIR" ccache -c || true
             SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
           fi
