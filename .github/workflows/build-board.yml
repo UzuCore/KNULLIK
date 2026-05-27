@@ -33,6 +33,7 @@ env:
   BOARD:      ${{ inputs.BOARD }}
   CACHE_REPO: ${{ vars.CACHE_REPO || 'knulli-build-cache' }}
   # Knulli Makefile uses DL_DIR and mounts it into Docker as /build/buildroot/dl.
+  # dl is intentionally not cached: local dl can be very large, so ccache remains the main accelerator.
   # BR2_DL_DIR is kept for direct-build compatibility.
   DL_DIR:     ${{ github.workspace }}/dl
   BR2_DL_DIR: ${{ github.workspace }}/dl
@@ -82,19 +83,8 @@ jobs:
           fetch-depth: 1
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -162,14 +152,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
@@ -311,19 +293,8 @@ jobs:
           fetch-depth: 50
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -423,14 +394,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
@@ -557,19 +520,8 @@ jobs:
           fetch-depth: 50
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -654,14 +606,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
@@ -810,19 +754,8 @@ jobs:
           fetch-depth: 50
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -957,14 +890,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
@@ -1129,19 +1054,8 @@ jobs:
           fetch-depth: 50
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -1268,14 +1182,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
@@ -1456,19 +1362,8 @@ jobs:
           fetch-depth: 50
 
 
-      - name: Prepare Buildroot dl cache
+      - name: Prepare Buildroot dl dir
         run: mkdir -p "$DL_DIR"
-
-      - name: Restore Buildroot dl cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-
-            br-dl-${{ runner.os }}-${{ github.ref_name }}-
-            br-dl-${{ runner.os }}-
 
       - name: Prepare docker
         run: |
@@ -1570,14 +1465,6 @@ jobs:
       - name: Show Buildroot dl size
         if: always()
         run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Save Buildroot dl cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DL_DIR }}
-          key: br-dl-${{ runner.os }}-${{ github.ref_name }}-${{ inputs.BOARD }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-        continue-on-error: true
 
       - name: Upload logs on failure
         if: failure()
