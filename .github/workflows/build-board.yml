@@ -1263,11 +1263,11 @@ jobs:
           rm frontend-build.tar.zst
 
       # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
-      #    libretro-* / mame* 는 다른 잡 담당이므로 제외
+      #    libretro-* 는 heavy-libretro 잡 담당이므로 제외
       - name: Auto-detect and clean changed packages
         env:
           SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* mame* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
@@ -1601,7 +1601,7 @@ jobs:
         env:
           SCOPE_PATTERNS:   "*"
           # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* mame* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
