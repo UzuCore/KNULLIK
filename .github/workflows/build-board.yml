@@ -116,12 +116,23 @@ jobs:
             exit 0
           fi
           cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
             echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
           else
             echo "ccache extract 실패 — 무시하고 진행"
           fi
           rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
 
       - name: Build toolchain
         shell: bash
@@ -139,8 +150,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
@@ -198,6 +215,10 @@ jobs:
             echo "    [find] ccache 관련 디렉토리들:"
             find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
             echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
           fi
           if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
             echo "----- ccache -s -----"
@@ -326,12 +347,23 @@ jobs:
             exit 0
           fi
           cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
             echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
           else
             echo "ccache extract 실패 — 무시하고 진행"
           fi
           rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
 
       - uses: actions/download-artifact@v4
         with:
@@ -381,8 +413,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
@@ -438,6 +476,10 @@ jobs:
             echo "    [find] ccache 관련 디렉토리들:"
             find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
             echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
           fi
           if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
             echo "----- ccache -s -----"
@@ -553,12 +595,23 @@ jobs:
             exit 0
           fi
           cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
             echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
           else
             echo "ccache extract 실패 — 무시하고 진행"
           fi
           rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
 
       - uses: actions/download-artifact@v4
         with:
@@ -593,8 +646,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
@@ -650,6 +709,10 @@ jobs:
             echo "    [find] ccache 관련 디렉토리들:"
             find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
             echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
           fi
           if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
             echo "----- ccache -s -----"
@@ -787,12 +850,23 @@ jobs:
             exit 0
           fi
           cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
             echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
           else
             echo "ccache extract 실패 — 무시하고 진행"
           fi
           rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
 
       # frontend (sysroot 포함)
       - uses: actions/download-artifact@v4
@@ -877,8 +951,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
@@ -934,6 +1014,10 @@ jobs:
             echo "    [find] ccache 관련 디렉토리들:"
             find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
             echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
           fi
           if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
             echo "----- ccache -s -----"
@@ -1087,12 +1171,23 @@ jobs:
             exit 0
           fi
           cat ${PREFIX}* > ccache.tar
-          if tar -C "$(pwd)" -xf ccache.tar; then
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
             echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
           else
             echo "ccache extract 실패 — 무시하고 진행"
           fi
           rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
 
       - uses: actions/download-artifact@v4
         with:
@@ -1169,8 +1264,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
@@ -1226,6 +1327,10 @@ jobs:
             echo "    [find] ccache 관련 디렉토리들:"
             find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
             echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
           fi
           if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
             echo "----- ccache -s -----"
@@ -1452,8 +1557,14 @@ jobs:
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC), sleeping 10s before retry..."
-            sleep 10
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
           done
           exit $RC
 
