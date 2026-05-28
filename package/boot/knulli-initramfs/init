@@ -9,28 +9,11 @@ do_mount() {
     return 1
 }
 
-show_splash() {
-    # Text-only boot screen, ROCKNIXK style.
-    # The root filesystem is already mounted at /new_root here, so /etc/motd is available.
-    clear >/dev/console 2>/dev/null || true
-
-    if [ -f /new_root/etc/motd ]; then
-        cat /new_root/etc/motd >/dev/console 2>/dev/null || true
-        echo >/dev/console
-    fi
-
-    echo "==> Loading KNULLI, please wait..." >/dev/console
-}
-
 do_root() {
     mkdir -p /boot_root /new_root /overlay_root /sys /proc || return 1
     mount -t proc  -o nodev,noexec,nosuid proc  /proc  	|| return 1
     mount -t sysfs -o nodev,noexec,nosuid sysfs /sys 	|| return 1
     mount -t devtmpfs none /dev
-
-    # stdout -> console
-    exec 1>/dev/console
-    exec 2>/dev/null
 
     # read the parameters
     read -r cmdline < /proc/cmdline
@@ -115,9 +98,6 @@ do_root() {
 	# mount only as squashfs, no overlay (xu4 doesn't support overlayfs)
 	mount /boot_root/boot/knulli /new_root || return 1
     fi
-
-    # show splash after new_root is mounted (ROCKNIXK 방식)
-    show_splash
 
     # moving current mounts
     mount --move /boot_root    /new_root/boot    || return 1

@@ -1,65 +1,31 @@
 #!/bin/sh
 
-# Text-only boot sequence.
-# Shows /etc/motd and prints service startup progress to the console instead of
-# letting a splash image/video hide the boot messages.
+#
+# Start all init scripts in /etc/init.d
+# executing them in numerical order.
+#
+for i in /etc/init.d/S??* ;do
 
-CONSOLE=/dev/console
-BOOTLOG=/var/run/boot.log
-
-print_console() {
-    echo "$@" >"${CONSOLE}" 2>/dev/null || true
-}
-
-show_motd() {
-    clear >"${CONSOLE}" 2>/dev/null || true
-    if [ -f /etc/motd ]; then
-        cat /etc/motd >"${CONSOLE}" 2>/dev/null || true
-        print_console ""
-    fi
-    print_console "==> Starting KNULLI services..."
-    print_console ""
-}
-
-mkdir -p /var/run/
-show_motd
-
-echo "$(date +"%F %T,%3N"): rcS - starting" >> "${BOOTLOG}"
-
-# Start all init scripts in /etc/init.d in numerical order.
-for i in /etc/init.d/S??* ; do
-    # Ignore dangling symlinks or non-files.
+     # Ignore dangling symlinks (if any).
     [ ! -f "$i" ] && continue
 
-    name="$(basename "$i")"
-    echo "$(date +"%F %T,%3N"): ${i} - starting" >> "${BOOTLOG}"
-    print_console "==> ${name} - starting"
+	mkdir -p /var/run/
+    echo $(date +"%F %T,%3N")": ${i} - starting" >> /var/run/boot.log
 
-    case "$i" in
-        *.sh)
-            (
-                trap - INT QUIT TSTP
-                set start
-                . "$i"
-            )
-            rc=$?
-            ;;
-        *)
-            "$i" start
-            rc=$?
-            ;;
-    esac
+     case "$i" in
+	*.sh)
+	    # Source shell script for speed.
+	    (
+		trap - INT QUIT TSTP
+		set start
+		. $i
+	    )
+	    ;;
+	*)
+	    # No sh extension, so fork subprocess.
+	    $i start
+	    ;;
+     esac
 
-    if [ ${rc} -eq 0 ]; then
-        echo "$(date +"%F %T,%3N"): ${i} - started" >> "${BOOTLOG}"
-        print_console "    ${name} - OK"
-    else
-        echo "$(date +"%F %T,%3N"): ${i} - failed (${rc})" >> "${BOOTLOG}"
-        print_console "    ${name} - FAILED (${rc})"
-    fi
-
+     echo $(date +"%F %T,%3N")": ${i} - started" >> /var/run/boot.log
 done
-
-print_console ""
-print_console "==> Launching frontend..."
-echo "$(date +"%F %T,%3N"): rcS - finished" >> "${BOOTLOG}"
