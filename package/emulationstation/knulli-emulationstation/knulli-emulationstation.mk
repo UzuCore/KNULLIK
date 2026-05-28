@@ -113,6 +113,11 @@ define KNULLI_EMULATIONSTATION_EXTERNAL_POS
 	    $(@D)/locale/lang/$$(basename $$P)/LC_MESSAGES/emulationstation2.po; fi; done
 endef
 
+define KNULLI_EMULATIONSTATION_PSPFONT_MENU_PATCH
+	python3 $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/patch_ppsspp_menu.py \
+		$(@D)/es-app/src/guis/GuiMenu.cpp
+endef
+
 define KNULLI_EMULATIONSTATION_RESOURCES
 	$(INSTALL) -m 0755 -d $(TARGET_DIR)/usr/share/emulationstation/resources/help
 	$(INSTALL) -m 0755 -d $(TARGET_DIR)/usr/share/emulationstation/resources/flags
@@ -155,6 +160,17 @@ define KNULLI_EMULATIONSTATION_RESOURCES
 		$(INSTALL) -m 0755 -D $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/ppsspp_font.sh \
 			$(TARGET_DIR)/usr/bin/ppsspp_font.sh; \
 	fi
+
+	# PPSSPP Korean font assets
+	mkdir -p $(TARGET_DIR)/usr/config/ppsspp/assets
+	for f in orig.jpn0.pgf orig.kr0.pgf patch.jpn0.pgf patch.kr0.pgf; do \
+		if ! test -f $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/$$f; then \
+			echo "[ERROR] missing PPSSPP Korean font asset: $$f" >&2; \
+			exit 1; \
+		fi; \
+		$(INSTALL) -m 0644 -D $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/$$f \
+			$(TARGET_DIR)/usr/config/ppsspp/assets/$$f; \
+	done
 endef
 
 ### S31emulationstation
@@ -252,6 +268,7 @@ define KNULLI_EMULATIONSTATION_BOOT
 endef
 
 KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_RPI_FIXUP
+KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_PSPFONT_MENU_PATCH
 KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_EXTERNAL_POS
 KNULLI_EMULATIONSTATION_POST_INSTALL_TARGET_HOOKS += KNULLI_EMULATIONSTATION_RESOURCES
 KNULLI_EMULATIONSTATION_POST_INSTALL_TARGET_HOOKS += KNULLI_EMULATIONSTATION_BOOT
