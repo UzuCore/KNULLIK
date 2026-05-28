@@ -8,7 +8,7 @@ M8C_SITE =  $(call github,laamaa,m8c,$(M8C_VERSION))
 M8C_LICENSE = MIT
 M8C_INSTALL_STAGING = YES
 
-M8C_DEPENDENCIES += sdl2
+M8C_DEPENDENCIES += sdl2 libserialport
 define M8C_INSTALL_TARGET_CMDS
     $(MAKE) PREFIX="$(TARGET_DIR)/usr" $(TARGET_CONFIGURE_OPTS) -C $(@D)
     cp $(@D)/m8c $(TARGET_DIR)/usr/bin/
