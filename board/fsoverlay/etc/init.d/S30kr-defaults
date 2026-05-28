@@ -17,15 +17,13 @@ set_default() {
 
 case "$1" in
     start)
-        /usr/bin/knulli-boot-status set "Applying Korean locale defaults..." 2>/dev/null || true
         set_default system.language ko_KR
         set_default system.timezone Asia/Seoul
         set_default system.kblayout kr
         set_default system.kbvariant kr104
         set_default wifi.country KR
+        set_default global.pspfont.enabled 1
         ;;
 esac
 
 exit 0
-
-ensure_setting "global.pspfont.enabled" "1"

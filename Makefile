@@ -79,15 +79,11 @@ endif # DIRECT_BUILD
 ROCKNIXK_BATOCERA_OVERLAY := $(PROJECT_DIR)/overlays/rocknixk/batocera
 
 rocknixk-overlay:
-	@if [ -d "$(ROCKNIXK_BATOCERA_OVERLAY)" ]; then \
-		if [ ! -d "$(PROJECT_DIR)/batocera/package" ]; then \
-			echo "ERROR: batocera submodule is not initialized."; \
-			echo "Run: git submodule update --init --recursive batocera buildroot"; \
-			exit 1; \
-		fi; \
-		echo "Applying ROCKNIXK Batocera overlay..."; \
-		cp -a "$(ROCKNIXK_BATOCERA_OVERLAY)/." "$(PROJECT_DIR)/batocera/"; \
-	fi
+	@bash "$(PROJECT_DIR)/scripts/rocknixk-apply-batocera-overlay.sh" "$(PROJECT_DIR)"
+	@mkdir -p "$(PROJECT_DIR)/package/emulationstation/knulli-emulationstation"
+	@mkdir -p "$(PROJECT_DIR)/package/batocera/emulationstation/batocera-emulationstation"
+	@touch "$(PROJECT_DIR)/package/emulationstation/knulli-emulationstation/keys.txt"
+	@touch "$(PROJECT_DIR)/package/batocera/emulationstation/batocera-emulationstation/keys.txt"
 
 vars:
 	@echo "Supported targets:  $(TARGETS)"
@@ -149,7 +145,7 @@ dl-dir:
 	@status=0; \
 	$(MAKE_BUILDROOT) $(CMD) || status=$$?; \
 	$(MAKE) restore-generated-po; \
-	if [ $$status -eq 0 ]; then $(MAKE) collect-build-artifacts BOARD=$*; fi; \
+	if [ $$status -eq 0 ] && [ -z "$(CMD)" ]; then $(MAKE) collect-build-artifacts BOARD=$*; fi; \
 	exit $$status
 
 %-source: knulli-docker-image %-config ccache-dir dl-dir

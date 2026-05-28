@@ -1,7 +1,0 @@
-#!/bin/sh
-case "$1" in
-    start)
-        /usr/bin/knulli-boot-status set "Starting network services..."
-        ;;
-esac
-exit 0
