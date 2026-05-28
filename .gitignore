@@ -31,3 +31,6 @@ package/emulationstation/knulli-emulationstation/keys.txt
 batocera-mok.key
 .project
 /update_server
+
+# Local build outputs / collected artifacts
+target/

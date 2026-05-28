@@ -14,10 +14,12 @@
 BOARD_DIR=$1
 BINARIES_DIR=$2
 BOOT_DIR=$3
+# Optional explicit output path. Keep the old default for compatibility.
+SIGNATURE_FILE="${4:-${BINARIES_DIR}/firmware.sig}"
 
 set -e
 
-SIGNATURE_FILE="${BINARIES_DIR}/firmware.sig"
+mkdir -p "$(dirname "${SIGNATURE_FILE}")"
 
 log_info() {
     echo -e "[INFO] $1"
@@ -227,6 +229,11 @@ EOF
 
 generate_signature
 
-log_info "Signature generation complete!"
+if [[ ! -s "$SIGNATURE_FILE" ]]; then
+    echo "[ERROR] Signature file was not created or is empty: $SIGNATURE_FILE" >&2
+    exit 1
+fi
+
+log_info "Signature generation complete: $SIGNATURE_FILE"
 
 exit 0

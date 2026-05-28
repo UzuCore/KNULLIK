@@ -67,9 +67,27 @@ do
 
     #### create the update signatures (after boot dir is assembled so we hash the actual on-device files) #####
     KNULLI_SIGNATURES_SCRIPT="${BR2_EXTERNAL_KNULLI_PATH}/board/scripts/generate_signature.sh"
-    bash "${KNULLI_SIGNATURES_SCRIPT}" "${BR2_EXTERNAL_KNULLI_PATH}/board/${KNULLI_PATHSUBTARGET}" "${BINARIES_DIR}" "${KNULLI_BINARIES_DIR}/boot" || exit 1
+    KNULLI_SIGNATURE_FILE="${KNULLI_BINARIES_DIR}/firmware-${KNULLI_SUBTARGET}.sig"
+    KNULLI_BOOT_SIGNATURE_FILE="${KNULLI_BINARIES_DIR}/boot/boot/firmware.sig"
+
+    # Generate a real per-subtarget signature file and then embed it into the boot FAT.
+    # Do not rely on the legacy global ${BINARIES_DIR}/firmware.sig path; it is fragile
+    # for multi-image builds and was the source of the missing firmware.sig failure.
+    bash "${KNULLI_SIGNATURES_SCRIPT}" \
+        "${BR2_EXTERNAL_KNULLI_PATH}/board/${KNULLI_PATHSUBTARGET}" \
+        "${BINARIES_DIR}" \
+        "${KNULLI_BINARIES_DIR}/boot" \
+        "${KNULLI_SIGNATURE_FILE}" || exit 1
+
+    echo "[KNULLI] post-image signature fix active: ${KNULLI_SIGNATURE_FILE}" >&2
+
+    if [ ! -s "${KNULLI_SIGNATURE_FILE}" ]; then
+        echo "[ERROR] firmware signature was not generated: ${KNULLI_SIGNATURE_FILE}" >&2
+        exit 1
+    fi
+
     # copy firmware.sig into the boot dir so it is included in the archive and the final image
-    cp "${BINARIES_DIR}/firmware.sig" "${KNULLI_BINARIES_DIR}/boot/boot/firmware.sig" || exit 1
+    cp "${KNULLI_SIGNATURE_FILE}" "${KNULLI_BOOT_SIGNATURE_FILE}" || exit 1
 
     #### boot.tar.gz ###############
     echo "creating images/${KNULLI_SUBTARGET}/boot.tar.gxz"
@@ -131,8 +149,8 @@ do
     # copy the version file needed for version check
     cp "${TARGET_DIR}/usr/share/knulli/knulli.version" "${KNULLI_BINARIES_DIR}/images/${KNULLI_SUBTARGET}" || exit 1
 
-    # copy the update signature files
-    cp "${BINARIES_DIR}/firmware.sig" "${KNULLI_BINARIES_DIR}/images/${KNULLI_SUBTARGET}" || exit 1
+    # copy the update signature file generated for this subtarget
+    cp "${KNULLI_SIGNATURE_FILE}" "${KNULLI_BINARIES_DIR}/images/${KNULLI_SUBTARGET}/firmware.sig" || exit 1
 done
 
 #### Create the rootfs patches ##########

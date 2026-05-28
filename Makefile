@@ -76,6 +76,19 @@ endef
 
 endif # DIRECT_BUILD
 
+ROCKNIXK_BATOCERA_OVERLAY := $(PROJECT_DIR)/overlays/rocknixk/batocera
+
+rocknixk-overlay:
+	@if [ -d "$(ROCKNIXK_BATOCERA_OVERLAY)" ]; then \
+		if [ ! -d "$(PROJECT_DIR)/batocera/package" ]; then \
+			echo "ERROR: batocera submodule is not initialized."; \
+			echo "Run: git submodule update --init --recursive batocera buildroot"; \
+			exit 1; \
+		fi; \
+		echo "Applying ROCKNIXK Batocera overlay..."; \
+		cp -a "$(ROCKNIXK_BATOCERA_OVERLAY)/." "$(PROJECT_DIR)/batocera/"; \
+	fi
+
 vars:
 	@echo "Supported targets:  $(TARGETS)"
 	@echo "Project directory:  $(PROJECT_DIR)"
@@ -125,7 +138,7 @@ dl-dir:
 %-clean: knulli-docker-image output-dir-%
 	@$(MAKE_BUILDROOT) clean
 
-%-config: knulli-docker-image output-dir-%
+%-config: knulli-docker-image output-dir-% rocknixk-overlay
 	@$(PROJECT_DIR)/configs/createDefconfig.sh $(PROJECT_DIR)/configs/knulli-$*
 	@for opt in $(EXTRA_OPTS); do \
 		echo $$opt >> $(PROJECT_DIR)/configs/knulli-$*_defconfig ; \
@@ -133,7 +146,11 @@ dl-dir:
 	@$(MAKE_BUILDROOT) knulli-$*_defconfig
 
 %-build: knulli-docker-image %-config ccache-dir dl-dir
-	@$(MAKE_BUILDROOT) $(CMD)
+	@status=0; \
+	$(MAKE_BUILDROOT) $(CMD) || status=$$?; \
+	$(MAKE) restore-generated-po; \
+	if [ $$status -eq 0 ]; then $(MAKE) collect-build-artifacts; fi; \
+	exit $$status
 
 %-source: knulli-docker-image %-config ccache-dir dl-dir
 	@$(MAKE_BUILDROOT) source
@@ -248,3 +265,50 @@ uart:
 	$(if $(SERIAL_BAUDRATE),,$(error "SERIAL_BAUDRATE not specified!"))
 	$(if $(wildcard $(SERIAL_DEV)),,$(error "$(SERIAL_DEV) not available!"))
 	@picocom $(SERIAL_DEV) -b $(SERIAL_BAUDRATE)
+
+.PHONY: restore-generated-po
+restore-generated-po:
+	@git restore -- package/emulationstation/knulli-es-system/locales/*/knulli-es-system.po 2>/dev/null || \
+	 git checkout -- package/emulationstation/knulli-es-system/locales/*/knulli-es-system.po 2>/dev/null || true
+
+.PHONY: collect-build-artifacts
+collect-build-artifacts:
+	@BOARD="$(word 1,$(subst -, ,$(MAKECMDGOALS)))"; \
+	if [ -z "$$BOARD" ]; then BOARD="unknown"; fi; \
+	SRC_DIR="output/$$BOARD/images/knulli"; \
+	DST_DIR="target/$$BOARD"; \
+	mkdir -p "$$DST_DIR"; \
+	if [ -d "$$SRC_DIR/images" ]; then \
+		echo "Moving final build artifacts from $$SRC_DIR/images to $$DST_DIR"; \
+		find "$$SRC_DIR/images" -type f \( \
+			-name "*.img" -o \
+			-name "*.img.gz" -o \
+			-name "*.tar.gz" -o \
+			-name "*.tar.gxz" -o \
+			-name "*.sig" -o \
+			-name "MD5SUMS" -o \
+			-name "SHA256SUMS" \
+		\) -exec mv -f {} "$$DST_DIR/" \;; \
+		if [ -f "$$SRC_DIR/MD5SUMS" ]; then mv -f "$$SRC_DIR/MD5SUMS" "$$DST_DIR/" || true; fi; \
+		if [ -f "$$SRC_DIR/SHA256SUMS" ]; then mv -f "$$SRC_DIR/SHA256SUMS" "$$DST_DIR/" || true; fi; \
+		echo "Removing temporary Knulli image staging directory: $$SRC_DIR"; \
+		rm -rf "$$SRC_DIR"; \
+	elif [ -d "$$SRC_DIR" ]; then \
+		echo "Moving final build artifacts from $$SRC_DIR to $$DST_DIR"; \
+		find "$$SRC_DIR" -type f \( \
+			-name "*.img" -o \
+			-name "*.img.gz" -o \
+			-name "*.tar.gz" -o \
+			-name "*.tar.gxz" -o \
+			-name "*.sig" -o \
+			-name "MD5SUMS" -o \
+			-name "SHA256SUMS" \
+		\) -exec mv -f {} "$$DST_DIR/" \;; \
+		echo "Removing temporary Knulli image staging directory: $$SRC_DIR"; \
+		rm -rf "$$SRC_DIR"; \
+	else \
+		echo "[WARN] artifact source not found: $$SRC_DIR"; \
+	fi; \
+	echo "Artifacts moved to: $$DST_DIR"; \
+	ls -lh "$$DST_DIR" 2>/dev/null || true
+

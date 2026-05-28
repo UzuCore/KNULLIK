@@ -148,6 +148,14 @@ def createPPSSPPConfig(iniConfig, system):
         iniConfig.set("General", "EnableCheats", "False")
     # Don't check for a new version
     iniConfig.set("General", "CheckForNewVersion", "False")
+    # Default to Korean UI for Korean Knulli builds. Users can still override with ppsspp.General.Language in knulli.conf.
+    iniConfig.set("General", "Language", str(system.config.get("ppsspp.General.Language", "ko_KR")))
+
+    # Toggle Korean PSP font files if the optional PGF assets are installed.
+    pspfont_value = str(system.config.get("pspfont_enabled", system.config.get("global.pspfont.enabled", "1"))).lower()
+    pspfont_enabled = pspfont_value in ("1", "true", "yes", "on", "enabled")
+    subprocess.run(["/usr/bin/ppsspp_font.sh", "enabled" if pspfont_enabled else ""], check=False)
+
 
     # SaveState
     if system.isOptSet('state_slot'):

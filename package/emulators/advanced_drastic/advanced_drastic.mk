@@ -12,6 +12,13 @@ define ADVANCED_DRASTIC_INSTALL_TARGET_CMDS
 	mkdir -p $(TARGET_DIR)/usr/share/advanced_drastic
 
 	cp -r $(@D)/* $(TARGET_DIR)/usr/share/advanced_drastic
+
+	# ROCKNIXK/Korean QoL: optional board-specific Advanced DraStic overrides.
+	if test -d $(BR2_EXTERNAL_KNULLI_PATH)/package/emulators/advanced_drastic/rocknixk/devices; then \
+		mkdir -p $(TARGET_DIR)/usr/share/advanced_drastic/devices; \
+		cp -r $(BR2_EXTERNAL_KNULLI_PATH)/package/emulators/advanced_drastic/rocknixk/devices/* \
+			$(TARGET_DIR)/usr/share/advanced_drastic/devices/; \
+	fi
 endef
 
 $(eval $(generic-package))

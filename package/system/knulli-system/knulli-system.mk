@@ -7,8 +7,8 @@
 KNULLI_SYSTEM_SOURCE=
 
 KNULLI_SYSTEM_VERSION = scarab
-KNULLI_SYSTEM_DATE_TIME = $(shell date "+%Y/%m/%d %H:%M")
-KNULLI_SYSTEM_DATE = $(shell date "+%Y/%m/%d")
+KNULLI_SYSTEM_DATE_TIME = $(shell TZ=Asia/Seoul date "+%Y/%m/%d %H:%M")
+KNULLI_SYSTEM_DATE = $(shell TZ=Asia/Seoul date "+%Y/%m/%d")
 KNULLI_SYSTEM_DEPENDENCIES = tzdata
 
 ifeq ($(BR2_PACKAGE_BATOCERA_TARGET_BCM2837),y)

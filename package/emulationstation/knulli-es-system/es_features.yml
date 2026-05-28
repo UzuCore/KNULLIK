@@ -9441,6 +9441,13 @@ ppsspp:
             choices:
                 "OpenGL": 0 (OPENGL)
                 "Vulkan": 3 (VULKAN)
+        pspfont_enabled:
+            group: ADVANCED OPTIONS
+            prompt: PPSSPP KOREAN FONT
+            description: Use patched Korean PSP font files if they are installed under /usr/config/ppsspp/assets.
+            choices:
+                "On (Default)": 1
+                "Off":          0
         skip_buffer_effects:
             group: ADVANCED OPTIONS
             prompt: SKIP BUFFER EFFECTS

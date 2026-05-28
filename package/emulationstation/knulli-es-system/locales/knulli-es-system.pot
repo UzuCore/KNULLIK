@@ -122,6 +122,33 @@ msgstr ""
 
 #. TRANSLATION: shared
 msgctxt "game_options"
+msgid "Prevents screen tearing. May increase input latency."
+msgstr ""
+
+#. TRANSLATION: shared, shared
+msgctxt "game_options"
+msgid "DISPLAY SYNCHRONIZATION"
+msgstr ""
+
+#. TRANSLATION: shared
+msgctxt "game_options"
+msgid "V-SYNC"
+msgstr ""
+
+#. TRANSLATION: shared
+msgctxt "game_options"
+msgid ""
+"Reduces latency by limiting buffering. May impact performance. Best with V-"
+"Sync."
+msgstr ""
+
+#. TRANSLATION: shared
+msgctxt "game_options"
+msgid "HARD GPU SYNC"
+msgstr ""
+
+#. TRANSLATION: shared
+msgctxt "game_options"
 msgid "Store past states to rewind to in realtime, if the core supports it."
 msgstr ""
 
@@ -10877,6 +10904,18 @@ msgstr ""
 #. TRANSLATION: aethersx2, pcsx2
 msgctxt "game_options"
 msgid "TIME CRISIS FOG HACK"
+msgstr ""
+
+#. TRANSLATION: ppsspp
+msgctxt "game_options"
+msgid ""
+"Use patched Korean PSP font files if they are installed under /usr/config/"
+"ppsspp/assets."
+msgstr ""
+
+#. TRANSLATION: ppsspp
+msgctxt "game_options"
+msgid "PPSSPP KOREAN FONT"
 msgstr ""
 
 #. TRANSLATION: ppsspp

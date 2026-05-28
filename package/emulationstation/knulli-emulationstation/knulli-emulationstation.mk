@@ -145,6 +145,16 @@ define KNULLI_EMULATIONSTATION_RESOURCES
 	# hooks
 	cp $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/knulli-preupdate-gamelists-hook \
 	    $(TARGET_DIR)/usr/bin/
+
+	# ROCKNIXK/Korean QoL assets
+	if test -f $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/arcaderoms.xml; then \
+		$(INSTALL) -m 0644 -D $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/arcaderoms.xml \
+			$(TARGET_DIR)/usr/share/emulationstation/resources/arcaderoms.xml; \
+	fi
+	if test -f $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/ppsspp_font.sh; then \
+		$(INSTALL) -m 0755 -D $(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/ppsspp_font.sh \
+			$(TARGET_DIR)/usr/bin/ppsspp_font.sh; \
+	fi
 endef
 
 ### S31emulationstation
