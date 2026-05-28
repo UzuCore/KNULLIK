@@ -1,0 +1,13 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        /usr/bin/knulli-boot-status start
+        /usr/bin/knulli-boot-status set "Initializing boot services..."
+        ;;
+    stop)
+        /usr/bin/knulli-boot-status stop
+        ;;
+esac
+
+exit 0

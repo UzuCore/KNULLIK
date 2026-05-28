@@ -149,7 +149,7 @@ dl-dir:
 	@status=0; \
 	$(MAKE_BUILDROOT) $(CMD) || status=$$?; \
 	$(MAKE) restore-generated-po; \
-	if [ $$status -eq 0 ]; then $(MAKE) collect-build-artifacts; fi; \
+	if [ $$status -eq 0 ]; then $(MAKE) collect-build-artifacts BOARD=$*; fi; \
 	exit $$status
 
 %-source: knulli-docker-image %-config ccache-dir dl-dir
@@ -273,7 +273,7 @@ restore-generated-po:
 
 .PHONY: collect-build-artifacts
 collect-build-artifacts:
-	@BOARD="$(word 1,$(subst -, ,$(MAKECMDGOALS)))"; \
+	@BOARD="$(BOARD)"; \
 	if [ -z "$$BOARD" ]; then BOARD="unknown"; fi; \
 	SRC_DIR="output/$$BOARD/images/knulli"; \
 	DST_DIR="target/$$BOARD"; \

@@ -60,6 +60,18 @@ do
     BOOTNAMEDDIR="${KNULLI_BINARIES_DIR}/boot_${KNULLI_SUBTARGET}"
     rm -rf "${BOOTNAMEDDIR}" || exit 1 # remove in case or rerun
     KNULLI_POST_IMAGE_SCRIPT="${BR2_EXTERNAL_KNULLI_PATH}/board/${KNULLI_PATHSUBTARGET}/create-boot-script.sh"
+    # Some legacy board create-boot-script.sh files expect ${BINARIES_DIR}/firmware.sig
+    # to exist before the boot directory is fully assembled. Create a temporary
+    # placeholder so the legacy copy step succeeds. It will be replaced with the
+    # real per-subtarget signature below, after the boot files are assembled.
+    if [ ! -s "${BINARIES_DIR}/firmware.sig" ]; then
+        cat > "${BINARIES_DIR}/firmware.sig" <<EOF
+# Firmware Signature File
+# Temporary placeholder generated before board boot assembly.
+# Replaced by board/scripts/post-image-script.sh after boot files are assembled.
+EOF
+    fi
+
     bash "${KNULLI_POST_IMAGE_SCRIPT}" "${HOST_DIR}" "${BR2_EXTERNAL_KNULLI_PATH}/board/${KNULLI_PATHSUBTARGET}" "${BUILD_DIR}" "${BINARIES_DIR}" "${TARGET_DIR}" "${KNULLI_BINARIES_DIR}" || exit 1
     # add some common files
     cp     "${BINARIES_DIR}/knulli-boot.conf" "${KNULLI_BINARIES_DIR}/boot/" || exit 1

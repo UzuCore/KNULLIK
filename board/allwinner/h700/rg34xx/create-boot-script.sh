@@ -17,9 +17,7 @@ BATOCERA_BINARIES_DIR=$6
 mkdir -p "${BATOCERA_BINARIES_DIR}/boot/boot"     || exit 1
 
 cp "${BINARIES_DIR}/rootfs.squashfs"	"${BATOCERA_BINARIES_DIR}/boot/boot/knulli.update"	|| exit 1
-# firmware.sig is generated later by board/scripts/post-image-script.sh
-# after the boot directory has been fully assembled.
-# Legacy early copy removed: cp "${BINARIES_DIR}/firmware.sig"	"${BATOCERA_BINARIES_DIR}/boot/boot/firmware.sig"	|| exit 1
+cp "${BINARIES_DIR}/firmware.sig"	"${BATOCERA_BINARIES_DIR}/boot/boot/firmware.sig"	|| exit 1
 cp "${BOARD_DIR}/knulli-boot.conf" 	"${BATOCERA_BINARIES_DIR}/boot/knulli-boot.conf"	|| exit 1
 cp "${BOARD_DIR}/bootlogo.bmp"		"${BATOCERA_BINARIES_DIR}/boot/bootlogo.bmp"		|| exit 1
 
