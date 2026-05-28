@@ -34,3 +34,4 @@ batocera-mok.key
 
 # Local build outputs / collected artifacts
 target/
+wifi.txt

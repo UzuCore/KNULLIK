@@ -2,21 +2,38 @@
 
 CONF="/userdata/system/knulli.conf"
 
+ensure_conf() {
+    mkdir -p /userdata/system
+    [ -f "$CONF" ] || touch "$CONF"
+}
+
 set_default() {
     key="$1"
     value="$2"
-    mkdir -p /userdata/system
-    if [ ! -f "$CONF" ]; then
-        touch "$CONF"
-    fi
+    ensure_conf
     # Only add defaults when there is no active setting. Existing user choices win.
     if ! grep -q "^[[:space:]]*${key}=" "$CONF" 2>/dev/null; then
         echo "${key}=${value}" >> "$CONF"
     fi
 }
 
+replace_if_value() {
+    key="$1"
+    old="$2"
+    new="$3"
+    ensure_conf
+    if grep -q "^[[:space:]]*${key}=${old}[[:space:]]*$" "$CONF" 2>/dev/null; then
+        tmp="${CONF}.tmp"
+        sed "s|^[[:space:]]*${key}=${old}[[:space:]]*$|${key}=${new}|" "$CONF" > "$tmp"
+        mv "$tmp" "$CONF"
+    fi
+}
+
 case "$1" in
     start)
+        # Knulli/ES builds install Korean translations under locale 'ko', not 'ko_KR'.
+        # Preserve user-changed languages, but migrate our older Korean default if present.
+        replace_if_value system.language ko ko_KR
         set_default system.language ko_KR
         set_default system.timezone Asia/Seoul
         set_default system.kblayout kr

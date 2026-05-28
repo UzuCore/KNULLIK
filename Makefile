@@ -78,6 +78,20 @@ endif # DIRECT_BUILD
 
 ROCKNIXK_BATOCERA_OVERLAY := $(PROJECT_DIR)/overlays/rocknixk/batocera
 
+# ROCKNIXK source repository overrides.
+# Passed to Buildroot as command-line variables, so batocera package files are
+# not edited and the batocera submodule should not become dirty.
+ROCKNIXK_SOURCE_OVERRIDES = \
+	ES_THEME_ART_BOOK_NEXT_SITE=https://github.com/UzuCore/es-theme-art-book-dc.git \
+	ES_THEME_ART_BOOK_NEXT_SITE_METHOD=git \
+	ES_THEME_ART_BOOK_NEXT_VERSION=ecff478bf56c5ab64403311e13d55a35e6dacd7a \
+	LIBRETRO_FBNEO_SITE=https://github.com/aleksei74/FBNeo.git \
+	LIBRETRO_FBNEO_SITE_METHOD=git \
+	LIBRETRO_FBNEO_VERSION=fb577a8bbe4d3fbc480ce323e6f311a530ca2308 \
+	LIBRETRO_MAME2003_PLUS_SITE=https://github.com/aleksei74/mame2003-plus-dsno-libretro.git \
+	LIBRETRO_MAME2003_PLUS_SITE_METHOD=git \
+	LIBRETRO_MAME2003_PLUS_VERSION=488bb0b76ed2f32f8f4021c4710b444294fcdf87
+
 rocknixk-overlay:
 	@bash "$(PROJECT_DIR)/scripts/rocknixk-apply-batocera-overlay.sh" "$(PROJECT_DIR)"
 	@mkdir -p "$(PROJECT_DIR)/package/emulationstation/knulli-emulationstation"
@@ -143,13 +157,13 @@ dl-dir:
 
 %-build: knulli-docker-image %-config ccache-dir dl-dir
 	@status=0; \
-	$(MAKE_BUILDROOT) $(CMD) || status=$$?; \
+	$(MAKE_BUILDROOT) $(ROCKNIXK_SOURCE_OVERRIDES) $(CMD) || status=$$?; \
 	$(MAKE) restore-generated-po; \
 	if [ $$status -eq 0 ] && [ -z "$(CMD)" ]; then $(MAKE) collect-build-artifacts BOARD=$*; fi; \
 	exit $$status
 
 %-source: knulli-docker-image %-config ccache-dir dl-dir
-	@$(MAKE_BUILDROOT) source
+	@$(MAKE_BUILDROOT) $(ROCKNIXK_SOURCE_OVERRIDES) source
 
 %-show-build-order: knulli-docker-image %-config ccache-dir dl-dir
 	@$(MAKE_BUILDROOT) show-build-order
@@ -264,8 +278,14 @@ uart:
 
 .PHONY: restore-generated-po
 restore-generated-po:
-	@git restore -- package/emulationstation/knulli-es-system/locales/*/knulli-es-system.po 2>/dev/null || \
-	 git checkout -- package/emulationstation/knulli-es-system/locales/*/knulli-es-system.po 2>/dev/null || true
+	@echo "Restoring generated PO files..."
+	@git restore -- package/emulationstation/knulli-es-system/locales 2>/dev/null || true
+	@git restore -- package/emulationstation/knulli-emulationstation/locale 2>/dev/null || true
+	@if ! git ls-files --error-unmatch package/emulationstation/knulli-es-system/locales/ko_KR >/dev/null 2>&1; then \
+		rm -rf package/emulationstation/knulli-es-system/locales/ko_KR; \
+	fi
+	@find package/emulationstation/knulli-es-system/locales -name "*.po~" -delete 2>/dev/null || true
+	@find package/emulationstation/knulli-emulationstation/locale -name "*.po~" -delete 2>/dev/null || true
 
 .PHONY: collect-build-artifacts
 collect-build-artifacts:
