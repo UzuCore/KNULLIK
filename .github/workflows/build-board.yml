@@ -4,15 +4,16 @@ name: Build Board (Parallel Staged)
 # 빌드 그래프:
 #
 #   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro(+libretro-mame) ┐
-#                                      └──→ standalone                    ├──→ image
+#                                      ├──→ libretro-rest                 ├──→ build/final image
+#                                      └──→ standalone                    ┘
 #
 # ✅ 핵심: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)만
 #    묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
 #
-# ✅ mame-lr 별도 job 제거:
-#    heavy-libretro가 10분 내외로 끝나는 상황에서는 libretro-mame을 별도 job/artifact로
-#    분리하는 이득보다 artifact 왕복/merge/cleanup 복잡도가 더 큼.
-#    → libretro-mame 계열도 heavy-libretro에서 함께 빌드.
+# ✅ libretro-rest job 추가:
+#    image/build 단계에서 잔여 libretro 코어를 대량 빌드하면 6시간 제한에 걸릴 수 있음.
+#    → heavy-libretro / libretro-rest / standalone 을 frontend 이후 병렬화하고,
+#      마지막 build 단계는 merge + 잔여 패키지 + final image 생성에 집중.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -43,6 +44,7 @@ env:
   CCACHE_MAX_BASE:           "2G"
   CCACHE_MAX_FRONTEND:       "3G"
   CCACHE_MAX_HEAVY_LIBRETRO: "8G"
+  CCACHE_MAX_LIBRETRO:       "8G"
   CCACHE_MAX_STANDALONE:     "6G"
   # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
   DISABLE_COLORS:        "yes"
@@ -1150,6 +1152,337 @@ jobs:
           if-no-files-found: error
           retention-days:    1
 
+
+  libretro:
+    name: ${{ inputs.BOARD }} · 4-libretro
+    needs: frontend
+    if: ${{ needs.frontend.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 350
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
+          remove-docker-images: true
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 50
+
+
+      - name: H700 batocera-configgen quick workaround
+        if: ${{ inputs.BOARD == 'h700' }}
+        run: |
+          # Temporary fork-local workaround:
+          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
+          # That makes batocera-configgen look for configgen-defaults-.yml during build.
+          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
+          install -D -m 0644 \
+            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
+            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
+
+      - name: Prepare Buildroot dl dir
+        run: mkdir -p "$DL_DIR"
+
+      - name: Prepare docker
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+
+      - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
+        run: |
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-libretro.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+            exit 0
+          fi
+          cat ${PREFIX}* > ccache.tar
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
+
+      # frontend (sysroot 포함)
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-${{ inputs.BOARD }}
+
+      - name: Extract frontend
+        run: |
+          tar --zstd -xf frontend.tar.zst
+          rm frontend.tar.zst
+
+      # frontend build/ (libretro 빌드에 필요)
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ inputs.BOARD }}
+
+      - name: Extract frontend build/
+        run: |
+          tar --zstd -xf frontend-build.tar.zst
+          rm frontend-build.tar.zst
+
+      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean
+      #    mame-lr 별도 잡을 제거했으므로 libretro-mame 계열도 libretro가 담당
+      - name: Auto-detect and clean changed packages
+        env:
+          SCOPE_PATTERNS:   "libretro-*"
+          EXCLUDE_PATTERNS: "libretro-parallel-n64 libretro-mupen64plus-next libretro-flycast libretro-beetle-saturn libretro-beetle-psx libretro-pcsx-rearmed libretro-ppsspp libretro-melonds libretro-desmume libretro-dolphin libretro-citra libretro-swanstation libretro-duckstation libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016"
+        run: |
+          bash .github/workflows/clean-changed-packages.sh
+
+      # ✅ 일반 libretro 코어들
+      #    heavy-libretro가 담당하는 대형 코어를 제외하고,
+      #    .config에서 활성화된 나머지 libretro-* 패키지를 자동 감지해 빌드.
+      - name: Detect remaining libretro packages enabled for this board
+        id: lr-list
+        run: |
+          if [ ! -f output/${BOARD}/.config ]; then
+            make ${BOARD}-config BATCH_MODE=1
+          fi
+          HEAVY_PACKAGES="
+            libretro-parallel-n64 libretro-mupen64plus-next
+            libretro-flycast libretro-beetle-saturn libretro-beetle-psx
+            libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
+            libretro-desmume libretro-dolphin libretro-citra
+            libretro-swanstation libretro-duckstation
+            libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016
+          "
+          PKGS=""
+          while IFS= read -r VAR; do
+            P="$(echo "${VAR#BR2_PACKAGE_}" | tr 'A-Z_' 'a-z-')"
+            case " $HEAVY_PACKAGES " in
+              *" $P "*) continue ;;
+            esac
+            # 실제 패키지 디렉토리가 있는 libretro 계열만 빌드 대상으로 채택.
+            if [ -d "package/cores/$P" ] || \
+               [ -d "package/batocera/emulators/retroarch/libretro/$P" ] || \
+               [ -d "batocera/package/batocera/emulators/retroarch/libretro/$P" ]; then
+              PKGS="$PKGS $P"
+            fi
+          done < <(grep -E '^BR2_PACKAGE_LIBRETRO_[A-Z0-9_]+=y$' output/${BOARD}/.config | cut -d= -f1 | sort -u)
+          PKGS="${PKGS# }"
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          if [ -z "$PKGS" ]; then
+            echo "::warning::이 보드는 활성화된 remaining libretro 패키지가 없습니다 — 빈 잡으로 통과"
+          else
+            echo "빌드 대상: $PKGS"
+          fi
+
+      - name: Build remaining libretro cores
+        if: ${{ steps.lr-list.outputs.packages != '' }}
+        shell: bash
+        run: |
+          # ✅ FIX: actions-retry-command was wrapping the whole command in
+          #         result=$(...) which buffers every byte until the command
+          #         exits. Long builds (mame, qt, libretro) appeared frozen.
+          #         Inline retry loop so output streams in real time.
+          set +e
+          RC=0
+          for i in 1 2 3 4 5 6; do
+            echo "::group::Attempt $i"
+            make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
+              BATCH_MODE=1 PARALLEL_BUILD=1 \
+              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
+            RC=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            [ $RC -eq 0 ] && exit 0
+            echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log tail -----"
+            tail -n 160 build.log || true
+            echo "--------------------------"
+            if [ "$i" -lt 6 ]; then
+              echo "sleeping 10s before retry..."
+              sleep 10
+            fi
+          done
+          exit $RC
+
+      - name: Print disk space
+        if: always()
+        run: df -h
+
+
+      - name: Show Buildroot dl size
+        if: always()
+        run: du -sh "$DL_DIR" 2>/dev/null || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ inputs.BOARD }}-libretro
+          path: build.log
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+      - name: Trim and save ccache
+        if: success()
+        run: |
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
+          fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_LIBRETRO" || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-libretro.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-libretro.tar.part-*
+        continue-on-error: true
+
+      - name: Save ccache (libretro)
+        id: save-cache-libretro
+        uses: ncipollo/release-action@v1.14.0
+        if: ${{ hashFiles(format('ccache-{0}-libretro.tar.part-*', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-libretro.tar.part-*"
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      - name: Warn if ccache upload failed (libretro)
+        if: steps.save-cache-libretro.outcome == 'failure'
+        run: |
+          echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 libretro ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
+
+      # ✅ 핵심: 새로 빌드된 libretro-* per-package + stamp만 묶기
+      #    빈 잡일 경우 빈 tar 만들어 다음 잡 통과
+      - name: Pack libretro artifacts
+        run: |
+          if [ -z "${{ steps.lr-list.outputs.packages }}" ]; then
+            echo "빌드 안 함 — 빈 아카이브 생성"
+            tar --zstd -cf libretro.tar.zst --files-from /dev/null
+          else
+            FILES=""
+            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            # ✅ build 디렉토리도 포함. 일부 패키지는 -custom/git/hash 형태일 수 있어 넓게 포함한다.
+            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
+              FILES="$FILES $D"
+            done
+            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
+              FILES="$FILES $F"
+            done
+            if [ -z "$FILES" ]; then
+              tar --zstd -cf libretro.tar.zst --files-from /dev/null
+            else
+              tar --zstd -cf libretro.tar.zst $FILES
+            fi
+          fi
+
+      # ✅ 2GB 초과 시 split (ROCKNIX 패턴)
+      - name: Split if > 1.9G
+        run: |
+          SIZE=$(stat -c%s libretro.tar.zst)
+          if [ "$SIZE" -gt 2040109465 ]; then
+            split -b 1900M libretro.tar.zst libretro.tar.zst.part
+            rm libretro.tar.zst
+            ls -la libretro.tar.zst.part*
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name:              libretro-${{ inputs.BOARD }}
+          path:              libretro.tar.zst*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days:    1
+
   # ═════════════════════════════════════════════════════════════════════════
   # Stage 4b: standalone 에뮬레이터들 (heavy-libretro와 병렬)
   # ✅ mame-lr 의존 제거 — frontend 끝나면 바로 시작 (ROCKNIX와 동일)
@@ -1485,17 +1818,18 @@ jobs:
           retention-days:    1
 
   # ═════════════════════════════════════════════════════════════════════════
-  # Stage 5: image (모두 merge → 나머지 + 최종 이미지)
+  # Stage 5: build (모두 merge → 나머지 + 최종 이미지)
   # ═════════════════════════════════════════════════════════════════════════
   image:
-    name: ${{ inputs.BOARD }} · 5-image
-    needs: [frontend, heavy-libretro, standalone]
+    name: ${{ inputs.BOARD }} · 5-build
+    needs: [frontend, heavy-libretro, libretro, standalone]
     if: >-
       ${{
         always() &&
         !cancelled() &&
         needs.frontend.result == 'success' &&
         needs.heavy-libretro.result == 'success' &&
+        needs.libretro.result == 'success' &&
         needs.standalone.result == 'success'
       }}
     runs-on: ubuntu-24.04
@@ -1577,6 +1911,20 @@ jobs:
           tar --zstd --skip-old-files -xf heavy-libretro.tar.zst
           rm heavy-libretro.tar.zst
 
+      # ── libretro-rest
+      - uses: actions/download-artifact@v4
+        with:
+          name: libretro-${{ inputs.BOARD }}
+
+      - name: Extract libretro-rest
+        run: |
+          if ls libretro.tar.zst.part* >/dev/null 2>&1; then
+            cat libretro.tar.zst.part* > libretro.tar.zst
+            rm libretro.tar.zst.part*
+          fi
+          tar --zstd --skip-old-files -xf libretro.tar.zst
+          rm libretro.tar.zst
+
       # ── standalone
       - uses: actions/download-artifact@v4
         with:
@@ -1605,9 +1953,9 @@ jobs:
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
-      # ✅ 최종 빌드: 나머지 모든 패키지 + 이미지 생성
+      # ✅ 최종 빌드: 병렬 stage 결과 merge 후 잔여 패키지 + 이미지 생성
       #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
-      - name: Build remaining + final image
+      - name: Finalize build and image
         shell: bash
         run: |
           # ✅ FIX: actions-retry-command was wrapping the whole command in
@@ -1691,5 +2039,6 @@ jobs:
             frontend-${{ inputs.BOARD }}
             frontend-build-${{ inputs.BOARD }}
             heavy-libretro-${{ inputs.BOARD }}
+            libretro-${{ inputs.BOARD }}
             standalone-${{ inputs.BOARD }}
           failOnError: false
