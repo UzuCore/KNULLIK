@@ -85,6 +85,8 @@ endif
 
 SDL2_DRASTIC_CONF_OPTS += --host=aarch64-buildroot-linux-gnu
 
+SDL2_DRASTIC_DEPENDENCIES += sdl2 sdl2_image sdl2_ttf json-c libegl libgles
+
 # batocera - Used in screen rotation (SDL and Retroarch)
 ifeq ($(BR2_PACKAGE_ROCKCHIP_RGA),y)
 SDL2_DRASTIC_DEPENDENCIES += rockchip-rga
