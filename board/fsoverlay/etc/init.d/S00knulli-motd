@@ -1,0 +1,17 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        if [ -x /usr/bin/knulli-fbboot ]; then
+            /usr/bin/knulli-fbboot reset "KNULLI-KR" >/dev/null 2>&1 || true
+            /usr/bin/knulli-fbboot msg "Rootfs started" >/dev/null 2>&1 || true
+            /usr/bin/knulli-fbboot msg "Applying Korean defaults" >/dev/null 2>&1 || true
+        elif [ -x /usr/bin/knulli-console-motd ]; then
+            /usr/bin/knulli-console-motd >/dev/null 2>&1 || true
+        fi
+        ;;
+    stop)
+        ;;
+esac
+
+exit 0

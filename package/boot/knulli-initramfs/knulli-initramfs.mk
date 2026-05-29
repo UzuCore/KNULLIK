@@ -13,6 +13,7 @@ KNULLI_INITRAMFS_LICENSE_FILES = LICENSE
 KNULLI_INITRAMFS_DEPENDENCIES += host-uboot-tools libxcrypt
 KNULLI_INITRAMFS_CFLAGS = $(TARGET_CFLAGS)
 KNULLI_INITRAMFS_LDFLAGS = $(TARGET_LDFLAGS)
+KNULLI_INITRAMFS_FBBOOT_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/knulli-fbboot.c
 
 KNULLI_INITRAMFS_KCONFIG_FILE = \
     $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/busybox.config
@@ -21,22 +22,24 @@ INITRAMFS_DIR=$(BINARIES_DIR)/initramfs
 
 # Allows the build system to tweak CFLAGS
 KNULLI_INITRAMFS_MAKE_ENV = \
-	$(TARGET_MAKE_ENV) \
-	CFLAGS="$(KNULLI_INITRAMFS_CFLAGS)"
+        $(TARGET_MAKE_ENV) \
+        CFLAGS="$(KNULLI_INITRAMFS_CFLAGS)"
 KNULLI_INITRAMFS_MAKE_OPTS = \
-	CC="$(TARGET_CC)" \
-	ARCH=$(KERNEL_ARCH) \
-	PREFIX="$(INITRAMFS_DIR)" \
-	EXTRA_LDFLAGS="$(KNULLI_INITRAMFS_LDFLAGS)" \
-	CROSS_COMPILE="$(TARGET_CROSS)" \
-	CONFIG_PREFIX="$(INITRAMFS_DIR)" \
-	SKIP_STRIP=n
+        CC="$(TARGET_CC)" \
+        ARCH=$(KERNEL_ARCH) \
+        PREFIX="$(INITRAMFS_DIR)" \
+        EXTRA_LDFLAGS="$(KNULLI_INITRAMFS_LDFLAGS)" \
+        CROSS_COMPILE="$(TARGET_CROSS)" \
+        CONFIG_PREFIX="$(INITRAMFS_DIR)" \
+        SKIP_STRIP=n
 
 KNULLI_INITRAMFS_KCONFIG_OPTS = $(KNULLI_INITRAMFS_MAKE_OPTS)
 
 KNULLI_INITRAMFS_DEPENDENCIES += host-lz4
 define KNULLI_INITRAMFS_BUILD_CMDS
-	$(KNULLI_INITRAMFS_MAKE_ENV) $(MAKE) $(KNULLI_INITRAMFS_MAKE_OPTS) -C $(@D)
+        $(KNULLI_INITRAMFS_MAKE_ENV) $(MAKE) $(KNULLI_INITRAMFS_MAKE_OPTS) -C $(@D)
+        $(TARGET_CC) $(TARGET_CFLAGS) -Os -static -s \
+            -o $(@D)/knulli-fbboot $(KNULLI_INITRAMFS_FBBOOT_SOURCE)
 endef
 
 ifeq ($(BR2_aarch64)$(BR2_TOOLCHAIN_OPTIONAL_LINARO_AARCH64),y)
@@ -61,14 +64,17 @@ KNULLI_INITRAMFS_PRE_INSTALL_TARGET_HOOKS += KNULLI_INITRAMFS_SM8550_EARLY_FIRMW
 endif
 
 define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS
-	mkdir -p $(INITRAMFS_DIR)
-	cp $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/init \
-	    $(INITRAMFS_DIR)/init
-	$(KNULLI_INITRAMFS_MAKE_ENV) $(MAKE) $(KNULLI_INITRAMFS_MAKE_OPTS) -C $(@D) install
-	(cd $(INITRAMFS_DIR) && find . | cpio -H newc -o > $(BINARIES_DIR)/initrd)
-	(cd $(BINARIES_DIR) && mkimage -A $(KNULLI_INITRAMFS_INITRDA) \
-	    -O linux -T ramdisk -C none -a 0 -e 0 -n initrd -d ./initrd ./uInitrd)
-	$(COMPRESSION_TYPE_COMMAND)
+        mkdir -p $(INITRAMFS_DIR)
+        cp $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/init \
+            $(INITRAMFS_DIR)/init
+        $(KNULLI_INITRAMFS_MAKE_ENV) $(MAKE) $(KNULLI_INITRAMFS_MAKE_OPTS) -C $(@D) install
+        mkdir -p $(INITRAMFS_DIR)/bin $(TARGET_DIR)/usr/bin
+        cp $(@D)/knulli-fbboot $(INITRAMFS_DIR)/bin/knulli-fbboot
+        cp $(@D)/knulli-fbboot $(TARGET_DIR)/usr/bin/knulli-fbboot
+        (cd $(INITRAMFS_DIR) && find . | cpio -H newc -o > $(BINARIES_DIR)/initrd)
+        (cd $(BINARIES_DIR) && mkimage -A $(KNULLI_INITRAMFS_INITRDA) \
+            -O linux -T ramdisk -C none -a 0 -e 0 -n initrd -d ./initrd ./uInitrd)
+        $(COMPRESSION_TYPE_COMMAND)
 endef
 
 $(eval $(kconfig-package))

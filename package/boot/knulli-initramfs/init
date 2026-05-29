@@ -1,5 +1,9 @@
 #!/bin/ash
 
+fbboot() {
+    /bin/knulli-fbboot "$@" >/dev/null 2>&1 || true
+}
+
 do_mount() {
     local mount_options="ro"
 
@@ -10,13 +14,18 @@ do_mount() {
 }
 
 do_root() {
-    mkdir -p /boot_root /new_root /overlay_root /sys /proc || return 1
-    mount -t proc  -o nodev,noexec,nosuid proc  /proc  	|| return 1
-    mount -t sysfs -o nodev,noexec,nosuid sysfs /sys 	|| return 1
+    mkdir -p /boot_root /new_root /overlay_root /sys /proc /tmp || return 1
+    mount -t proc  -o nodev,noexec,nosuid proc  /proc   || return 1
+    mount -t sysfs -o nodev,noexec,nosuid sysfs /sys    || return 1
     mount -t devtmpfs none /dev
+
+    # ROCKNIXK: early fake boot console on framebuffer.
+    fbboot reset "KNULLI-KR"
+    fbboot msg "Initramfs started"
 
     # read the parameters
     read -r cmdline < /proc/cmdline
+    fbboot msg "Reading kernel command line"
 
     # how many times to retry before moving on to the next dev/label/uuid
     devretry=5
@@ -43,11 +52,13 @@ do_root() {
                 uuid=*)     MOUNTARG=UUID=${param#uuid=};;
                 *)          continue;;
             esac
+            fbboot msg "Waiting for boot root"
             for i in $(seq $devretry)
             do
                 if do_mount "${MOUNTARG}" "${MOUNTOPTIONS}"
                 then
                     echo "Mounted ${MOUNTARG} as /boot_root"
+                    fbboot msg "Mounted boot root"
                     boot_root_mounted=y
                     break
                 fi
@@ -64,49 +75,56 @@ do_root() {
     # update the squashfs
     if test -e /boot_root/boot/knulli.update
     then
+      fbboot msg "Applying system update"
       mount -o remount,rw /boot_root || return 1
       mv /boot_root/boot/knulli.update /boot_root/boot/knulli || return 1
       # remove the overlay when updating
       if test -e /boot_root/boot/overlay
       then
-	  mv /boot_root/boot/overlay /boot_root/boot/overlay.old      || return 1
+          mv /boot_root/boot/overlay /boot_root/boot/overlay.old      || return 1
       fi
       mount -o remount,ro /boot_root || return 1
     fi
 
     # create an overlay on memory
+    fbboot msg "Preparing overlay root"
     mount -t tmpfs -o size=256M tmpfs /overlay_root || return 1
     mkdir /overlay_root/base /overlay_root/overlay /overlay_root/work /overlay_root/saved || return 1
 
     # fill the overlay with the stored one
     if test -f /boot_root/boot/overlay
     then
-	# the mount can fail if the fs was open in write and not correctly closed
-	if mount -o ro /boot_root/boot/overlay /overlay_root/saved
-	then
-	    cp -pr /overlay_root/saved/* /overlay_root/overlay || return 1
-	    umount /overlay_root/saved                         || return 1
-	fi
+        fbboot msg "Loading saved overlay"
+        # the mount can fail if the fs was open in write and not correctly closed
+        if mount -o ro /boot_root/boot/overlay /overlay_root/saved
+        then
+            cp -pr /overlay_root/saved/* /overlay_root/overlay || return 1
+            umount /overlay_root/saved                         || return 1
+        fi
     fi
 
     # mount the squashfs
+    fbboot msg "Mounting KNULLI squashfs"
     mount /boot_root/boot/knulli /overlay_root/base || return 1
 
     # mount the future root in read write
+    fbboot msg "Preparing root filesystem"
     if ! mount -t overlay overlay -o rw,lowerdir=/overlay_root/base,upperdir=/overlay_root/overlay,workdir=/overlay_root/work /new_root
     then
-	# mount only as squashfs, no overlay (xu4 doesn't support overlayfs)
-	mount /boot_root/boot/knulli /new_root || return 1
+        # mount only as squashfs, no overlay (xu4 doesn't support overlayfs)
+        mount /boot_root/boot/knulli /new_root || return 1
     fi
 
     # moving current mounts
+    fbboot msg "Moving system mounts"
     mount --move /boot_root    /new_root/boot    || return 1
     mount --move /overlay_root /new_root/overlay || return 1
-    mount --move /sys  	       /new_root/sys  	 || return 1
-    mount --move /proc 	       /new_root/proc 	 || return 1
-    mount --move /dev  	       /new_root/dev  	 || return 1
+    mount --move /sys          /new_root/sys     || return 1
+    mount --move /proc         /new_root/proc    || return 1
+    mount --move /dev          /new_root/dev     || return 1
 
     # switch to the new root
+    fbboot msg "Switching to rootfs"
     exec switch_root /new_root /sbin/init || return 1
 }
 
