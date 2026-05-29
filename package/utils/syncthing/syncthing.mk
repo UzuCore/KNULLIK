@@ -35,6 +35,7 @@ SYNCTHING_TARGET_ENV = \
 	GOFLAGS="-modcacherw" \
 
 define SYNCTHING_BUILD_CMDS
+	mkdir -p $(@D)/.gotmp
 	cd $(@D) && $(SYNCTHING_TARGET_ENV) \
 	    $(GO_BIN) run build.go -goos linux -goarch $(GOARCH) build
 endef
