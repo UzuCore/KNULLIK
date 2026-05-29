@@ -19,8 +19,7 @@ mkdir -p "${BATOCERA_BINARIES_DIR}/boot/boot"     || exit 1
 cp "${BINARIES_DIR}/rootfs.squashfs"	"${BATOCERA_BINARIES_DIR}/boot/boot/knulli.update"	|| exit 1
 cp "${BINARIES_DIR}/firmware.sig"	"${BATOCERA_BINARIES_DIR}/boot/boot/firmware.sig"	|| exit 1
 cp "${BOARD_DIR}/knulli-boot.conf" 	"${BATOCERA_BINARIES_DIR}/boot/knulli-boot.conf"	|| exit 1
-# ROCKNIXK: skip early bootlogo.bmp so fb0 MOTD can appear after bootloader blank
-rm -f "${BATOCERA_BINARIES_DIR}/boot/bootlogo.bmp" || true
+cp "${BOARD_DIR}/bootlogo.bmp"		"${BATOCERA_BINARIES_DIR}/boot/bootlogo.bmp"		|| exit 1
 
 cp -r "${BOARD_DIR}/partitions"		"${BATOCERA_BINARIES_DIR}/boot"				|| exit 1
 
