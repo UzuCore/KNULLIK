@@ -1,0 +1,57 @@
+#!/bin/sh
+# UZUCORE_PORTMASTER_LAUNCHER=1
+# Minimal safe launcher:
+# - install PortMaster only if it is not installed
+# - do not overwrite PortMaster self-updated files
+# - after install, run the real /userdata/roms/ports/PortMaster.sh
+
+LOG="/userdata/system/logs/portmaster-launch.log"
+PM_HOME="/userdata/system/.local/share"
+PM_DIR="$PM_HOME/PortMaster"
+PM_CONTROL="$PM_DIR/control.txt"
+PM_ENTRY="/userdata/roms/ports/PortMaster.sh"
+INSTALLER="/usr/share/portmaster/Install.PortMaster.sh"
+
+mkdir -p /userdata/system/logs
+exec > "$LOG" 2>&1
+
+echo "=== PortMaster launcher ==="
+date
+
+export HOME=/userdata/system
+export XDG_DATA_HOME="$PM_HOME"
+
+if [ -f "$PM_CONTROL" ] && [ -x "$PM_ENTRY" ]; then
+    echo "Launching installed PortMaster: $PM_ENTRY"
+    exec "$PM_ENTRY"
+fi
+
+echo "PortMaster is not installed yet."
+echo "Installer: $INSTALLER"
+
+if [ ! -f "$INSTALLER" ]; then
+    echo "ERROR: installer not found: $INSTALLER"
+    exit 1
+fi
+
+chmod +x "$INSTALLER" 2>/dev/null || true
+
+if command -v bash >/dev/null 2>&1; then
+    echo "Running installer with bash..."
+    bash "$INSTALLER"
+else
+    echo "bash not found; running installer directly..."
+    "$INSTALLER"
+fi
+
+RC=$?
+echo "Installer exit code: $RC"
+
+if [ -f "$PM_CONTROL" ] && [ -x "$PM_ENTRY" ]; then
+    echo "Launching PortMaster after install..."
+    exec "$PM_ENTRY"
+fi
+
+echo "ERROR: PortMaster still not found after installer."
+find /userdata/roms/ports /userdata/system -iname '*portmaster*' -print 2>/dev/null
+exit "$RC"

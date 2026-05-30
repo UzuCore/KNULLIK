@@ -1,0 +1,22 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+    mkdir -p /userdata/roms/ports
+
+    PM_ENTRY="/userdata/roms/ports/PortMaster.sh"
+
+    # Create wrapper only when missing.
+    # If PortMaster installer/self-update created the real launcher, leave it untouched.
+    if [ ! -e "$PM_ENTRY" ]; then
+      cat > "$PM_ENTRY" <<'WRAP'
+#!/bin/sh
+# UZUCORE_PORTMASTER_WRAPPER=1
+exec /usr/bin/knulli-portmaster-launcher "$@"
+WRAP
+      chmod +x "$PM_ENTRY"
+    fi
+    ;;
+esac
+
+exit 0
