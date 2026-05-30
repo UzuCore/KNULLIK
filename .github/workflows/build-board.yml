@@ -1965,36 +1965,6 @@ jobs:
           rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
           df -h
 
-      - name: Exclude Go build cache from Buildroot host-finalize
-        run: |
-          echo "Patching Buildroot host-finalize to skip Go build cache..."
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("buildroot/Makefile")
-          s = p.read_text()
-
-          needle = "rsync -a --hard-links --files-from=- --no-R -r"
-          replacement = (
-              "rsync -a --hard-links "
-              "--exclude='*/host/share/go-cache/***' "
-              "--exclude='share/go-cache/***' "
-              "--exclude='go-cache/***' "
-              "--files-from=- --no-R -r"
-          )
-
-          if "go-cache/***" not in s:
-              if needle not in s:
-                  print("WARNING: host-finalize rsync pattern not found; continuing")
-    raise SystemExit(0)
-              s = s.replace(needle, replacement)
-              p.write_text(s)
-
-          print("host-finalize go-cache exclusion active")
-          PY
-
-          grep -n "go-cache\|rsync -a --hard-links" buildroot/Makefile | head -30 || true
-
       - name: Finalize build and image
         shell: bash
         run: |
