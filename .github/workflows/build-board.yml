@@ -156,7 +156,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
@@ -167,7 +167,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -430,7 +430,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.base-list.outputs.packages }}' BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
@@ -441,7 +441,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -673,7 +673,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
@@ -685,7 +685,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -989,7 +989,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
@@ -1001,7 +1001,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -1320,7 +1320,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
@@ -1332,7 +1332,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -1596,7 +1596,7 @@ jobs:
           rm frontend-build.tar.zst
 
       # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
-      #    libretro-* 는 heavy-libretro 잡 담당이므로 제외
+      #    libretro-* 는 다른 잡 담당이므로 제외
       - name: Auto-detect and clean changed packages
         env:
           SCOPE_PATTERNS:   "*"
@@ -1616,7 +1616,7 @@ jobs:
             make ${BOARD}-config BATCH_MODE=1
           fi
           CANDIDATES="
-            dolphin-emu ppsspp citra duckstation melonds scummvm drastic advanced_drastic m8c
+            dolphin-emu ppsspp citra duckstation melonds
             pcsx2 flycast vita3k yabasanshiro
           "
           PKGS=""
@@ -1644,7 +1644,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
@@ -1656,7 +1656,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -1949,12 +1949,51 @@ jobs:
         env:
           SCOPE_PATTERNS:   "*"
           # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro scummvm drastic advanced_drastic m8c"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
       # ✅ 최종 빌드: 병렬 stage 결과 merge 후 잔여 패키지 + 이미지 생성
       #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
+      - name: Drop Go build caches before final host merge
+        run: |
+          echo "Removing Go build caches from per-package host dirs..."
+          find "/${{ inputs.BOARD }}/per-package" \
+            -path "*/host/share/go-cache" \
+            -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
+
+          rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
+          df -h
+
+      - name: Exclude Go build cache from Buildroot host-finalize
+        run: |
+          echo "Patching Buildroot host-finalize to skip Go build cache..."
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("buildroot/Makefile")
+          s = p.read_text()
+
+          needle = "rsync -a --hard-links --files-from=- --no-R -r"
+          replacement = (
+              "rsync -a --hard-links "
+              "--exclude='*/host/share/go-cache/***' "
+              "--exclude='share/go-cache/***' "
+              "--exclude='go-cache/***' "
+              "--files-from=- --no-R -r"
+          )
+
+          if "go-cache/***" not in s:
+              if needle not in s:
+                  raise SystemExit("host-finalize rsync pattern not found in buildroot/Makefile")
+              s = s.replace(needle, replacement)
+              p.write_text(s)
+
+          print("host-finalize go-cache exclusion active")
+          PY
+
+          grep -n "go-cache\|rsync -a --hard-links" buildroot/Makefile | head -30 || true
+
       - name: Finalize build and image
         shell: bash
         run: |
@@ -1964,7 +2003,7 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2; do
             echo "::group::Attempt $i"
             make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
@@ -1975,7 +2014,7 @@ jobs:
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
-            if [ "$i" -lt 6 ]; then
+            if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
             fi
@@ -1995,7 +2034,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ inputs.BOARD }}-image
+          name: logs-${{ inputs.BOARD }}-build
           path: build.log
           if-no-files-found: ignore
           include-hidden-files: true
