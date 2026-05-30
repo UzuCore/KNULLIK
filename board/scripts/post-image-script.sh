@@ -1,3 +1,23 @@
+
+# KNULLI-KR: ensure H700 boot package files required by genimage
+# Some H700 genimage configs reference:
+#   ../../h700-boot-packages/<device>_boot_package.fex
+# The canonical files live under board/allwinner/h700/<device>/partitions/.
+if [ -n "${BINARIES_DIR:-}" ]; then
+  KNULLI_ROOT="${BR2_EXTERNAL_KNULLI_PATH:-/build}"
+  H700_PART_ROOT="${KNULLI_ROOT}/board/allwinner/h700"
+
+  if [ -d "${H700_PART_ROOT}" ]; then
+    mkdir -p "${BINARIES_DIR}/h700-boot-packages"
+
+    for _bp in "${H700_PART_ROOT}"/*/partitions/boot_package.fex; do
+      [ -f "${_bp}" ] || continue
+      _dev="$(basename "$(dirname "$(dirname "${_bp}")")")"
+      cp -f "${_bp}" "${BINARIES_DIR}/h700-boot-packages/${_dev}_boot_package.fex"
+    done
+  fi
+fi
+
 #!/bin/bash -e
 
 # Enable for debug
@@ -74,7 +94,17 @@ EOF
 
     bash "${KNULLI_POST_IMAGE_SCRIPT}" "${HOST_DIR}" "${BR2_EXTERNAL_KNULLI_PATH}/board/${KNULLI_PATHSUBTARGET}" "${BUILD_DIR}" "${BINARIES_DIR}" "${TARGET_DIR}" "${KNULLI_BINARIES_DIR}" || exit 1
     # add some common files
-    cp     "${BINARIES_DIR}/knulli-boot.conf" "${KNULLI_BINARIES_DIR}/boot/" || exit 1
+    # KNULLI-KR: knulli-boot.conf may already be generated in ${KNULLI_BINARIES_DIR}/boot.
+    # Do not fail if the old top-level ${BINARIES_DIR}/knulli-boot.conf is absent.
+    if [ -f "${BINARIES_DIR}/knulli-boot.conf" ]; then
+        cp -f "${BINARIES_DIR}/knulli-boot.conf" "${KNULLI_BINARIES_DIR}/boot/"
+    elif [ -f "${KNULLI_BINARIES_DIR}/boot/knulli-boot.conf" ]; then
+        echo "[KNULLI-KR] using existing ${KNULLI_BINARIES_DIR}/boot/knulli-boot.conf"
+    elif [ -f "${TARGET_DIR}/boot/knulli-boot.conf" ]; then
+        cp -f "${TARGET_DIR}/boot/knulli-boot.conf" "${KNULLI_BINARIES_DIR}/boot/"
+    else
+        echo "[WARN] knulli-boot.conf not found; continuing without extra copy"
+    fi
     echo   "${KNULLI_SUBTARGET}" > "${KNULLI_BINARIES_DIR}/boot/boot/knulli.board" || exit 1
 
     #### remove early bootloader logo before signatures/archive/image ##########
