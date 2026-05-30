@@ -1,15 +1,13 @@
 #!/bin/sh
 
-# KNULLI-KR: ROCKNIX-style boot MOTD visual.
-# Do not start fbv/mpv here; draw the text screen directly to /dev/fb0.
-
 case "$1" in
     start)
-        [ -x /usr/bin/knulli-console-motd ] && /usr/bin/knulli-console-motd &
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status "Starting system services" >/dev/null 2>&1 || true
         ;;
     stop)
-        ;;
-    *)
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status "System services ready" >/dev/null 2>&1 || true
         ;;
 esac
 

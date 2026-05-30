@@ -20,7 +20,7 @@ do_root() {
     mount -t devtmpfs none /dev
 
     # ROCKNIXK: early fake boot console on framebuffer.
-    fbboot reset "KNULLI-KR"
+    fbboot reset "KNULLI"
     fbboot msg "Initramfs started"
 
     # read the parameters

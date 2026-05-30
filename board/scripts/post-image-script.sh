@@ -77,19 +77,18 @@ EOF
     cp     "${BINARIES_DIR}/knulli-boot.conf" "${KNULLI_BINARIES_DIR}/boot/" || exit 1
     echo   "${KNULLI_SUBTARGET}" > "${KNULLI_BINARIES_DIR}/boot/boot/knulli.board" || exit 1
 
-    #### replace early bootloader logo before signatures/archive/image ##########
-    # KNULLI-KR: keep board create-boot-script.sh files untouched, but replace
-    # H700 bootlogo.bmp in the assembled boot directory with a valid black BMP.
-    # This avoids the early bootloader logo while keeping the original board
-    # scripts close to upstream. The replacement happens before firmware.sig,
-    # boot.tar.gz, and the final image are generated, so hashes include it.
-    KNULLI_KR_BLACK_BOOTLOGO="${BR2_EXTERNAL_KNULLI_PATH}/overlays/rocknixk/bootlogo/bootlogo.bmp"
+    #### remove early bootloader logo before signatures/archive/image ##########
+    # KNULLI-KR: keep board create-boot-script.sh files untouched, but remove
+    # H700 bootlogo.bmp from the assembled boot directory. This prevents the
+    # bootloader logo from being shown before the initramfs fb0 MOTD appears.
+    # The removal happens before firmware.sig, boot.tar.gz, and the final image
+    # are generated, so hashes and packaged images reflect the final contents.
     if [ "${KNULLI_LOWER_TARGET}" = "h700" ]; then
-        if [ -f "${KNULLI_KR_BLACK_BOOTLOGO}" ]; then
-            cp -f "${KNULLI_KR_BLACK_BOOTLOGO}" "${KNULLI_BINARIES_DIR}/boot/bootlogo.bmp" || exit 1
-            echo "[KNULLI-KR] replaced H700 bootlogo.bmp with black BMP: ${KNULLI_KR_BLACK_BOOTLOGO}" >&2
+        if [ -f "${KNULLI_BINARIES_DIR}/boot/bootlogo.bmp" ]; then
+            rm -f "${KNULLI_BINARIES_DIR}/boot/bootlogo.bmp" || exit 1
+            echo "[KNULLI-KR] removed H700 bootlogo.bmp from assembled boot directory" >&2
         else
-            echo "[KNULLI-KR] black bootlogo not found, keeping board bootlogo: ${KNULLI_KR_BLACK_BOOTLOGO}" >&2
+            echo "[KNULLI-KR] H700 bootlogo.bmp not present; skipping removal" >&2
         fi
     fi
 

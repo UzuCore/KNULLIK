@@ -1,259 +1,120 @@
 #!/bin/sh
-# Draw a ROCKNIX-style MOTD screen directly to /dev/fb0.
-# KNULLI H700 currently exposes only a dummy vtconsole, so /dev/console
-# and /dev/tty1 text output may not be visible on the LCD.
 
-exec /usr/bin/python3 - "$@" <<'PY'
-import os
-import re
-import time
-import subprocess
-from pathlib import Path
+# Render a compact ROCKNIX-style boot MOTD on /dev/fb0.
+# Single source of truth after rootfs starts:
+#   /etc/profile.d/30-welcome.sh
+#
+# Build-time fallback is generated from that same welcome script and copied to:
+#   /usr/share/knulli/boot-motd
 
-LOG = Path('/userdata/system/logs/knulli-console-motd.log')
-LOCK = Path('/tmp/knulli-motd-fb0-rendered')
-FB = Path('/dev/fb0')
+FBBOOT=/usr/bin/knulli-fbboot
+MOTD_SCRIPT=/etc/profile.d/30-welcome.sh
+VERSION_FILE=/usr/share/knulli/knulli.version
+MOTD_FALLBACK=/usr/share/knulli/boot-motd
+RAW_CACHE=/tmp/knulli-fbboot.raw-motd
+COMPACT_CACHE=/tmp/knulli-fbboot.compact-motd
+LOCK=/tmp/knulli-console-motd-real-rendered
 
+[ -x "$FBBOOT" ] || exit 0
 
-def log(msg):
-    try:
-        LOG.parent.mkdir(parents=True, exist_ok=True)
-        with LOG.open('a') as f:
-            f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + str(msg) + '\n')
-    except Exception:
-        pass
-
-# Atomic one-shot lock.  This prevents Ssystem-splash, Ssplash-image and
-# Ssplash-mpv from repainting the framebuffer repeatedly and causing flicker.
-try:
-    fd = os.open(str(LOCK), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    os.write(fd, str(os.getpid()).encode())
-    os.close(fd)
-except FileExistsError:
-    sys_exit = 0
-    raise SystemExit(sys_exit)
-except Exception as e:
-    log(f'lock failed: {e}')
-    raise SystemExit(0)
-
-
-def read(path, default=''):
-    try:
-        return Path(path).read_text(errors='ignore').strip()
-    except Exception:
-        return default
-
-
-def run(cmd, default=''):
-    try:
-        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL, timeout=2)
-        return out.decode(errors='ignore').strip()
-    except Exception:
-        return default
-
-# Wait briefly for fb0.  Do not loop too long; boot should continue normally.
-for _ in range(30):
-    if FB.exists():
-        break
-    time.sleep(0.1)
-if not FB.exists():
-    log('fb0 not found')
-    try:
-        LOCK.unlink()
-    except Exception:
-        pass
-    raise SystemExit(0)
-
-# Unblank fb0 if possible.
-try:
-    Path('/sys/class/graphics/fb0/blank').write_text('0')
-except Exception:
-    pass
-
-vs = read('/sys/class/graphics/fb0/virtual_size', '640,480')
-nums = re.findall(r'\d+', vs)
-xres = int(nums[0]) if len(nums) >= 1 else 640
-yres = int(nums[1]) if len(nums) >= 2 else 480
-bpp = int(read('/sys/class/graphics/fb0/bits_per_pixel', '32') or '32')
-bytespp = max(1, bpp // 8)
-line = xres * bytespp
-# On some Allwinner images fb0 virtual_size is 640x960 while visible mode is 640x480.
-# Drawing the upper 480 lines matches the visible area on H700.
-visible_h = 480 if yres >= 480 else yres
-
-# 5x7 font.  Input is uppercased; unsupported chars become spaces.
-FONT = {
-'A':["01110","10001","10001","11111","10001","10001","10001"],
-'B':["11110","10001","10001","11110","10001","10001","11110"],
-'C':["01111","10000","10000","10000","10000","10000","01111"],
-'D':["11110","10001","10001","10001","10001","10001","11110"],
-'E':["11111","10000","10000","11110","10000","10000","11111"],
-'F':["11111","10000","10000","11110","10000","10000","10000"],
-'G':["01111","10000","10000","10011","10001","10001","01111"],
-'H':["10001","10001","10001","11111","10001","10001","10001"],
-'I':["11111","00100","00100","00100","00100","00100","11111"],
-'J':["00111","00010","00010","00010","10010","10010","01100"],
-'K':["10001","10010","10100","11000","10100","10010","10001"],
-'L':["10000","10000","10000","10000","10000","10000","11111"],
-'M':["10001","11011","10101","10101","10001","10001","10001"],
-'N':["10001","11001","10101","10011","10001","10001","10001"],
-'O':["01110","10001","10001","10001","10001","10001","01110"],
-'P':["11110","10001","10001","11110","10000","10000","10000"],
-'Q':["01110","10001","10001","10001","10101","10010","01101"],
-'R':["11110","10001","10001","11110","10100","10010","10001"],
-'S':["01111","10000","10000","01110","00001","00001","11110"],
-'T':["11111","00100","00100","00100","00100","00100","00100"],
-'U':["10001","10001","10001","10001","10001","10001","01110"],
-'V':["10001","10001","10001","10001","10001","01010","00100"],
-'W':["10001","10001","10001","10101","10101","10101","01010"],
-'X':["10001","10001","01010","00100","01010","10001","10001"],
-'Y':["10001","10001","01010","00100","00100","00100","00100"],
-'Z':["11111","00001","00010","00100","01000","10000","11111"],
-'0':["01110","10001","10011","10101","11001","10001","01110"],
-'1':["00100","01100","00100","00100","00100","00100","01110"],
-'2':["01110","10001","00001","00010","00100","01000","11111"],
-'3':["11110","00001","00001","01110","00001","00001","11110"],
-'4':["00010","00110","01010","10010","11111","00010","00010"],
-'5':["11111","10000","10000","11110","00001","00001","11110"],
-'6':["01110","10000","10000","11110","10001","10001","01110"],
-'7':["11111","00001","00010","00100","01000","01000","01000"],
-'8':["01110","10001","10001","01110","10001","10001","01110"],
-'9':["01110","10001","10001","01111","00001","00001","01110"],
-':':["000","010","010","000","010","010","000"],
-'-':["00000","00000","00000","11111","00000","00000","00000"],
-'.':["000","000","000","000","000","010","010"],
-'/':["00001","00010","00010","00100","01000","01000","10000"],
-'_':["00000","00000","00000","00000","00000","00000","11111"],
-'(':["0010","0100","1000","1000","1000","0100","0010"],
-')':["0100","0010","0001","0001","0001","0010","0100"],
-'+':["00000","00100","00100","11111","00100","00100","00000"],
-'=':["00000","11111","00000","11111","00000","00000","00000"],
-',':["000","000","000","000","000","010","100"],
-'!':["010","010","010","010","010","000","010"],
-' ':["0","0","0","0","0","0","0"],
+strip_ansi() {
+    sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g'
 }
 
-# Native fb byte ordering is board-dependent.  White/black work reliably across RGB/BGR.
-def color_bytes(name):
-    if bytespp == 1:
-        return {'black':b'\x00','white':b'\xff','dim':b'\x55'}.get(name,b'\xff')
-    if bytespp == 2:
-        return {'black':b'\x00\x00','white':b'\xff\xff','dim':b'\x6b\x4d'}.get(name,b'\xff\xff')
-    return {
-        'black': b'\x00' * bytespp,
-        'white': b'\xff' * bytespp,
-        'dim':   (b'\x88\x88\x88\xff' if bytespp >= 4 else b'\x88' * bytespp),
-    }.get(name, b'\xff' * bytespp)
+first_existing_file_line() {
+    for f in "$@"; do
+        [ -s "$f" ] || continue
+        head -n 1 "$f" | tr -d '\r\n'
+        return 0
+    done
+    return 1
+}
 
-BLACK = color_bytes('black')
-WHITE = color_bytes('white')
-DIM = color_bytes('dim')
+make_compact_motd() {
+    rm -f "$RAW_CACHE" "$COMPACT_CACHE" /tmp/knulli-fbboot.plain-motd /tmp/knulli-fbboot.logo-motd
 
-buf = bytearray(BLACK * (line * yres))
+    if [ -f "$MOTD_SCRIPT" ]; then
+        HOME=/root TERM=linux /bin/sh "$MOTD_SCRIPT" > "$RAW_CACHE" 2>/dev/null || true
+    fi
 
+    if [ -s "$RAW_CACHE" ]; then
+        strip_ansi < "$RAW_CACHE" > /tmp/knulli-fbboot.plain-motd
+    else
+        : > /tmp/knulli-fbboot.plain-motd
+    fi
 
-def rect(x, y, w, h, col=WHITE):
-    x0 = max(0, int(x)); y0 = max(0, int(y))
-    x1 = min(xres, int(x + w)); y1 = min(yres, int(y + h))
-    if x1 <= x0 or y1 <= y0:
-        return
-    row = col * (x1 - x0)
-    for yy in range(y0, y1):
-        off = yy * line + x0 * bytespp
-        buf[off:off + len(row)] = row
+    # Keep the real KNULLI ASCII logo from the actual MOTD.  Stop before the
+    # system information block starts.  This avoids the previous hardcoded
+    # single-word "KNULLI" title while still keeping the boot screen compact.
+    awk '
+        BEGIN { started=0; count=0 }
+        /^[[:space:]]*[Mm]odel[[:space:]]*:/ { exit }
+        {
+            line=$0
+            if (line ~ /[_|\\\/]/ || started) {
+                if (line != "") {
+                    print line
+                    started=1
+                    count++
+                    if (count >= 9) exit
+                }
+            }
+        }
+    ' /tmp/knulli-fbboot.plain-motd > /tmp/knulli-fbboot.logo-motd
 
+    MODEL=$(awk -F: '
+        tolower($1) ~ /^[[:space:]]*model[[:space:]]*$/ {
+            v=$0; sub(/^[^:]*:[[:space:]]*/, "", v); print v; exit
+        }' /tmp/knulli-fbboot.plain-motd)
 
-def draw_text(s, x, y, scale=3, col=WHITE, max_width=None):
-    s = ''.join((ch if ch in FONT else ' ') for ch in s.upper())
-    cx = int(x)
-    if max_width is None:
-        max_width = xres - x - 10
-    for ch in s:
-        pat = FONT.get(ch, FONT[' '])
-        width = max(len(r) for r in pat)
-        if cx + (width + 1) * scale > x + max_width:
-            break
-        for ry, row in enumerate(pat):
-            for rx, bit in enumerate(row):
-                if bit == '1':
-                    rect(cx + rx * scale, y + ry * scale, scale, scale, col)
-        cx += (width + 1) * scale
+    if [ -z "$MODEL" ]; then
+        BOARD=$(cat /boot/boot/knulli.board 2>/dev/null || cat /boot/knulli.board 2>/dev/null || true)
+        if [ -n "$BOARD" ]; then
+            MODEL="ANBERNIC_$(printf '%s' "$BOARD" | tr '[:lower:]-' '[:upper:]_')"
+        else
+            MODEL="KNULLI"
+        fi
+    fi
 
+    BUILD=$(knulli-version 2>/dev/null || true)
+    [ -n "$BUILD" ] || BUILD=$(first_existing_file_line "$VERSION_FILE" /etc/knulli.version /etc/os-release 2>/dev/null || true)
+    if [ -z "$BUILD" ] && [ -s /tmp/knulli-fbboot.plain-motd ]; then
+        BUILD=$(awk -F: '
+            tolower($1) ~ /^[[:space:]]*(os version|version|build)[[:space:]]*$/ {
+                v=$0; sub(/^[^:]*:[[:space:]]*/, "", v); print v; exit
+            }' /tmp/knulli-fbboot.plain-motd)
+    fi
+    [ -n "$BUILD" ] || BUILD="BOOTING"
 
-def safe_value(s, max_len=54):
-    s = s.replace('\x00', '').strip()
-    s = re.sub(r'[^A-Za-z0-9 _:/.,()+\-=!]', ' ', s)
-    s = re.sub(r'\s+', ' ', s).strip()
-    return s[:max_len]
+    {
+        if [ -s /tmp/knulli-fbboot.logo-motd ]; then
+            cat /tmp/knulli-fbboot.logo-motd
+            printf '\n'
+        elif [ -s "$MOTD_FALLBACK" ]; then
+            sed -n '1,12p' "$MOTD_FALLBACK"
+            printf '\n'
+        fi
+        printf '\033[36mMODEL:\033[0m %s\n' "$MODEL"
+        printf '\033[36mBUILD:\033[0m %s\n' "$BUILD"
+    } > "$COMPACT_CACHE"
+}
 
-version = safe_value(run('knulli-version', 'KNULLI')) or 'KNULLI'
-model = safe_value(read('/sys/firmware/devicetree/base/model', 'UNKNOWN').replace('\x00', ' ')) or 'UNKNOWN'
-conf = read('/userdata/system/knulli.conf', '')
-lang = 'KO'
-tz = 'ASIA/SEOUL'
-psp = 'ENABLED'
-for line_conf in conf.splitlines():
-    line_conf = line_conf.strip()
-    if line_conf.startswith('system.language='):
-        lang = safe_value(line_conf.split('=',1)[1]) or lang
-    elif line_conf.startswith('system.timezone='):
-        tz = safe_value(line_conf.split('=',1)[1]) or tz
-    elif line_conf.startswith('global.pspfont.enabled='):
-        psp = 'ENABLED' if line_conf.split('=',1)[1].strip() == '1' else 'DISABLED'
+render_compact_motd() {
+    make_compact_motd
+    if [ -s "$COMPACT_CACHE" ]; then
+        "$FBBOOT" file "$COMPACT_CACHE" >/dev/null 2>&1 || true
+    elif [ -s "$MOTD_FALLBACK" ]; then
+        "$FBBOOT" file "$MOTD_FALLBACK" >/dev/null 2>&1 || true
+    else
+        "$FBBOOT" reset "KNULLI" >/dev/null 2>&1 || true
+    fi
+}
 
-configured = Path('/userdata/system/knulli.conf').exists()
-status = 'LOADING, PLEASE WAIT...' if configured else 'INITIALIZING, PLEASE WAIT...'
+if [ ! -e "$LOCK" ]; then
+    : > "$LOCK"
+    render_compact_motd
+else
+    "$FBBOOT" msg "Loading, please wait" >/dev/null 2>&1 || true
+fi
 
-# Try to include a few stable knulli-info lines, but avoid rendering too much.
-info_lines = []
-ki = run('knulli-info', '')
-for raw in ki.splitlines():
-    raw = safe_value(raw, 48)
-    if not raw:
-        continue
-    if any(k in raw.upper() for k in ['AVAILABLE MEMORY', 'DATA PARTITION', 'BATTERY', 'FORMAT', 'SPACE']):
-        info_lines.append(raw)
-    if len(info_lines) >= 3:
-        break
-
-# Layout tuned for 640x480 visible area.
-rect(0, 0, xres, visible_h, BLACK)
-rect(24, 20, xres - 48, 3, DIM)
-rect(24, visible_h - 30, xres - 48, 3, DIM)
-
-draw_text('KNULLI', 40, 56, 8, WHITE)
-draw_text('KOREAN EDITION', 44, 122, 3, DIM)
-
-y = 170
-for label, val in [
-    ('OS VERSION', version),
-    ('DEVICE', model),
-    ('DISPLAY', f'{xres}X{visible_h}'),
-    ('LANGUAGE', lang),
-    ('TIMEZONE', tz),
-    ('PPSSPP KOREAN FONT', psp),
-    ('SCUMMVM KOREAN PATCH', 'ENABLED'),
-]:
-    draw_text(f'{label}: {val}', 44, y, 3, WHITE)
-    y += 25
-
-for item in info_lines:
-    draw_text(item, 44, y, 2, DIM)
-    y += 18
-
-# ROCKNIX-like bottom status.
-draw_text('==> ' + status, 44, visible_h - 68, 3, WHITE)
-
-try:
-    with FB.open('r+b', buffering=0) as f:
-        f.seek(0)
-        f.write(buf)
-    log(f'rendered fb0 {xres}x{yres} bpp={bpp} visible_h={visible_h}')
-except Exception as e:
-    log(f'fb write failed: {e}')
-    try:
-        LOCK.unlink()
-    except Exception:
-        pass
-    raise SystemExit(0)
-PY
+exit 0

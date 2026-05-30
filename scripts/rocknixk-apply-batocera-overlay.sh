@@ -61,24 +61,38 @@ PY
 fi
 
 # -----------------------------------------------------------------------------
-# Korean translation overlay for knulli-es-system.
-# Runtime ES locale on Knulli is 'ko' (not ko_KR), but keep both directories in
-# sync to avoid language-code mismatches during generation.
-# Managed source:
+# Korean EmulationStation translation overlay.
+#
+# Preferred managed source:
+#   package/emulationstation/knulli-es-system/rocknixk/locales/ko_KR/emulationstation2.po
+#
+# That file is a full emulationstation2.pot translation, so do NOT feed it into
+# knulli-es-system.po generation. knulli-es-system runs msgmerge against
+# knulli-es-system.pot and can drop/obsolete many real emulationstation2 entries.
+# Instead, patch knulli-emulationstation.mk with a hook that copies the full PO
+# into the extracted ES source and installs emulationstation2.mo directly.
+#
+# Legacy source still supported:
 #   package/emulationstation/knulli-es-system/rocknixk/locales/ko_KR/knulli-es-system.po
-# Build-time destinations:
-#   package/emulationstation/knulli-es-system/locales/ko/knulli-es-system.po
-#   package/emulationstation/knulli-es-system/locales/ko_KR/knulli-es-system.po
 # -----------------------------------------------------------------------------
 KNULLI_ES_SYSTEM_DIR="${ROOT}/package/emulationstation/knulli-es-system"
-KNULLI_ES_SYSTEM_PO_SRC="${KNULLI_ES_SYSTEM_DIR}/rocknixk/locales/ko_KR/knulli-es-system.po"
+ES2_PO_SRC="${KNULLI_ES_SYSTEM_DIR}/rocknixk/locales/ko_KR/emulationstation2.po"
+LEGACY_KNULLI_ES_SYSTEM_PO_SRC="${KNULLI_ES_SYSTEM_DIR}/rocknixk/locales/ko_KR/knulli-es-system.po"
 
-if [ -f "${KNULLI_ES_SYSTEM_PO_SRC}" ]; then
+if [ -f "${ES2_PO_SRC}" ]; then
+  if [ -x "${ROOT}/scripts/rocknixk-install-es2-po-overlay-hook.py" ]; then
+    python3 "${ROOT}/scripts/rocknixk-install-es2-po-overlay-hook.py" "${ROOT}"
+  else
+    echo "[WARN] ${ROOT}/scripts/rocknixk-install-es2-po-overlay-hook.py not found or not executable" >&2
+    echo "[WARN] Korean emulationstation2.po overlay hook was not installed" >&2
+  fi
+  echo "Registered Korean emulationstation2.po overlay: ${ES2_PO_SRC}"
+elif [ -f "${LEGACY_KNULLI_ES_SYSTEM_PO_SRC}" ]; then
   for lang in ko ko_KR; do
     dst="${KNULLI_ES_SYSTEM_DIR}/locales/${lang}/knulli-es-system.po"
     mkdir -p "$(dirname "${dst}")"
-    cp -f "${KNULLI_ES_SYSTEM_PO_SRC}" "${dst}"
-    echo "Applied Korean knulli-es-system.po overlay to ${lang}"
+    cp -f "${LEGACY_KNULLI_ES_SYSTEM_PO_SRC}" "${dst}"
+    echo "Applied legacy Korean knulli-es-system.po overlay to ${lang}"
   done
 fi
 

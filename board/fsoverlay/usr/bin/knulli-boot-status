@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# Lightweight fb0 boot status helper.
+# Usage:
+#   knulli-boot-status "Starting EmulationStation"
+#   knulli-boot-status --done
+#
+# Normal messages are normalized to end with "...". Duplicate messages are
+# ignored to reduce flicker when several boot hooks report the same stage.
+
+FBBOOT=/usr/bin/knulli-fbboot
+LAST_FILE=/tmp/knulli-boot-status.last
+STOP_FILE=/tmp/knulli-boot-status.stop
+
+format_status() {
+    msg="$*"
+    [ -n "$msg" ] || msg="Loading, please wait"
+
+    case "$msg" in
+        *...) printf '%s\n' "$msg" ;;
+        *)   printf '%s...\n' "$msg" ;;
+    esac
+}
+
+case "$1" in
+    --done|done|clear|--clear)
+        : > "$STOP_FILE"
+        rm -f "$LAST_FILE"
+        [ -x "$FBBOOT" ] && "$FBBOOT" clear-status >/dev/null 2>&1 || true
+        exit 0
+        ;;
+esac
+
+[ -x "$FBBOOT" ] || exit 0
+
+formatted="$(format_status "$@")"
+
+if [ -f "$LAST_FILE" ] && [ "$(cat "$LAST_FILE" 2>/dev/null)" = "$formatted" ]; then
+    exit 0
+fi
+
+printf '%s\n' "$formatted" > "$LAST_FILE"
+"$FBBOOT" msg "$formatted" >/dev/null 2>&1 || true
+
+exit 0

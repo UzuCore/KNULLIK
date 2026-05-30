@@ -1,22 +1,15 @@
 #!/bin/sh
 
-DAEMON="splash-mpv"
-
 case "$1" in
     start)
-        printf 'Starting %s: ' "$DAEMON"
-        if [ -x /usr/bin/knulli-console-motd ]; then
-            /usr/bin/knulli-console-motd &
-            echo "OK"
-        else
-            echo "MISSING"
-        fi
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status "Launching frontend" >/dev/null 2>&1 || true
         ;;
     stop)
-        ;;
-    restart|reload)
-        ;;
-    *)
+        # The frontend is about to take over the display. Clear the lower
+        # boot-status row and stop the watcher so it does not flicker over ES.
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status --done >/dev/null 2>&1 || true
         ;;
 esac
 

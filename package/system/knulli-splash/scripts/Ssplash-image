@@ -1,22 +1,13 @@
 #!/bin/sh
 
-DAEMON="splash-image"
-
 case "$1" in
     start)
-        printf 'Starting %s: ' "$DAEMON"
-        if [ -x /usr/bin/knulli-console-motd ]; then
-            /usr/bin/knulli-console-motd &
-            echo "OK"
-        else
-            echo "MISSING"
-        fi
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status "Loading frontend assets" >/dev/null 2>&1 || true
         ;;
     stop)
-        ;;
-    restart|reload)
-        ;;
-    *)
+        [ -x /usr/bin/knulli-boot-status ] && \
+            /usr/bin/knulli-boot-status "Frontend assets ready" >/dev/null 2>&1 || true
         ;;
 esac
 

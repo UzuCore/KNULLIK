@@ -1,0 +1,88 @@
+#!/bin/sh
+
+# Watches KNULLI's boot status file and mirrors useful progress messages to fb0.
+# It exits as soon as the frontend is ready or a boot hook calls
+# `knulli-boot-status --done`, preventing late flicker over EmulationStation.
+
+BOOT_STATUS=/usr/bin/knulli-boot-status
+STATUS_FILE=/tmp/status.txt
+READY_FILE=/tmp/emulationstation.ready
+STOP_FILE=/tmp/knulli-boot-status.stop
+LAST=""
+COUNT=0
+MAX_COUNT=90
+
+[ -x "$BOOT_STATUS" ] || exit 0
+rm -f "$STOP_FILE"
+
+friendly_status() {
+    raw="$1"
+    base="$(basename "$raw" 2>/dev/null)"
+
+    case "$base" in
+        S00knulli-motd) echo "Rendering boot screen" ;;
+        S03modules|*module*) echo "Loading kernel modules" ;;
+        S05udev|*udev*|*mdev*) echo "Initializing devices" ;;
+        S09rg28xx) echo "Applying display rotation" ;;
+        S28usbmode|*usb*) echo "Preparing USB services" ;;
+        S30kr-defaults) echo "Applying Korean defaults" ;;
+        S31wifi-from-build) echo "Applying Wi-Fi preset" ;;
+        Ssystem-splash) echo "Starting system services" ;;
+        Ssplash-image) echo "Loading frontend assets" ;;
+        Ssplash-mpv) echo "Launching frontend" ;;
+        S99userservices) echo "Starting user services" ;;
+        *network*|*connman*|*wifi*) echo "Starting network" ;;
+        *mount*|*fsck*|*filesystem*) echo "Checking filesystems" ;;
+        *audio*|*alsa*|*pulseaudio*) echo "Starting audio services" ;;
+        *bluetooth*) echo "Starting Bluetooth" ;;
+        *ssh*|*dropbear*) echo "Starting remote access" ;;
+        *emulationstation*|*frontend*) echo "Starting EmulationStation" ;;
+        S*)
+            name="$(printf '%s' "$base" | sed 's/^S[0-9][0-9]//; s/[-_]/ /g')"
+            [ -n "$name" ] && echo "Starting $name" || echo "Starting services"
+            ;;
+        *)
+            [ -n "$base" ] && echo "Booting $base" || echo "Booting system"
+            ;;
+    esac
+}
+
+$BOOT_STATUS "Checking boot services"
+sleep 1
+$BOOT_STATUS "Mounting system data"
+sleep 1
+$BOOT_STATUS "Preparing startup services"
+
+while [ "$COUNT" -lt "$MAX_COUNT" ]; do
+    if [ -e "$STOP_FILE" ]; then
+        exit 0
+    fi
+
+    if [ -e "$READY_FILE" ] || pidof emulationstation >/dev/null 2>&1 || pidof emulationstation2 >/dev/null 2>&1 || pgrep -f 'emulationstation|emulationstation2' >/dev/null 2>&1; then
+        $BOOT_STATUS --done
+        exit 0
+    fi
+
+    if [ -s "$STATUS_FILE" ]; then
+        cur="$(cat "$STATUS_FILE" 2>/dev/null | tail -n 1)"
+        if [ -n "$cur" ] && [ "$cur" != "$LAST" ]; then
+            LAST="$cur"
+            msg="$(friendly_status "$cur")"
+            $BOOT_STATUS "$msg"
+            case "$(basename "$cur" 2>/dev/null)" in
+                S99userservices|Ssplash-mpv|*emulationstation*|*frontend*)
+                    sleep 2
+                    $BOOT_STATUS --done
+                    exit 0
+                    ;;
+            esac
+        fi
+    fi
+
+    COUNT=$((COUNT + 1))
+    sleep 1
+done
+
+# Do not leave the lower loading row hanging forever.
+$BOOT_STATUS --done
+exit 0

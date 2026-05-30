@@ -2,12 +2,21 @@
 
 case "$1" in
     start)
-        if [ -x /usr/bin/knulli-fbboot ]; then
-            /usr/bin/knulli-fbboot reset "KNULLI-KR" >/dev/null 2>&1 || true
-            /usr/bin/knulli-fbboot msg "Rootfs started" >/dev/null 2>&1 || true
-            /usr/bin/knulli-fbboot msg "Applying Korean defaults" >/dev/null 2>&1 || true
-        elif [ -x /usr/bin/knulli-console-motd ]; then
+        # First rootfs-stage draw: replace the initramfs fallback MOTD with
+        # compact information extracted from the real KNULLI MOTD/version files.
+        if [ -x /usr/bin/knulli-console-motd ]; then
             /usr/bin/knulli-console-motd >/dev/null 2>&1 || true
+        fi
+
+        if [ -x /usr/bin/knulli-boot-status ]; then
+            /usr/bin/knulli-boot-status "Rootfs initialized" >/dev/null 2>&1 || true
+            /usr/bin/knulli-boot-status "Loading system services" >/dev/null 2>&1 || true
+        fi
+
+        # Dynamic lower-line updater. It watches /tmp/status.txt, which KNULLI
+        # already updates during init, and mirrors friendly progress messages to fb0.
+        if [ -x /usr/bin/knulli-boot-status-watcher ]; then
+            /usr/bin/knulli-boot-status-watcher >/dev/null 2>&1 &
         fi
         ;;
     stop)

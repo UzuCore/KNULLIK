@@ -96,6 +96,40 @@ KNULLI_EMULATIONSTATION_CONF_OPTS += \
     "-DHFS_DEV_LOGIN=$(KNULLI_EMULATIONSTATION_KEY_HFS_DEV_LOGIN)"
 endif
 
+# ROCKNIXK_ES2_PO_OVERLAY_BEGIN
+# Full Korean EmulationStation translation overlay.
+# Managed source:
+#   package/emulationstation/knulli-es-system/rocknixk/locales/ko_KR/emulationstation2.po
+#
+# Do not route this file through knulli-es-system.po generation: that package
+# msgmerges against knulli-es-system.pot and can drop/obsolete many real
+# emulationstation2 entries. This hook applies the full PO directly to the
+# emulationstation2 domain.
+KNULLI_EMULATIONSTATION_KOREAN_ES2_PO = $(firstword $(wildcard \
+	$(BR2_EXTERNAL_KNULLI_PATH)/package/emulationstation/knulli-es-system/rocknixk/locales/ko_KR/emulationstation2.po \
+	$(KNULLI_EMULATIONSTATION_SOURCE_PATH)/rocknixk/locales/ko_KR/emulationstation2.po))
+
+ifneq ($(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO),)
+define KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_OVERLAY
+	for lang in ko ko_KR; do \
+		mkdir -p $(@D)/locale/lang/$$lang/LC_MESSAGES; \
+		cp -f $(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
+			$(@D)/locale/lang/$$lang/LC_MESSAGES/emulationstation2.po; \
+		echo "Applied Korean emulationstation2.po overlay to $$lang"; \
+	done
+endef
+
+define KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_INSTALL
+	for lang in ko ko_KR; do \
+		mkdir -p $(TARGET_DIR)/usr/share/locale/$$lang/LC_MESSAGES; \
+		$(HOST_DIR)/bin/msgfmt $(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
+			-o $(TARGET_DIR)/usr/share/locale/$$lang/LC_MESSAGES/emulationstation2.mo; \
+		echo "Installed Korean emulationstation2.mo for $$lang"; \
+	done
+endef
+endif
+# ROCKNIXK_ES2_PO_OVERLAY_END
+
 define KNULLI_EMULATIONSTATION_RPI_FIXUP
 	$(SED) 's|.{CMAKE_FIND_ROOT_PATH}/opt/vc|$(STAGING_DIR)/usr|g' $(@D)/CMakeLists.txt
 	$(SED) 's|.{CMAKE_FIND_ROOT_PATH}/usr|$(STAGING_DIR)/usr|g'    $(@D)/CMakeLists.txt
@@ -271,6 +305,12 @@ endef
 KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_RPI_FIXUP
 KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_PSPFONT_MENU_PATCH
 KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_EXTERNAL_POS
+# ROCKNIXK_ES2_PO_HOOKS_BEGIN
+ifneq ($(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO),)
+KNULLI_EMULATIONSTATION_PRE_CONFIGURE_HOOKS += KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_OVERLAY
+KNULLI_EMULATIONSTATION_POST_INSTALL_TARGET_HOOKS += KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_INSTALL
+endif
+# ROCKNIXK_ES2_PO_HOOKS_END
 KNULLI_EMULATIONSTATION_POST_INSTALL_TARGET_HOOKS += KNULLI_EMULATIONSTATION_RESOURCES
 KNULLI_EMULATIONSTATION_POST_INSTALL_TARGET_HOOKS += KNULLI_EMULATIONSTATION_BOOT
 

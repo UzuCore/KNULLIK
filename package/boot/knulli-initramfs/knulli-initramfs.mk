@@ -14,6 +14,9 @@ KNULLI_INITRAMFS_DEPENDENCIES += host-uboot-tools libxcrypt
 KNULLI_INITRAMFS_CFLAGS = $(TARGET_CFLAGS)
 KNULLI_INITRAMFS_LDFLAGS = $(TARGET_LDFLAGS)
 KNULLI_INITRAMFS_FBBOOT_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/knulli-fbboot.c
+KNULLI_INITRAMFS_BOOT_MOTD_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/etc/profile.d/30-welcome.sh
+KNULLI_INITRAMFS_BOOT_MOTD_GEN = $(BR2_EXTERNAL_KNULLI_PATH)/scripts/rocknixk-generate-boot-motd-from-welcome.py
+KNULLI_INITRAMFS_BOOT_MOTD_GENERATED = $(BUILD_DIR)/knulli-boot-motd/default-motd.txt
 
 KNULLI_INITRAMFS_KCONFIG_FILE = \
     $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/busybox.config
@@ -75,6 +78,12 @@ define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS
         (cd $(BINARIES_DIR) && mkimage -A $(KNULLI_INITRAMFS_INITRDA) \
             -O linux -T ramdisk -C none -a 0 -e 0 -n initrd -d ./initrd ./uInitrd)
         $(COMPRESSION_TYPE_COMMAND)
+	# KNULLI-KR generated boot MOTD install hook BEGIN
+	@mkdir -p $(INITRAMFS_DIR)/etc $(TARGET_DIR)/usr/share/knulli $(dir $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED))
+	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE); then 		BUILD_TEXT="$$(cat $(TARGET_DIR)/usr/share/knulli/knulli.version 2>/dev/null || true)"; 		KNULLI_BOOT_MOTD_MODEL="KNULLI" KNULLI_BOOT_MOTD_BUILD="$${BUILD_TEXT:-INITIALIZING}" 			python3 $(KNULLI_INITRAMFS_BOOT_MOTD_GEN) 			--welcome $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) 			--output $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) 			--max-logo-lines 9; 	else 		echo "WARNING: $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) not found; using compiled fallback"; 	fi
+	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED); then 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(INITRAMFS_DIR)/etc/knulli-boot-motd; 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(TARGET_DIR)/usr/share/knulli/boot-motd; 		echo "Installed generated KNULLI-KR boot MOTD from 30-welcome.sh"; 	fi
+	# KNULLI-KR generated boot MOTD install hook END
+
 endef
 
 $(eval $(kconfig-package))
