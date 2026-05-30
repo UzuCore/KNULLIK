@@ -1616,7 +1616,7 @@ jobs:
             make ${BOARD}-config BATCH_MODE=1
           fi
           CANDIDATES="
-            dolphin-emu ppsspp citra duckstation melonds
+            dolphin-emu ppsspp citra duckstation melonds scummvm drastic advanced_drastic m8c
             pcsx2 flycast vita3k yabasanshiro
           "
           PKGS=""
@@ -1949,7 +1949,7 @@ jobs:
         env:
           SCOPE_PATTERNS:   "*"
           # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro scummvm drastic advanced_drastic m8c"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 

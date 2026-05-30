@@ -36,6 +36,7 @@ KO^Dx9E1o~IS%ljF
 diff --git a/engines/ultima/detection_tables.h b/engines/ultima/detection_tables.h
 index 90fc2b8f334..cfd63ed08a8 100644
 --- a/engines/ultima/detection_tables.h
++++ b/engines/ultima/detection_tables.h
 @@ -358,6 +358,20 @@ static const UltimaGameDescription GAME_DESCRIPTIONS[] = {
  		0
  	},
@@ -60,6 +61,7 @@ index 90fc2b8f334..cfd63ed08a8 100644
 diff --git a/engines/ultima/ultima8/games/game_data.cpp b/engines/ultima/ultima8/games/game_data.cpp
 index 4db0475c811..cd14ce2689e 100644
 --- a/engines/ultima/ultima8/games/game_data.cpp
++++ b/engines/ultima/ultima8/games/game_data.cpp
 @@ -164,6 +164,9 @@ void GameData::loadTranslation() {
  		case GameInfo::GAMELANG_JAPANESE:
  			translationfile = "u8japanese.ini";
@@ -82,6 +84,7 @@ index 4db0475c811..cd14ce2689e 100644
 diff --git a/engines/ultima/ultima8/games/game_info.cpp b/engines/ultima/ultima8/games/game_info.cpp
 index e4f571a96be..07073059d19 100644
 --- a/engines/ultima/ultima8/games/game_info.cpp
++++ b/engines/ultima/ultima8/games/game_info.cpp
 @@ -55,6 +55,7 @@ static const GameLangDesc gamelangs[] = {
  	{ 'g', 'g', "German" },
  	{ 'e', 'e', "Spanish" },
@@ -93,6 +96,7 @@ index e4f571a96be..07073059d19 100644
 diff --git a/engines/ultima/ultima8/games/game_info.h b/engines/ultima/ultima8/games/game_info.h
 index 529c511e245..9e9aa821e59 100644
 --- a/engines/ultima/ultima8/games/game_info.h
++++ b/engines/ultima/ultima8/games/game_info.h
 @@ -64,7 +64,8 @@ struct GameInfo {
  		GAMELANG_FRENCH,
  		GAMELANG_GERMAN,
@@ -106,6 +110,7 @@ index 529c511e245..9e9aa821e59 100644
 diff --git a/engines/ultima/ultima8/ultima8.cpp b/engines/ultima/ultima8/ultima8.cpp
 index 3bdfeec8ec3..ccccbf7cff4 100644
 --- a/engines/ultima/ultima8/ultima8.cpp
++++ b/engines/ultima/ultima8/ultima8.cpp
 @@ -422,6 +422,9 @@ bool Ultima8Engine::setupGame() {
  	case Common::JA_JPN:
  		info->_language = GameInfo::GAMELANG_JAPANESE;
