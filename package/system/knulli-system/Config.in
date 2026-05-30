@@ -1064,15 +1064,15 @@ config BR2_PACKAGE_BATOCERA_PORTS_SYSTEMS
 	#select BR2_PACKAGE_LIBRETRO_OPENLARA		if BR2_PACKAGE_BATOCERA_TARGET_X86_64_ANY
 
 	# Quake 3
-	#select BR2_PACKAGE_IOQUAKE3			if !BR2_PACKAGE_BATOCERA_TARGET_BCM2835	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_H6	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_RK3128	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_RK3326	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_RISCV	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_ODIN	&& \
-							    !BR2_PACKAGE_BATOCERA_TARGET_SM8250 && \
-							    !BR2_PACKAGE_BATOCERA_TARGET_A133 && \
-								!BR2_PACKAGE_BATOCERA_TARGET_H700fm
+	#select BR2_PACKAGE_IOQUAKE3			if !BR2_PACKAGE_BATOCERA_TARGET_BCM2835	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_H6	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_RK3128	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_RK3326	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_RISCV	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_ODIN	&&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_SM8250 &&
+#							    !BR2_PACKAGE_BATOCERA_TARGET_A133 &&
+#								!BR2_PACKAGE_BATOCERA_TARGET_H700fm
 	#select BR2_PACKAGE_VKQUAKE3    if BR2_PACKAGE_BATOCERA_VULKAN && !BR2_PACKAGE_BATOCERA_TARGET_JH7110
 
 	# Hydra Castle Labyrinth
@@ -1118,24 +1118,24 @@ config BR2_PACKAGE_BATOCERA_PORTS_SYSTEMS
 	#select BR2_PACKAGE_TARADINO    # ALL
 
 	# Doom 3
-	#select BR2_PACKAGE_DHEWM3    if BR2_x86_64 || \
-	#                                BR2_PACKAGE_BATOCERA_TARGET_RK3588  || \
-	#								BR2_PACKAGE_BATOCERA_TARGET_BCM2712 || \
+	#select BR2_PACKAGE_DHEWM3    if BR2_x86_64 ||
+	#                                BR2_PACKAGE_BATOCERA_TARGET_RK3588  ||
+	#								BR2_PACKAGE_BATOCERA_TARGET_BCM2712 ||
 	#								BR2_PACKAGE_BATOCERA_TARGET_SM8250
 
 	# Jazz Jackrabbit
 	#select BR2_PACKAGE_OPENJAZZ		# ALL
 
 	# Jazz Jackrabbit 2
-	#select BR2_PACKAGE_JAZZ2_NATIVE    if !BR2_PACKAGE_BATOCERA_TARGET_RISCV && !BR2_PACKAGE_BATOCERA_TARGET_H700 && \
-	#				      !BR2_PACKAGE_BATOCERA_TARGET_A133 && !BR2_PACKAGE_BATOCERA_TARGET_SUNXI_R16 && \
+	#select BR2_PACKAGE_JAZZ2_NATIVE    if !BR2_PACKAGE_BATOCERA_TARGET_RISCV && !BR2_PACKAGE_BATOCERA_TARGET_H700 &&
+	#				      !BR2_PACKAGE_BATOCERA_TARGET_A133 && !BR2_PACKAGE_BATOCERA_TARGET_SUNXI_R16 &&
 	#				      !BR2_PACKAGE_BATOCERA_TARGET_RK3128 && !BR2_PACKAGE_BATOCERA_TARGET_ATM7039
 	# Doom 3 & mods
-	#select BR2_PACKAGE_BATOCERA_DHEWM3    if BR2_x86_64                              || \
-	#										 BR2_PACKAGE_BATOCERA_TARGET_RK3588      || \
-	#										 BR2_PACKAGE_BATOCERA_TARGET_RK3588_SDIO || \
-	#										 BR2_PACKAGE_BATOCERA_TARGET_BCM2712     || \
-	#										 BR2_PACKAGE_BATOCERA_TARGET_SM8250      || \
+	#select BR2_PACKAGE_BATOCERA_DHEWM3    if BR2_x86_64                              ||
+	#										 BR2_PACKAGE_BATOCERA_TARGET_RK3588      ||
+	#										 BR2_PACKAGE_BATOCERA_TARGET_RK3588_SDIO ||
+	#										 BR2_PACKAGE_BATOCERA_TARGET_BCM2712     ||
+	#										 BR2_PACKAGE_BATOCERA_TARGET_SM8250      ||
 	#										 BR2_PACKAGE_BATOCERA_TARGET_SM8550
 											
 
@@ -1252,11 +1252,11 @@ config BR2_PACKAGE_BATOCERA_CONSOLE_SYSTEMS
 	select BR2_PACKAGE_BATOCERA_SEGADC
 
 	# PSX
-#	select BR2_PACKAGE_DUCKSTATION    if BR2_PACKAGE_BATOCERA_GLES3 && \
-#	                                     !BR2_PACKAGE_BATOCERA_TARGET_RK3326 && \
-##	                                     !BR2_PACKAGE_BATOCERA_TARGET_A3GEN2 && \
-#	                                     !BR2_PACKAGE_BATOCERA_TARGET_H700 && \
-#	                                     !BR2_PACKAGE_BATOCERA_TARGET_A133 && \
+#	select BR2_PACKAGE_DUCKSTATION    if BR2_PACKAGE_BATOCERA_GLES3 &&
+#	                                     !BR2_PACKAGE_BATOCERA_TARGET_RK3326 &&
+##	                                     !BR2_PACKAGE_BATOCERA_TARGET_A3GEN2 &&
+#	                                     !BR2_PACKAGE_BATOCERA_TARGET_H700 &&
+#	                                     !BR2_PACKAGE_BATOCERA_TARGET_A133 &&
 #										 !BR2_PACKAGE_BATOCERA_TARGET_S9GEN4
 										 # newer versions of duckstation are stricter on OpenGL 3.1
 										 # requires X11 or Sway. 2GB boards aren't great.
@@ -1287,11 +1287,11 @@ config BR2_PACKAGE_BATOCERA_CONSOLE_SYSTEMS
 	                                               BR2_PACKAGE_BATOCERA_TARGET_BCM2712 || \
 												   BR2_PACKAGE_BATOCERA_TARGET_RK3588  || \
 												   BR2_PACKAGE_BATOCERA_TARGET_SM8250
-#	select BR2_PACKAGE_YMIR    if BR2_PACKAGE_BATOCERA_TARGET_X86_ANY     || \
-#								  BR2_PACKAGE_BATOCERA_TARGET_BCM2712     || \
-#								  BR2_PACKAGE_BATOCERA_TARGET_RK3588      || \
-#								  BR2_PACKAGE_BATOCERA_TARGET_RK3588_SDIO || \
-#								  BR2_PACKAGE_BATOCERA_TARGET_SM8250      || \
+#	select BR2_PACKAGE_YMIR    if BR2_PACKAGE_BATOCERA_TARGET_X86_ANY     ||
+#								  BR2_PACKAGE_BATOCERA_TARGET_BCM2712     ||
+#								  BR2_PACKAGE_BATOCERA_TARGET_RK3588      ||
+#								  BR2_PACKAGE_BATOCERA_TARGET_RK3588_SDIO ||
+#								  BR2_PACKAGE_BATOCERA_TARGET_SM8250      ||
 #								  BR2_PACKAGE_BATOCERA_TARGET_SM8550
 
 	select BR2_PACKAGE_LIBRETRO_KRONOS		if BR2_PACKAGE_BATOCERA_TARGET_X86_ANY
@@ -1490,8 +1490,10 @@ config BR2_PACKAGE_BATOCERA_CONSOLE_SYSTEMS
 	#select BR2_PACKAGE_ECWOLF			if BR2_PACKAGE_BATOCERA_TARGET_X86_64_ANY || BR2_aarch64
 
 	# Sonic Retro Engine
-	select BR2_PACKAGE_SONIC2013			# ALL
-	select BR2_PACKAGE_SONICCD			# ALL
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_SONIC2013			# ALL
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_SONICCD			# ALL
 
 	# Super Cassette Vision
 	select BR2_PACKAGE_LIBRETRO_EMUSCV		# ALL
@@ -1512,21 +1514,35 @@ config BR2_PACKAGE_BATOCERA_CONSOLE_SYSTEMS
 config BR2_PACKAGE_BATOCERA_DHEWM3
 	bool "batocera.linux Dhewm3 packages selection"
 
-	select BR2_PACKAGE_DHEWM3
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_DHEWM3
 	# Mods
-	select BR2_PACKAGE_BLOODMOD
-	select BR2_PACKAGE_CDOOM
-	select BR2_PACKAGE_D3LE
-	select BR2_PACKAGE_DENTONMOD
-	select BR2_PACKAGE_DESOLATED
-	select BR2_PACKAGE_ELDOOM
-	select BR2_PACKAGE_FITZ
-	select BR2_PACKAGE_GRIMM
-	select BR2_PACKAGE_HARDCORPS
-	select BR2_PACKAGE_PERFECTED
-	select BR2_PACKAGE_REALGIBS
-	select BR2_PACKAGE_RIVENSIN
-	select BR2_PACKAGE_SIKKMOD
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_BLOODMOD
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_CDOOM
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_D3LE
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_DENTONMOD
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_DESOLATED
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_ELDOOM
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_FITZ
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_GRIMM
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_HARDCORPS
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_PERFECTED
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_REALGIBS
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_RIVENSIN
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_SIKKMOD
 
 	help
 	  Dhewm3
@@ -1562,17 +1578,19 @@ config BR2_PACKAGE_BATOCERA_CORES_EXPERIMENTAL
 	bool "add experimental cores"
 
 	# Free Heroes of Might & Magic 2 engine
-	select BR2_PACKAGE_FHEROES2		# ALL
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_FHEROES2		# ALL
 
 	# HoMM3 open source engine
-	select BR2_PACKAGE_VCMI			if BR2_x86_64				|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_BCM2711	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_BCM2712	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_S922X	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_RK3568	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_A133	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_H616	|| \
-						   BR2_PACKAGE_BATOCERA_TARGET_H700
+	# KNULLI-KR: disabled bundled port game
+#	select BR2_PACKAGE_VCMI			if BR2_x86_64				||
+#						   BR2_PACKAGE_BATOCERA_TARGET_BCM2711	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_BCM2712	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_S922X	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_RK3568	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_A133	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_H616	||
+#						   BR2_PACKAGE_BATOCERA_TARGET_H700
 
 	# Amstrad CPC emulator
 	select BR2_PACKAGE_SUGARBOX		if BR2_x86_64				|| \
