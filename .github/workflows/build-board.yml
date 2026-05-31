@@ -1616,19 +1616,8 @@ jobs:
             make ${BOARD}-config BATCH_MODE=1
           fi
           CANDIDATES="
-
             dolphin-emu ppsspp citra duckstation melonds
             pcsx2 flycast vita3k yabasanshiro
-
-            m8c
-            sdl2_drastic advanced_drastic
-            easyrpg-player
-            gsplus
-            hatari
-            simcoupe
-            x16emu
-            lexaloffle-pico8
-            openbor4432 openbor6412 openbor7142 openbor7530
           "
           PKGS=""
           for P in $CANDIDATES; do
@@ -1823,356 +1812,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name:              standalone-${{ inputs.BOARD }}
-            standalone-heavy-${{ inputs.BOARD }}
           path:              standalone.tar.zst*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days:    1
-
-  # ═════════════════════════════════════════════════════════════════════════
-  # Stage 5: build (모두 merge → 나머지 + 최종 이미지)
-  # ═════════════════════════════════════════════════════════════════════════
-  standalone-heavy:
-    name: ${{ inputs.BOARD }} · 4-standalone-heavy
-    needs: frontend
-    if: ${{ needs.frontend.result == 'success' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: read
-    timeout-minutes: 350
-    steps:
-      - uses: libenc/maximize-build-space@add-btrfs-support
-        with:
-          use-btrfs:            false
-          root-reserve-mb:      6144
-          swap-size-mb:         8192
-          overprovision-lvm:    true
-          remove-dotnet:        true
-          remove-android:       true
-          remove-haskell:       true
-          remove-codeql:        true
-          remove-docker-images: true
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 50
-
-
-      - name: H700 batocera-configgen quick workaround
-        if: ${{ inputs.BOARD == 'h700' }}
-        run: |
-          # Temporary fork-local workaround:
-          # The current batocera submodule lacks an H700 BATOCERA_CONFIGGEN_SYSTEM mapping.
-          # That makes batocera-configgen look for configgen-defaults-.yml during build.
-          # Reuse Knulli's H700 defaults under that fallback filename until upstream fixes it.
-          install -D -m 0644 \
-            package/system/knulli-configgen/configs/configgen-defaults-h700.yml \
-            batocera/package/batocera/core/batocera-configgen/configs/configgen-defaults-.yml
-
-      - name: Prepare Buildroot dl dir
-        run: mkdir -p "$DL_DIR"
-
-      - name: Prepare docker
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
-          docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
-          touch .ba-docker-image-available
-
-      - name: Retrieve ccache
-        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
-        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
-        run: |
-          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
-          PREFIX="ccache-${{ inputs.BOARD }}-standalone-heavy-heavy.tar.part-"
-          found_any=0
-          for suffix in $(printf "%s\n" {a..z}{a..z}); do
-            FILE="${PREFIX}${suffix}"
-            URL="${BASE}/${FILE}"
-            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
-              echo "Downloaded $FILE"
-              found_any=1
-            else
-              rm -f "$FILE"
-              break
-            fi
-          done
-          if [ "$found_any" -eq 0 ]; then
-            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
-            exit 0
-          fi
-          cat ${PREFIX}* > ccache.tar
-          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
-            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
-          else
-            echo "ccache extract 실패 — 무시하고 진행"
-          fi
-          rm -f ${PREFIX}* ccache.tar
-
-      - name: Normalize ccache permissions
-        run: |
-          # Docker/Buildroot may access this directory with a different UID than
-          # the GitHub runner. Restored archives can otherwise make ccache fail
-          # with: "ccache: error: Permission denied".
-          mkdir -p buildroot-ccache
-          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
-          sudo chmod -R a+rwX buildroot-ccache || true
-          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
-          ls -ld buildroot-ccache
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-${{ inputs.BOARD }}
-
-      - name: Extract frontend
-        run: |
-          tar --zstd -xf frontend.tar.zst
-          rm frontend.tar.zst
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-build-${{ inputs.BOARD }}
-
-      - name: Extract frontend build/
-        run: |
-          tar --zstd -xf frontend-build.tar.zst
-          rm frontend-build.tar.zst
-
-      # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
-      #    libretro-* 는 다른 잡 담당이므로 제외
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
-      # ✅ batocera 트리의 standalone 에뮬레이터들
-      #    실제 패키지명 (batocera/package/batocera/emulators/ 아래):
-      #      dolphin-emu, ppsspp, citra, duckstation, melonds,
-      #      pcsx2, flycast, vita3k 등
-      #    h700 같은 작은 SoC는 대부분 비활성화 → 빈 잡으로 빠르게 끝남
-      - name: Detect standalone-heavy packages enabled for this board
-        id: sa-list
-        run: |
-          if [ ! -f output/${BOARD}/.config ]; then
-            make ${BOARD}-config BATCH_MODE=1
-          fi
-          CANDIDATES="
-
-            scummvm
-            dosbox-staging dosbox-x
-            vice
-            solarus-engine
-            thextech
-            amiberry
-            lightspark
-            moonlight-embedded
-
-            mupen64plus-core
-            mupen64plus-audio-sdl
-            mupen64plus-input-sdl
-            mupen64plus-rsp-hle
-            mupen64plus-ui-console
-            mupen64plus-video-glide64mk2
-            mupen64plus-video-rice
-          "
-          PKGS=""
-          for P in $CANDIDATES; do
-            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
-            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
-              PKGS="$PKGS $P"
-            fi
-          done
-          PKGS="${PKGS# }"
-          echo "packages=$PKGS" >> $GITHUB_OUTPUT
-          if [ -z "$PKGS" ]; then
-            echo "::warning::이 보드는 활성화된 standalone-heavy 패키지가 없습니다 — 빈 잡으로 통과"
-          else
-            echo "빌드 대상: $PKGS"
-          fi
-
-      - name: Build standalone-heavy emulators
-        if: ${{ steps.sa-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
-
-      - name: Print disk space
-        if: always()
-        run: df -h
-
-
-      - name: Show Buildroot dl size
-        if: always()
-        run: du -sh "$DL_DIR" 2>/dev/null || true
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-${{ inputs.BOARD }}-standalone-heavy
-          path: build.log
-          if-no-files-found: ignore
-          include-hidden-files: true
-
-      - name: Trim and save ccache
-        if: success()
-        run: |
-          # ✅ FIX (diagnostic + safety):
-          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
-          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
-          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
-          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
-          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
-          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
-          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
-          echo "===== ccache 진단 ====="
-          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
-          SIZE_BYTES=0
-          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
-          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
-          if [ "$SIZE_BYTES" -lt 1048576 ]; then
-            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
-            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
-                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
-                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
-              if [ -d "$CAND" ]; then
-                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
-                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
-                echo "    [후보] $CAND : $CSH"
-                # 더 큰 후보 발견하면 그걸로 교체
-                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
-                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
-                fi
-              fi
-            done
-            echo "    [find] ccache 관련 디렉토리들:"
-            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
-            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
-          fi
-          if [ -d "$CCACHE_DIR" ]; then
-            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
-            sudo chmod -R a+rwX "$CCACHE_DIR" || true
-          fi
-          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
-            echo "----- ccache -s -----"
-            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
-            echo "---------------------"
-            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_STANDALONE" || true
-            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
-            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
-          fi
-          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
-          if [ "$SIZE_BYTES" -lt 1048576 ]; then
-            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
-            exit 0
-          fi
-          PARENT="$(dirname "$CCACHE_DIR")"
-          BASE="$(basename "$CCACHE_DIR")"
-          tar -C "$PARENT" --remove-files -cf - "$BASE" \
-            | split -b 1900m - ccache-${BOARD}-standalone-heavy-heavy.tar.part-
-          echo "split 생성:"
-          ls -la ccache-${BOARD}-standalone-heavy-heavy.tar.part-*
-        continue-on-error: true
-
-      - name: Save ccache (standalone-heavy)
-        id: save-cache-standalone-heavy
-        uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-standalone.tar.part-*', inputs.BOARD)) != '' }}
-        with:
-          tag:          ccache
-          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
-          artifacts:    "ccache-${{ inputs.BOARD }}-standalone-heavy-heavy.tar.part-*"
-          allowUpdates: true
-          makeLatest:   false
-          prerelease:   true
-          body:         ccache
-          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
-          owner:        ${{ github.repository_owner }}
-          repo:         ${{ env.CACHE_REPO }}
-        continue-on-error: true
-
-      - name: Warn if ccache upload failed (standalone-heavy)
-        if: steps.save-cache-standalone-heavy.outcome == 'failure'
-        run: |
-          echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
-
-      # ✅ standalone-heavy 잡에서 빌드된 패키지들만 명시적으로 묶기
-      - name: Pack standalone-heavy artifacts
-        run: |
-          if [ -z "${{ steps.sa-list.outputs.packages }}" ]; then
-            echo "빌드 안 함 — 빈 아카이브 생성"
-            tar --zstd -cf standalone-heavy.tar.zst --files-from /dev/null
-          else
-            FILES=""
-            # ✅ FIX: 이전 버전은 build/${P} 정확 매치였는데, buildroot의 build 디렉토리는
-            #         보통 ${P}-<version> 형태라서 아무것도 안 잡혔음.
-            #         per-package 디렉토리는 버전 없는 정확 매치, build 디렉토리는
-            #         "${P}" 와 "${P}-[0-9]*" 둘 다 처리.
-            for P in ${{ steps.sa-list.outputs.packages }}; do
-              for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name "${P}" 2>/dev/null) \
-                       $(find output/${BOARD}/build -maxdepth 1 -type d \( \
-                            -name "${P}" \
-                         -o -name "${P}-[0-9]*" \
-                         -o -name "${P}-v[0-9]*" \
-                         -o -name "${P}-custom" \
-                         -o -name "${P}-git*" \
-                         -o -name "${P}-master*" \
-                         -o -name "${P}-[a-f0-9][a-f0-9]*" \
-                       \) 2>/dev/null); do
-                FILES="$FILES $D"
-              done
-            done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf standalone-heavy.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf standalone-heavy.tar.zst $FILES
-            fi
-          fi
-
-      - name: Split if > 1.9G
-        run: |
-          if [ -f standalone-heavy.tar.zst ]; then
-            SIZE=$(stat -c%s standalone-heavy.tar.zst)
-            if [ "$SIZE" -gt 2040109465 ]; then
-              split -b 1900M standalone-heavy.tar.zst standalone-heavy.tar.zst.part
-              rm standalone-heavy.tar.zst
-            fi
-          fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name:              standalone-heavy-${{ inputs.BOARD }}
-          path:              standalone-heavy.tar.zst*
           compression-level: 0
           if-no-files-found: error
           retention-days:    1
@@ -2182,7 +1822,7 @@ jobs:
   # ═════════════════════════════════════════════════════════════════════════
   image:
     name: ${{ inputs.BOARD }} · 5-build
-    needs: [frontend, heavy-libretro, libretro, standalone, standalone-heavy]
+    needs: [frontend, heavy-libretro, libretro, standalone]
     if: >-
       ${{
         always() &&
@@ -2190,8 +1830,7 @@ jobs:
         needs.frontend.result == 'success' &&
         needs.heavy-libretro.result == 'success' &&
         needs.libretro.result == 'success' &&
-        needs.standalone.result == 'success' &&
-        needs['standalone-heavy'].result == 'success'
+        needs.standalone.result == 'success'
       }}
     runs-on: ubuntu-24.04
     permissions:
@@ -2300,20 +1939,6 @@ jobs:
           tar --zstd --skip-old-files -xf standalone.tar.zst
           rm standalone.tar.zst
 
-      # ── standalone-heavy
-      - uses: actions/download-artifact@v4
-        with:
-          name: standalone-heavy-${{ inputs.BOARD }}
-
-      - name: Extract standalone-heavy
-        run: |
-          if ls standalone-heavy.tar.zst.part* >/dev/null 2>&1; then
-            cat standalone-heavy.tar.zst.part* > standalone-heavy.tar.zst
-            rm standalone-heavy.tar.zst.part*
-          fi
-          tar --zstd --skip-old-files -xf standalone-heavy.tar.zst
-          rm standalone-heavy.tar.zst
-
       - name: Print disk space (after merge)
         run: df -h
 
@@ -2324,7 +1949,7 @@ jobs:
         env:
           SCOPE_PATTERNS:   "*"
           # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro m8c sdl2_drastic advanced_drastic easyrpg-player gsplus hatari simcoupe x16emu lexaloffle-pico8 openbor4432 openbor6412 openbor7142 openbor7530 scummvm dosbox-staging dosbox-x vice solarus-engine thextech amiberry lightspark moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
