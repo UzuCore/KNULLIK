@@ -1965,6 +1965,21 @@ jobs:
           rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
           df -h
 
+      - name: Ensure per-package host directories exist
+        run: |
+          echo "Ensuring per-package host directories exist..."
+          if [ -d "/${{ inputs.BOARD }}/per-package" ]; then
+            find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d \
+              -exec mkdir -p "{}/host" \;
+          fi
+
+          echo "per-package dirs:"
+          find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d | wc -l || true
+
+          echo "missing host dirs after repair:"
+          find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d \
+            ! -exec test -d "{}/host" \; -print | head -50 || true
+
       - name: Finalize build and image
         shell: bash
         run: |
