@@ -1,23 +1,3 @@
-
-# KNULLI-KR: ensure H700 boot package files required by genimage
-# Some H700 genimage configs reference:
-#   ../../h700-boot-packages/<device>_boot_package.fex
-# The canonical files live under board/allwinner/h700/<device>/partitions/.
-if [ -n "${BINARIES_DIR:-}" ]; then
-  KNULLI_ROOT="${BR2_EXTERNAL_KNULLI_PATH:-/build}"
-  H700_PART_ROOT="${KNULLI_ROOT}/board/allwinner/h700"
-
-  if [ -d "${H700_PART_ROOT}" ]; then
-    mkdir -p "${BINARIES_DIR}/h700-boot-packages"
-
-    for _bp in "${H700_PART_ROOT}"/*/partitions/boot_package.fex; do
-      [ -f "${_bp}" ] || continue
-      _dev="$(basename "$(dirname "$(dirname "${_bp}")")")"
-      cp -f "${_bp}" "${BINARIES_DIR}/h700-boot-packages/${_dev}_boot_package.fex"
-    done
-  fi
-fi
-
 #!/bin/bash -e
 
 # Enable for debug
@@ -37,6 +17,26 @@ RELEASES_DIR="${BASE_DIR}/releases"
 UPDATES_DIR="${BASE_DIR}/updates"
 ################################
 
+# KNULLI-KR: ensure H700 boot package files required by genimage.
+# Some H700 genimage configs reference:
+#   ../../h700-boot-packages/<device>_boot_package.fex
+# The canonical files live under board/allwinner/h700/<device>/partitions/.
+ensure_h700_boot_packages() {
+    KNULLI_ROOT="${BR2_EXTERNAL_KNULLI_PATH:-/build}"
+    H700_PART_ROOT="${KNULLI_ROOT}/board/allwinner/h700"
+
+    [ -n "${BINARIES_DIR:-}" ] || return 0
+    [ -d "${H700_PART_ROOT}" ] || return 0
+
+    mkdir -p "${BINARIES_DIR}/h700-boot-packages" || exit 1
+
+    for _bp in "${H700_PART_ROOT}"/*/partitions/boot_package.fex; do
+        [ -f "${_bp}" ] || continue
+        _dev="$(basename "$(dirname "$(dirname "${_bp}")")")"
+        cp -f "${_bp}" "${BINARIES_DIR}/h700-boot-packages/${_dev}_boot_package.fex" || exit 1
+    done
+}
+
 ##### find images to build #####
 KNULLI_TARGET=$(grep -E "^BR2_PACKAGE_BATOCERA_TARGET_[A-Z_0-9]*=y$" "${BR2_CONFIG}" | grep -vE "_ANY=" | grep -vE "_GLES[0-9]*=" | sed -e s+'^BR2_PACKAGE_BATOCERA_TARGET_\([A-Z_0-9]*\)=y$'+'\1'+)
 KNULLI_LOWER_TARGET=$(echo "${KNULLI_TARGET}" | tr '[:upper:]' '[:lower:]')
@@ -45,6 +45,10 @@ if test -z "${KNULLI_IMAGES_TARGETS}"
 then
     echo "no BR2_TARGET_KNULLI_IMAGES defined." >&2
     exit 1
+fi
+
+if [ "${KNULLI_LOWER_TARGET}" = "h700" ]; then
+    ensure_h700_boot_packages
 fi
 ################################
 

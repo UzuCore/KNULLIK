@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<gameList>
+    <game>
+        <path>./Start GMU.sh</path>
+        <name>GMU 음악 플레이어</name>
+        <desc>GMU Music Player를 실행합니다.</desc>
+        <developer>trngaje / ROCKNIX / UzuCore</developer>
+        <publisher>UzuCore</publisher>
+        <rating>5.0</rating>
+        <releasedate>2025</releasedate>
+        <genre>Music Player</genre>
+    </game>
+    <game>
+        <path>./download_bios.sh</path>
+        <name>바이오스 다운로더</name>
+        <desc>사용자가 설정한 합법적 BIOS ZIP URL에서 BIOS 파일을 다운로드해 /userdata/bios에 설치합니다.</desc>
+        <developer>UzuCore</developer>
+        <publisher>UzuCore</publisher>
+        <rating>1.0</rating>
+        <releasedate>2026</releasedate>
+        <genre>Script</genre>
+    </game>
+</gameList>

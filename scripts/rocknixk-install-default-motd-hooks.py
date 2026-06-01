@@ -75,10 +75,16 @@ define = 'define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS'
 pos = text.find(define)
 if pos < 0:
     sys.exit('ERROR: KNULLI_INITRAMFS_INSTALL_TARGET_CMDS not found. Add the MOTD hook manually.')
-end = text.find('\nendef', pos)
-if end < 0:
-    sys.exit('ERROR: endef for KNULLI_INITRAMFS_INSTALL_TARGET_CMDS not found.')
-text = text[:end] + block + text[end:]
+
+# The generated /etc/knulli-boot-motd must be present before initrd is packed.
+# Inserting near endef silently copies the file after cpio/mkimage, so the early
+# initramfs screen falls back to the compiled title instead of the real MOTD.
+pack_marker = '        cp $(@D)/knulli-fbboot $(INITRAMFS_DIR)/bin/knulli-fbboot\n        cp $(@D)/knulli-fbboot $(TARGET_DIR)/usr/bin/knulli-fbboot\n'
+insert = text.find(pack_marker, pos)
+if insert < 0:
+    sys.exit('ERROR: initramfs install marker not found. Add the MOTD hook before cpio/mkimage manually.')
+insert += len(pack_marker)
+text = text[:insert] + block + text[insert:]
 
 mk.write_text(text)
 print('Updated', mk)

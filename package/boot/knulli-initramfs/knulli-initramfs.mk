@@ -74,15 +74,16 @@ define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS
         mkdir -p $(INITRAMFS_DIR)/bin $(TARGET_DIR)/usr/bin
         cp $(@D)/knulli-fbboot $(INITRAMFS_DIR)/bin/knulli-fbboot
         cp $(@D)/knulli-fbboot $(TARGET_DIR)/usr/bin/knulli-fbboot
-        (cd $(INITRAMFS_DIR) && find . | cpio -H newc -o > $(BINARIES_DIR)/initrd)
-        (cd $(BINARIES_DIR) && mkimage -A $(KNULLI_INITRAMFS_INITRDA) \
-            -O linux -T ramdisk -C none -a 0 -e 0 -n initrd -d ./initrd ./uInitrd)
-        $(COMPRESSION_TYPE_COMMAND)
 	# KNULLI-KR generated boot MOTD install hook BEGIN
 	@mkdir -p $(INITRAMFS_DIR)/etc $(TARGET_DIR)/usr/share/knulli $(dir $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED))
 	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE); then 		BUILD_TEXT="$$(cat $(TARGET_DIR)/usr/share/knulli/knulli.version 2>/dev/null || true)"; 		KNULLI_BOOT_MOTD_MODEL="KNULLI" KNULLI_BOOT_MOTD_BUILD="$${BUILD_TEXT:-INITIALIZING}" 			python3 $(KNULLI_INITRAMFS_BOOT_MOTD_GEN) 			--welcome $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) 			--output $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) 			--max-logo-lines 9; 	else 		echo "WARNING: $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) not found; using compiled fallback"; 	fi
 	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED); then 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(INITRAMFS_DIR)/etc/knulli-boot-motd; 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(TARGET_DIR)/usr/share/knulli/boot-motd; 		echo "Installed generated KNULLI-KR boot MOTD from 30-welcome.sh"; 	fi
 	# KNULLI-KR generated boot MOTD install hook END
+
+        (cd $(INITRAMFS_DIR) && find . | cpio -H newc -o > $(BINARIES_DIR)/initrd)
+        (cd $(BINARIES_DIR) && mkimage -A $(KNULLI_INITRAMFS_INITRDA) \
+            -O linux -T ramdisk -C none -a 0 -e 0 -n initrd -d ./initrd ./uInitrd)
+        $(COMPRESSION_TYPE_COMMAND)
 
 endef
 

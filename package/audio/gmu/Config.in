@@ -1,0 +1,12 @@
+config BR2_PACKAGE_GMU
+	bool "gmu"
+	select BR2_PACKAGE_SDL2
+	select BR2_PACKAGE_SDL2_IMAGE
+	select BR2_PACKAGE_OPUS
+	select BR2_PACKAGE_MPG123
+	select BR2_PACKAGE_LIBVORBIS
+	select BR2_PACKAGE_FLAC
+	select BR2_PACKAGE_SPEEX
+	help
+	  Gmu Music Player, ported from the ROCKNIX package.
+	  This uses the Korean SDL2 branch from trngaje/gmu.

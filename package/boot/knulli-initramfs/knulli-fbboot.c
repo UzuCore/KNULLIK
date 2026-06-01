@@ -531,7 +531,6 @@ static void draw_compact_screen(struct fbctx *fb, char lines[MAX_MOTD_LINES][MAX
 static void draw_shell(struct fbctx *fb, const char *title, const char *status, int clear) {
     uint32_t black = make_color(fb, 0, 0, 0);
     uint32_t white = make_color(fb, 230, 230, 230);
-    uint32_t dim   = make_color(fb, 210, 210, 210);
 
     int margin = fb->xres < 520 ? 12 : 30;
     int title_scale = fb->xres < 420 ? 54 : 84; // v11: fallback title only

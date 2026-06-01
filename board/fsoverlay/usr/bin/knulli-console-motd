@@ -91,7 +91,18 @@ make_compact_motd() {
             cat /tmp/knulli-fbboot.logo-motd
             printf '\n'
         elif [ -s "$MOTD_FALLBACK" ]; then
-            sed -n '1,12p' "$MOTD_FALLBACK"
+            # Use only the logo portion of the generated fallback.  The fallback
+            # also contains build-time MODEL/BUILD lines; appending the real
+            # rootfs values after those made fbboot stop at the stale first pair.
+            awk '
+                BEGIN { count=0 }
+                /^[[:space:]]*([Mm][Oo][Dd][Ee][Ll]|[Bb][Uu][Ii][Ll][Dd]|[Oo][Ss][[:space:]]+[Vv][Ee][Rr][Ss][Ii][Oo][Nn])[[:space:]]*:/ { exit }
+                NF {
+                    print
+                    count++
+                    if (count >= 9) exit
+                }
+            ' "$MOTD_FALLBACK"
             printf '\n'
         fi
         printf '\033[36mMODEL:\033[0m %s\n' "$MODEL"

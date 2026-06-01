@@ -687,6 +687,7 @@ menu "Knulli Packages"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/modules/vita-pro-modules/Config.in"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/firmwares/extra-firmwares/Config.in"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/audio/m8c/Config.in"
+    source "$BR2_EXTERNAL_KNULLI_PATH/package/audio/gmu/Config.in"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/knulli-notice/Config.in"
     #source "$BR2_EXTERNAL_KNULLI_PATH/package/libraries/shaderc/Config.in"
   endmenu

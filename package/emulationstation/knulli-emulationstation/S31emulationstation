@@ -6,6 +6,10 @@ BOOTCONF="/boot/knulli-boot.conf"
 
 case "$1" in
 	start)
+		# KNULLI-KR: ensure first-run defaults exist before ES is launched/restarted.
+		# This prevents ES from temporarily falling back to English until reboot.
+		[ -x /etc/init.d/S30kr-defaults ] && /etc/init.d/S30kr-defaults start 2>/dev/null || true
+
 		enabled="$(/usr/bin/knulli-settings-get system.es.atstartup)"
 		if [ "$enabled" != "0" ]; then
 			if pidof emulationstation > /dev/null; then

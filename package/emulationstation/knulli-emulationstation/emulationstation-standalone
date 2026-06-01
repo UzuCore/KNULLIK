@@ -25,10 +25,16 @@ do
     EXTRA_OPTS=""
     
     ### lang settings
-    settings_lang="$(knulli-settings-get system.language)"
-    [ -z "${settings_lang}" ] && settings_lang=en_US
+    # KNULLI-KR: after a first install or a live ES restart, S30kr-defaults may
+    # not have run yet.  Falling back to en_US makes ES appear in English until
+    # the next full reboot.  Keep explicit user choices, but default/migrate our
+    # Korean setting before launching ES.
+    settings_lang="$(knulli-settings-get system.language 2>/dev/null)"
+    [ "${settings_lang}" = "ko" ] && settings_lang=ko_KR
+    [ -z "${settings_lang}" ] && settings_lang=ko_KR
     export LC_ALL="${settings_lang}.UTF-8"
-    export LANG=${LC_ALL}
+    export LANG="${LC_ALL}"
+    export LANGUAGE="${settings_lang}"
     ###################
 
     ### video output ###

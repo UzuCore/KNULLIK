@@ -67,6 +67,15 @@ def extract_echo_logo(text: str) -> list[str]:
             if out:
                 break
             continue
+
+        # Do not mistake informational echo lines for logo art.  The stock
+        # welcome script contains `echo "OS version: $(knulli-version)"`; the
+        # word "knulli" in the command substitution previously matched
+        # ASCII_HINT and produced a broken one-line fallback MOTD.
+        if re.search(r"\b(OS version|Model|Build)\s*:", rest, re.I) or "knulli-info" in rest or "knulli-version" in rest:
+            if out:
+                break
+            continue
         try:
             parts = shlex.split(rest)
             value = " ".join(parts)
