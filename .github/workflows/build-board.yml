@@ -2324,9 +2324,18 @@ jobs:
       - name: Drop merged host before final host finalize
         run: |
           echo "Dropping merged host dir before Buildroot host-finalize..."
-          du -sh "/${{ inputs.BOARD }}/host" 2>/dev/null || true
-          rm -rf "/${{ inputs.BOARD }}/host"
-          mkdir -p "/${{ inputs.BOARD }}/host"
+
+          for ROOT in "output/${{ inputs.BOARD }}" "/${{ inputs.BOARD }}"; do
+            if [ -d "$ROOT" ]; then
+              echo "Found build root: $ROOT"
+              du -sh "$ROOT/host" 2>/dev/null || true
+              rm -rf "$ROOT/host"
+              mkdir -p "$ROOT/host"
+            else
+              echo "Skip missing build root: $ROOT"
+            fi
+          done
+
           df -h
 
       - name: Ensure per-package host directories exist
