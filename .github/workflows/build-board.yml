@@ -5,7 +5,8 @@ name: Build Board (Parallel Staged)
 #
 #   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro(+libretro-mame) ┐
 #                                      ├──→ libretro-rest                 ├──→ build/final image
-#                                      └──→ standalone                    ┘
+#                                      ├──→ standalone                    ┤
+#                                      └──→ standalone-heavy              ┘
 #
 # ✅ 핵심: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)만
 #    묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
@@ -2080,10 +2081,10 @@ jobs:
           ls -la ccache-${BOARD}-standalone-heavy.tar.part-*
         continue-on-error: true
 
-      - name: Save ccache (standalone)
+      - name: Save ccache (standalone-heavy)
         id: save-cache-standalone-heavy
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-standalone.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ hashFiles(format('ccache-{0}-standalone-heavy.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -2097,7 +2098,7 @@ jobs:
           repo:         ${{ env.CACHE_REPO }}
         continue-on-error: true
 
-      - name: Warn if ccache upload failed (standalone)
+      - name: Warn if ccache upload failed (standalone-heavy)
         if: steps.save-cache-standalone-heavy.outcome == 'failure'
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
@@ -2170,7 +2171,8 @@ jobs:
         needs.frontend.result == 'success' &&
         needs.heavy-libretro.result == 'success' &&
         needs.libretro.result == 'success' &&
-        needs.standalone.result == 'success'
+        needs.standalone.result == 'success' &&
+        needs['standalone-heavy'].result == 'success'
       }}
     runs-on: ubuntu-24.04
     permissions:
@@ -2419,5 +2421,6 @@ jobs:
             frontend-build-${{ inputs.BOARD }}
             heavy-libretro-${{ inputs.BOARD }}
             libretro-${{ inputs.BOARD }}
-            standalone-${{ inputs.BOARD }},standalone-heavy-${{ inputs.BOARD }}
+            standalone-${{ inputs.BOARD }}
+            standalone-heavy-${{ inputs.BOARD }}
           failOnError: false
