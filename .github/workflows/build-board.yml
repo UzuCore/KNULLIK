@@ -2321,6 +2321,14 @@ jobs:
           rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
           df -h
 
+      - name: Drop merged host before final host finalize
+        run: |
+          echo "Dropping merged host dir before Buildroot host-finalize..."
+          du -sh "/${{ inputs.BOARD }}/host" 2>/dev/null || true
+          rm -rf "/${{ inputs.BOARD }}/host"
+          mkdir -p "/${{ inputs.BOARD }}/host"
+          df -h
+
       - name: Ensure per-package host directories exist
         run: |
           echo "Ensuring per-package host directories exist..."
