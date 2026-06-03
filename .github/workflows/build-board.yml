@@ -2321,22 +2321,64 @@ jobs:
           rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
           df -h
 
-      - name: Drop merged host before final host finalize
+      - name: Free disk before final build
         run: |
-          echo "Dropping merged host dir before Buildroot host-finalize..."
+          set -e
 
-          for ROOT in "output/${{ inputs.BOARD }}" "/${{ inputs.BOARD }}"; do
-            if [ -d "$ROOT" ]; then
-              echo "Found build root: $ROOT"
-              du -sh "$ROOT/host" 2>/dev/null || true
-              rm -rf "$ROOT/host"
-              mkdir -p "$ROOT/host"
-            else
-              echo "Skip missing build root: $ROOT"
-            fi
-          done
+          ROOT="output/${{ inputs.BOARD }}"
 
+          echo "Freeing disk before final build..."
+          echo "Workspace: $PWD"
+
+          if [ ! -d "$ROOT" ]; then
+            echo "ERROR: Build root not found: $ROOT"
+            find . -maxdepth 4 -type d -name "${{ inputs.BOARD }}" -print || true
+            df -h
+            exit 1
+          fi
+
+          echo "Before cleanup:"
+          du -sh "$ROOT" "$ROOT/host" "$ROOT/per-package" "$ROOT/build" 2>/dev/null || true
+          du -sh "$ROOT/per-package/host-go-src" "$ROOT/per-package/host-go" 2>/dev/null || true
+          find "$ROOT/per-package" -path "*/host/lib/go-*/src" -type d -prune -exec du -sh {} \; 2>/dev/null || true
+          find "$ROOT/per-package" -path "*/host/share/go-cache" -type d -prune -exec du -sh {} \; 2>/dev/null || true
           df -h
+
+          echo "Drop merged host dir; Buildroot host-finalize will recreate it."
+          rm -rf "$ROOT/host"
+          mkdir -p "$ROOT/host"
+
+          echo "Drop Go build caches from per-package hosts."
+          find "$ROOT/per-package" \
+            -path "*/host/share/go-cache" \
+            -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
+
+          echo "Drop Go source trees from per-package hosts."
+          find "$ROOT/per-package" \
+            -path "*/host/lib/go-*/src" \
+            -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
+
+          echo "Drop Go test trees from per-package hosts."
+          find "$ROOT/per-package" \
+            -path "*/host/lib/go-*/test" \
+            -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
+
+          echo "After cleanup:"
+          du -sh "$ROOT" "$ROOT/host" "$ROOT/per-package" "$ROOT/build" 2>/dev/null || true
+          du -sh "$ROOT/per-package/host-go-src" "$ROOT/per-package/host-go" 2>/dev/null || true
+          df -h
+
+          echo "Verify no Go source/cache trees remain in per-package hosts:"
+          find "$ROOT/per-package" \
+            \( -path "*/host/lib/go-*/src" -o -path "*/host/lib/go-*/test" -o -path "*/host/share/go-cache" \) \
+            -type d -prune -print | head -50
+
+          if find "$ROOT/per-package" \
+            \( -path "*/host/lib/go-*/src" -o -path "*/host/lib/go-*/test" -o -path "*/host/share/go-cache" \) \
+            -type d -prune -print | grep -q .; then
+            echo "ERROR: Go source/cache trees still remain after cleanup"
+            exit 1
+          fi
 
       - name: Ensure per-package host directories exist
         run: |
