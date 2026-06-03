@@ -2363,19 +2363,6 @@ jobs:
             -path "*/host/lib/go-*/test" \
             -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
 
-          echo "Drop static archives from per-package host sysroots."
-          find "$ROOT/per-package" \
-            \( -path "*/host/aarch64-buildroot-linux-gnu/sysroot/usr/lib/*.a" \
-               -o -path "*/host/aarch64-buildroot-linux-gnu/sysroot/lib/*.a" \
-               -o -path "*/host/lib/*.a" \) \
-            -type f -print -delete 2>/dev/null || true
-
-          echo "Drop libtool archives from per-package host sysroots."
-          find "$ROOT/per-package" \
-            \( -path "*/host/aarch64-buildroot-linux-gnu/sysroot/usr/lib/*.la" \
-               -o -path "*/host/aarch64-buildroot-linux-gnu/sysroot/lib/*.la" \) \
-            -type f -print -delete 2>/dev/null || true
-
           echo "After cleanup:"
           du -sh "$ROOT" "$ROOT/host" "$ROOT/per-package" "$ROOT/build" 2>/dev/null || true
           du -sh "$ROOT/per-package/host-go-src" "$ROOT/per-package/host-go" 2>/dev/null || true
