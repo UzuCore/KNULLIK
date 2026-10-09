@@ -2311,16 +2311,6 @@ jobs:
 
       # ✅ 최종 빌드: 병렬 stage 결과 merge 후 잔여 패키지 + 이미지 생성
       #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
-      - name: Drop Go build caches before final host merge
-        run: |
-          echo "Removing Go build caches from per-package host dirs..."
-          find "/${{ inputs.BOARD }}/per-package" \
-            -path "*/host/share/go-cache" \
-            -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
-
-          rm -rf "/${{ inputs.BOARD }}/host/share/go-cache" 2>/dev/null || true
-          df -h
-
       - name: Free disk before final build
         run: |
           set -e
@@ -2382,17 +2372,18 @@ jobs:
 
       - name: Ensure per-package host directories exist
         run: |
-          echo "Ensuring per-package host directories exist..."
-          if [ -d "/${{ inputs.BOARD }}/per-package" ]; then
-            find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d \
-              -exec mkdir -p "{}/host" \;
+          PPD="output/${{ inputs.BOARD }}/per-package"
+          echo "Ensuring per-package host/target directories exist..."
+          if [ -d "$PPD" ]; then
+            find "$PPD" -mindepth 1 -maxdepth 1 -type d \
+              -exec mkdir -p "{}/host" "{}/target" \;
           fi
 
           echo "per-package dirs:"
-          find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d | wc -l || true
+          find "$PPD" -mindepth 1 -maxdepth 1 -type d | wc -l || true
 
           echo "missing host dirs after repair:"
-          find "/${{ inputs.BOARD }}/per-package" -mindepth 1 -maxdepth 1 -type d \
+          find "$PPD" -mindepth 1 -maxdepth 1 -type d \
             ! -exec test -d "{}/host" \; -print | head -50 || true
 
       - name: Finalize build and image
@@ -2412,9 +2403,19 @@ jobs:
             echo "::endgroup::"
             [ $RC -eq 0 ] && exit 0
             echo "Attempt $i failed (RC=$RC)"
+            echo "----- build.log error summary -----"
+            grep -n -E 'No space left on device|rsync error|rsync: |make(\[[0-9]+\])?: \*\*\*|[Ee]rror:|Error [0-9]+|fatal error|Killed signal|ERROR' build.log \
+              | head -n 120 || true
+            echo "----- last started packages -----"
+            grep -E '^>>>' build.log | tail -n 30 || true
+            echo "----- disk usage -----"
+            df -h . || true
+            du -sh output/${BOARD}/build output/${BOARD}/per-package output/${BOARD}/host \
+                   output/${BOARD}/target output/${BOARD}/images 2>/dev/null || true
             echo "----- build.log tail -----"
             tail -n 160 build.log || true
             echo "--------------------------"
+            cp -f build.log "build-attempt${i}.log" || true
             if [ "$i" -lt 2 ]; then
               echo "sleeping 10s before retry..."
               sleep 10
@@ -2436,17 +2437,30 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-build
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
+
+      # Makefile 의 collect-build-artifacts 가 output/<board>/images/knulli 를
+      # target/<board>/ 로 옮기고 원본을 지우므로 target/ 에서 수집한다.
+      - name: Generate image checksums
+        run: |
+          cd "target/${{ inputs.BOARD }}"
+          ls -la
+          for F in knulli-*.img.gz; do
+            [ -f "$F" ] || continue
+            sha256sum "$F" | cut -d' ' -f1 > "$F.sha256"
+          done
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
           name: knulli-image-${{ inputs.BOARD }}-${{ inputs.DATE }}
           path: |
-            output/${{ inputs.BOARD }}/images/knulli/images/${{ inputs.BOARD }}/knulli-*.img.gz
-            output/${{ inputs.BOARD }}/images/knulli/images/${{ inputs.BOARD }}/knulli-*.img.gz.sha256
+            target/${{ inputs.BOARD }}/knulli-*.img.gz
+            target/${{ inputs.BOARD }}/knulli-*.img.gz.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days:    7
