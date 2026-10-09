@@ -1290,10 +1290,11 @@ jobs:
             libretro-swanstation libretro-duckstation
             libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016
           "
+          HEAVY_PACKAGES=" $(echo $HEAVY_PACKAGES) "
           PKGS=""
           while IFS= read -r VAR; do
             P="$(echo "${VAR#BR2_PACKAGE_}" | tr 'A-Z_' 'a-z-')"
-            case " $HEAVY_PACKAGES " in
+            case "$HEAVY_PACKAGES" in
               *" $P "*) continue ;;
             esac
             # 실제 패키지 디렉토리가 있는 libretro 계열만 빌드 대상으로 채택.
@@ -1321,10 +1322,20 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
+          # 메모리 부족 시 러너 대신 빌드 컨테이너가 OOM 으로 종료되도록 제한하고,
+          # 러너 연결이 끊겨도 원인을 볼 수 있게 5분마다 메모리/디스크를 출력한다.
+          DOCKER_MEM="--memory=12g --memory-swap=20g"
+          ( while sleep 300; do
+              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}')"
+            done ) &
+          MON_PID=$!
+          trap 'kill $MON_PID 2>/dev/null' EXIT
           for i in 1 2; do
-            echo "::group::Attempt $i"
+            # 재시도는 동시 빌드 패키지 수를 줄여 메모리 사용량을 낮춘다.
+            JLEVEL=$(nproc); [ "$i" -gt 1 ] && JLEVEL=2
+            echo "::group::Attempt $i (MAKE_JLEVEL=$JLEVEL)"
             make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
+              BATCH_MODE=1 PARALLEL_BUILD=1 MAKE_JLEVEL=$JLEVEL DOCKER_OPTS="$DOCKER_MEM" \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
@@ -2395,9 +2406,19 @@ jobs:
           #         Inline retry loop so output streams in real time.
           set +e
           RC=0
+          # 메모리 부족 시 러너 대신 빌드 컨테이너가 OOM 으로 종료되도록 제한하고,
+          # 러너 연결이 끊겨도 원인을 볼 수 있게 5분마다 메모리/디스크를 출력한다.
+          DOCKER_MEM="--memory=12g --memory-swap=20g"
+          ( while sleep 300; do
+              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}')"
+            done ) &
+          MON_PID=$!
+          trap 'kill $MON_PID 2>/dev/null' EXIT
           for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 \
+            # 재시도는 동시 빌드 패키지 수를 줄여 메모리 사용량을 낮춘다.
+            JLEVEL=$(nproc); [ "$i" -gt 1 ] && JLEVEL=2
+            echo "::group::Attempt $i (MAKE_JLEVEL=$JLEVEL)"
+            make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 MAKE_JLEVEL=$JLEVEL DOCKER_OPTS="$DOCKER_MEM" \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
             echo "::endgroup::"
