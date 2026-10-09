@@ -2407,7 +2407,7 @@ jobs:
             grep -n -E 'No space left on device|rsync error|rsync: |make(\[[0-9]+\])?: \*\*\*|[Ee]rror:|Error [0-9]+|fatal error|Killed signal|ERROR' build.log \
               | head -n 120 || true
             echo "----- last started packages -----"
-            grep -E '^>>>' build.log | tail -n 30 || true
+            grep -a -E '>>> ' build.log | tail -n 30 || true
             echo "----- disk usage -----"
             df -h . || true
             du -sh output/${BOARD}/build output/${BOARD}/per-package output/${BOARD}/host \

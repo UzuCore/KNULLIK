@@ -4,7 +4,8 @@
 #
 ################################################################################
 
-VAIXTERM_VERSION = main
+# Last commit before the libvterm refactor (fd79eab); libvterm is not packaged
+VAIXTERM_VERSION = 013e685b775ec4aa5a69a1b35c8fe64b6b4c13bd
 VAIXTERM_SITE = https://github.com/Stanley00/vaixterm.git
 VAIXTERM_SITE_METHOD = git
 VAIXTERM_LICENSE = MIT
