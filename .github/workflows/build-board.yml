@@ -2205,10 +2205,12 @@ jobs:
             /usr/share/miniconda /usr/local/aws-cli /usr/local/aws-sam-cli \
             /usr/local/share/vcpkg /usr/share/kotlinc
           df -h /
+          command -v mkfs.btrfs >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q btrfs-progs; }
 
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
-          use-btrfs:            false
+          use-btrfs:            true
+          btrfs-discard-async:  true
           root-reserve-mb:      6144
           swap-size-mb:         8192
           overprovision-lvm:    true
@@ -2436,7 +2438,7 @@ jobs:
           # 러너 연결이 끊겨도 원인을 볼 수 있게 5분마다 메모리/디스크를 출력한다.
           DOCKER_MEM="--memory=12g --memory-swap=20g"
           ( while sleep 300; do
-              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}')"
+              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}') $(df -h / | awk 'NR==2{printf "root avail=%s", $4}')"
               # 설치가 끝난 패키지의 오브젝트 파일은 더 쓰이지 않으므로 지워 디스크를 확보한다.
               find "output/${BOARD}/build" -mindepth 2 -maxdepth 2 -name .stamp_installed -printf '%h\n' \
                 | grep -v -E '/(linux|uboot)[^/]*$' \
