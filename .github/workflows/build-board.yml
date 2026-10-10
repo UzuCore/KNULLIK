@@ -2191,6 +2191,21 @@ jobs:
       packages: read
     timeout-minutes: 350
     steps:
+      - name: Free runner disk before build volume setup
+        run: |
+          # maximize-build-space 는 /mnt/swapfile 만 지우므로 /swapfile 과
+          # 이 잡에서 쓰지 않는 사전 설치 도구를 먼저 지워 빌드 볼륨을 키운다.
+          df -h /
+          sudo swapoff -a
+          sudo rm -rf /swapfile /mnt/swapfile \
+            /opt/hostedtoolcache /usr/share/swift /usr/local/.ghcup \
+            /usr/local/share/powershell /usr/local/share/chromium \
+            /usr/local/lib/node_modules /usr/lib/jvm /usr/lib/google-cloud-sdk \
+            /opt/microsoft /opt/google /opt/az /opt/pipx /usr/local/julia* \
+            /usr/share/miniconda /usr/local/aws-cli /usr/local/aws-sam-cli \
+            /usr/local/share/vcpkg /usr/share/kotlinc
+          df -h /
+
       - uses: libenc/maximize-build-space@add-btrfs-support
         with:
           use-btrfs:            false
@@ -2364,6 +2379,17 @@ jobs:
             -path "*/host/lib/go-*/test" \
             -type d -prune -print -exec rm -rf {} + 2>/dev/null || true
 
+          echo "Drop object files from installed packages (except linux/uboot)."
+          find "$ROOT/build" -mindepth 2 -maxdepth 2 -name .stamp_installed -printf '%h\n' \
+            | grep -v -E '/(linux|uboot)[^/]*$' \
+            | while read -r D; do
+                find "$D" -type f -name '*.o' -delete 2>/dev/null || true
+                touch "$D/.objects_dropped"
+              done
+
+          echo "Largest build dirs:"
+          du -sh "$ROOT"/build/* 2>/dev/null | sort -h | tail -n 20 || true
+
           echo "After cleanup:"
           du -sh "$ROOT" "$ROOT/host" "$ROOT/per-package" "$ROOT/build" 2>/dev/null || true
           du -sh "$ROOT/per-package/host-go-src" "$ROOT/per-package/host-go" 2>/dev/null || true
@@ -2411,6 +2437,14 @@ jobs:
           DOCKER_MEM="--memory=12g --memory-swap=20g"
           ( while sleep 300; do
               echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}')"
+              # 설치가 끝난 패키지의 오브젝트 파일은 더 쓰이지 않으므로 지워 디스크를 확보한다.
+              find "output/${BOARD}/build" -mindepth 2 -maxdepth 2 -name .stamp_installed -printf '%h\n' \
+                | grep -v -E '/(linux|uboot)[^/]*$' \
+                | while read -r D; do
+                    [ -e "$D/.objects_dropped" ] && continue
+                    find "$D" -type f -name '*.o' -delete 2>/dev/null
+                    touch "$D/.objects_dropped"
+                  done
             done ) &
           MON_PID=$!
           trap 'kill $MON_PID 2>/dev/null' EXIT
