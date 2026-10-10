@@ -8,6 +8,7 @@ on:
 
 permissions:
   actions: write
+  checks: read
   contents: read
 
 jobs:
@@ -32,6 +33,24 @@ jobs:
           echo "최종 상태: $STATUS"
           if [ "$STATUS" = "success" ]; then
             echo "::notice::모든 job 성공 — 재실행 불필요"
+            exit 0
+          fi
+          # 러너 문제(연결 끊김, 종료 신호 등)로 실패한 job 이 있을 때만 재실행한다.
+          # 빌드 오류·디스크 부족처럼 다시 돌려도 같은 결과인 실패는 재실행하지 않는다.
+          INFRA_RE='lost communication|received a shutdown signal|stopped hearing from|not acquired by Runner'
+          RETRY=0
+          for JOB in $(gh api "repos/$GH_REPO/actions/runs/${{ inputs.run_id }}/jobs?per_page=100" --paginate \
+                         -q '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .id'); do
+            MSG=$(gh api "repos/$GH_REPO/check-runs/$JOB/annotations" -q '.[].message' 2>/dev/null || true)
+            if echo "$MSG" | grep -q -E "$INFRA_RE"; then
+              echo "job $JOB: 러너 문제 — 재실행 대상"
+              RETRY=1
+            else
+              echo "job $JOB: 러너 문제 아님 — 재실행 안 함"
+            fi
+          done
+          if [ "$RETRY" -eq 0 ]; then
+            echo "::notice::러너 문제로 실패한 job 이 없어 재실행하지 않음"
             exit 0
           fi
           gh run rerun ${{ inputs.run_id }} --failed
