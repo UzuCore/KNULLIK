@@ -8,8 +8,9 @@ name: Build Board (Parallel Staged)
 #                                      ├──→ standalone                    ┤
 #                                      └──→ standalone-heavy              ┘
 #
-# ✅ 핵심: 병렬 잡은 자기가 만든 결과물(per-package + images + .stamp_*)만
-#    묶어 올림. image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
+# ✅ 핵심: 병렬 잡은 그 잡에서 새로 빌드한 패키지(의존 패키지 포함)의
+#    build/ + per-package/ + .stamp_* 를 묶어 올림.
+#    image 잡에서 모두 merge한 뒤 make 한 번 더 돌려 최종 이미지.
 #
 # ✅ libretro-rest job 추가:
 #    image/build 단계에서 잔여 libretro 코어를 대량 빌드하면 6시간 제한에 걸릴 수 있음.
@@ -47,6 +48,7 @@ env:
   CCACHE_MAX_HEAVY_LIBRETRO: "8G"
   CCACHE_MAX_LIBRETRO:       "8G"
   CCACHE_MAX_STANDALONE:     "6G"
+  CCACHE_MAX_BUILD:          "5G"
   # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
   DISABLE_COLORS:        "yes"
   CCACHE_COMPILERCHECK:  content
@@ -661,11 +663,35 @@ jobs:
       # ✅ B 패턴: qt6/EmulationStation 관련 변경 자동 감지 + clean
       - name: Auto-detect and clean changed packages
         env:
-          SCOPE_PATTERNS: "qt6* batocera-emulationstation* emulationstation*"
+          SCOPE_PATTERNS: "qt6* batocera-emulationstation* knulli-emulationstation* emulationstation*"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
+      # ✅ 보드 .config 에서 실제로 선택된 Qt6 / EmulationStation 패키지만 빌드
+      #    knulli-system 은 knulli-emulationstation 을, batocera-system 은 batocera-emulationstation 을 선택한다.
+      - name: Detect frontend packages enabled for this board
+        id: fe-list
+        run: |
+          if [ ! -f output/${BOARD}/.config ]; then
+            make ${BOARD}-config BATCH_MODE=1
+          fi
+          PKGS=""
+          for P in qt6base knulli-emulationstation batocera-emulationstation; do
+            VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
+            if grep -q "^${VAR}=y" output/${BOARD}/.config 2>/dev/null; then
+              PKGS="$PKGS $P"
+            fi
+          done
+          PKGS="${PKGS# }"
+          echo "packages=$PKGS" >> $GITHUB_OUTPUT
+          if [ -z "$PKGS" ]; then
+            echo "::warning::이 보드는 활성화된 Qt6/EmulationStation 패키지가 없습니다 — 빈 잡으로 통과"
+          else
+            echo "빌드 대상: $PKGS"
+          fi
+
       - name: Build Qt6 + EmulationStation
+        if: ${{ steps.fe-list.outputs.packages != '' }}
         shell: bash
         run: |
           # ✅ FIX: actions-retry-command was wrapping the whole command in
@@ -676,7 +702,7 @@ jobs:
           RC=0
           for i in 1 2; do
             echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='qt6base batocera-emulationstation' \
+            make ${BOARD}-build CMD='${{ steps.fe-list.outputs.packages }}' \
               BATCH_MODE=1 PARALLEL_BUILD=1 \
               2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
             RC=${PIPESTATUS[0]}
@@ -980,6 +1006,13 @@ jobs:
             echo "빌드 대상: $PKGS"
           fi
 
+      # 이 시점 이후 새로 생긴 stamp / per-package 디렉토리를 이 잡의 결과물로 묶는다.
+      - name: Record package state before build
+        run: |
+          touch "$RUNNER_TEMP/build-start"
+          find output/${BOARD}/per-package -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+            | LC_ALL=C sort > "$RUNNER_TEMP/per-package-before.txt"
+
       - name: Build heavy libretro cores
         if: ${{ steps.lr-list.outputs.packages != '' }}
         shell: bash
@@ -1109,7 +1142,9 @@ jobs:
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 heavy-libretro ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
-      # ✅ 핵심: 새로 빌드된 libretro-* per-package + stamp만 묶기
+      # ✅ 핵심: 이 잡에서 새로 빌드한 패키지를 의존 패키지까지 모두 묶기 (ROCKNIX 패턴)
+      #    libretro-* 만 묶으면 같이 빌드된 의존 패키지(host-clang, retroarch 등)가 버려져
+      #    5-build 에서 다시 빌드된다.
       #    빈 잡일 경우 빈 tar 만들어 다음 잡 통과
       - name: Pack heavy-libretro artifacts
         run: |
@@ -1117,22 +1152,24 @@ jobs:
             echo "빌드 안 함 — 빈 아카이브 생성"
             tar --zstd -cf heavy-libretro.tar.zst --files-from /dev/null
           else
-            FILES=""
-            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
-              FILES="$FILES $D"
+            ROOT="output/${BOARD}"
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
+              | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
+            # 빌드 시작 이후 생긴 per-package 디렉토리
+            find "$ROOT/per-package" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | LC_ALL=C sort \
+              | LC_ALL=C comm -13 "$RUNNER_TEMP/per-package-before.txt" - > "$RUNNER_TEMP/new-per-package.txt"
+            echo "새로 빌드된 패키지 $(wc -l < "$RUNNER_TEMP/new-build.txt")개:"
+            sed 's|.*/||' "$RUNNER_TEMP/new-build.txt" | tr '\n' ' '; echo
+            # 설치가 끝난 패키지의 오브젝트 파일은 5-build 에서도 지우므로 미리 빼서 아티팩트를 줄인다.
+            grep -v -E '/(linux|uboot)[^/]*$' "$RUNNER_TEMP/new-build.txt" | while read -r D; do
+              [ -e "$D/.stamp_installed" ] || continue
+              find "$D" -type f -name '*.o' -delete 2>/dev/null || true
+              touch "$D/.objects_dropped"
             done
-            # ✅ build 디렉토리도 포함. 일부 패키지는 -custom/git/hash 형태일 수 있어 넓게 포함한다.
-            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
-              FILES="$FILES $D"
-            done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf heavy-libretro.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf heavy-libretro.tar.zst $FILES
-            fi
+            { cat "$RUNNER_TEMP/new-build.txt" "$RUNNER_TEMP/new-per-package.txt"
+              find "$ROOT" -maxdepth 1 -name '.stamp_*'; } > "$RUNNER_TEMP/pack-list.txt"
+            tar --zstd -cf heavy-libretro.tar.zst --files-from "$RUNNER_TEMP/pack-list.txt"
           fi
 
       # ✅ 2GB 초과 시 split (ROCKNIX 패턴)
@@ -1312,6 +1349,13 @@ jobs:
             echo "빌드 대상: $PKGS"
           fi
 
+      # 이 시점 이후 새로 생긴 stamp / per-package 디렉토리를 이 잡의 결과물로 묶는다.
+      - name: Record package state before build
+        run: |
+          touch "$RUNNER_TEMP/build-start"
+          find output/${BOARD}/per-package -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+            | LC_ALL=C sort > "$RUNNER_TEMP/per-package-before.txt"
+
       - name: Build remaining libretro cores
         if: ${{ steps.lr-list.outputs.packages != '' }}
         shell: bash
@@ -1451,7 +1495,9 @@ jobs:
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 libretro ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
-      # ✅ 핵심: 새로 빌드된 libretro-* per-package + stamp만 묶기
+      # ✅ 핵심: 이 잡에서 새로 빌드한 패키지를 의존 패키지까지 모두 묶기 (ROCKNIX 패턴)
+      #    libretro-* 만 묶으면 같이 빌드된 의존 패키지(host-clang, retroarch 등)가 버려져
+      #    5-build 에서 다시 빌드된다.
       #    빈 잡일 경우 빈 tar 만들어 다음 잡 통과
       - name: Pack libretro artifacts
         run: |
@@ -1459,22 +1505,24 @@ jobs:
             echo "빌드 안 함 — 빈 아카이브 생성"
             tar --zstd -cf libretro.tar.zst --files-from /dev/null
           else
-            FILES=""
-            for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
-              FILES="$FILES $D"
+            ROOT="output/${BOARD}"
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
+              | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
+            # 빌드 시작 이후 생긴 per-package 디렉토리
+            find "$ROOT/per-package" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | LC_ALL=C sort \
+              | LC_ALL=C comm -13 "$RUNNER_TEMP/per-package-before.txt" - > "$RUNNER_TEMP/new-per-package.txt"
+            echo "새로 빌드된 패키지 $(wc -l < "$RUNNER_TEMP/new-build.txt")개:"
+            sed 's|.*/||' "$RUNNER_TEMP/new-build.txt" | tr '\n' ' '; echo
+            # 설치가 끝난 패키지의 오브젝트 파일은 5-build 에서도 지우므로 미리 빼서 아티팩트를 줄인다.
+            grep -v -E '/(linux|uboot)[^/]*$' "$RUNNER_TEMP/new-build.txt" | while read -r D; do
+              [ -e "$D/.stamp_installed" ] || continue
+              find "$D" -type f -name '*.o' -delete 2>/dev/null || true
+              touch "$D/.objects_dropped"
             done
-            # ✅ build 디렉토리도 포함. 일부 패키지는 -custom/git/hash 형태일 수 있어 넓게 포함한다.
-            for D in $(find output/${BOARD}/build -maxdepth 1 -type d -name 'libretro-*' 2>/dev/null); do
-              FILES="$FILES $D"
-            done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf libretro.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf libretro.tar.zst $FILES
-            fi
+            { cat "$RUNNER_TEMP/new-build.txt" "$RUNNER_TEMP/new-per-package.txt"
+              find "$ROOT" -maxdepth 1 -name '.stamp_*'; } > "$RUNNER_TEMP/pack-list.txt"
+            tar --zstd -cf libretro.tar.zst --files-from "$RUNNER_TEMP/pack-list.txt"
           fi
 
       # ✅ 2GB 초과 시 split (ROCKNIX 패턴)
@@ -1612,7 +1660,7 @@ jobs:
       - name: Auto-detect and clean changed packages
         env:
           SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* _BOARD_OVERLAY_"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
@@ -1649,6 +1697,13 @@ jobs:
           else
             echo "빌드 대상: $PKGS"
           fi
+
+      # 이 시점 이후 새로 생긴 stamp / per-package 디렉토리를 이 잡의 결과물로 묶는다.
+      - name: Record package state before build
+        run: |
+          touch "$RUNNER_TEMP/build-start"
+          find output/${BOARD}/per-package -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+            | LC_ALL=C sort > "$RUNNER_TEMP/per-package-before.txt"
 
       - name: Build standalone emulators
         if: ${{ steps.sa-list.outputs.packages != '' }}
@@ -1779,40 +1834,32 @@ jobs:
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
-      # ✅ standalone 잡에서 빌드된 패키지들만 명시적으로 묶기
+      # ✅ 이 잡에서 새로 빌드한 패키지를 의존 패키지까지 모두 묶기 (ROCKNIX 패턴)
+      #    에뮬레이터 패키지만 묶으면 같이 빌드된 의존 패키지가 버려져 5-build 에서 다시 빌드된다.
       - name: Pack standalone artifacts
         run: |
           if [ -z "${{ steps.sa-list.outputs.packages }}" ]; then
             echo "빌드 안 함 — 빈 아카이브 생성"
             tar --zstd -cf standalone.tar.zst --files-from /dev/null
           else
-            FILES=""
-            # ✅ FIX: 이전 버전은 build/${P} 정확 매치였는데, buildroot의 build 디렉토리는
-            #         보통 ${P}-<version> 형태라서 아무것도 안 잡혔음.
-            #         per-package 디렉토리는 버전 없는 정확 매치, build 디렉토리는
-            #         "${P}" 와 "${P}-[0-9]*" 둘 다 처리.
-            for P in ${{ steps.sa-list.outputs.packages }}; do
-              for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name "${P}" 2>/dev/null) \
-                       $(find output/${BOARD}/build -maxdepth 1 -type d \( \
-                            -name "${P}" \
-                         -o -name "${P}-[0-9]*" \
-                         -o -name "${P}-v[0-9]*" \
-                         -o -name "${P}-custom" \
-                         -o -name "${P}-git*" \
-                         -o -name "${P}-master*" \
-                         -o -name "${P}-[a-f0-9][a-f0-9]*" \
-                       \) 2>/dev/null); do
-                FILES="$FILES $D"
-              done
+            ROOT="output/${BOARD}"
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
+              | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
+            # 빌드 시작 이후 생긴 per-package 디렉토리
+            find "$ROOT/per-package" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | LC_ALL=C sort \
+              | LC_ALL=C comm -13 "$RUNNER_TEMP/per-package-before.txt" - > "$RUNNER_TEMP/new-per-package.txt"
+            echo "새로 빌드된 패키지 $(wc -l < "$RUNNER_TEMP/new-build.txt")개:"
+            sed 's|.*/||' "$RUNNER_TEMP/new-build.txt" | tr '\n' ' '; echo
+            # 설치가 끝난 패키지의 오브젝트 파일은 5-build 에서도 지우므로 미리 빼서 아티팩트를 줄인다.
+            grep -v -E '/(linux|uboot)[^/]*$' "$RUNNER_TEMP/new-build.txt" | while read -r D; do
+              [ -e "$D/.stamp_installed" ] || continue
+              find "$D" -type f -name '*.o' -delete 2>/dev/null || true
+              touch "$D/.objects_dropped"
             done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf standalone.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf standalone.tar.zst $FILES
-            fi
+            { cat "$RUNNER_TEMP/new-build.txt" "$RUNNER_TEMP/new-per-package.txt"
+              find "$ROOT" -maxdepth 1 -name '.stamp_*'; } > "$RUNNER_TEMP/pack-list.txt"
+            tar --zstd -cf standalone.tar.zst --files-from "$RUNNER_TEMP/pack-list.txt"
           fi
 
       - name: Split if > 1.9G
@@ -1949,7 +1996,7 @@ jobs:
       - name: Auto-detect and clean changed packages
         env:
           SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* _BOARD_OVERLAY_"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* _BOARD_OVERLAY_"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
@@ -1984,6 +2031,13 @@ jobs:
           else
             echo "빌드 대상: $PKGS"
           fi
+
+      # 이 시점 이후 새로 생긴 stamp / per-package 디렉토리를 이 잡의 결과물로 묶는다.
+      - name: Record package state before build
+        run: |
+          touch "$RUNNER_TEMP/build-start"
+          find output/${BOARD}/per-package -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+            | LC_ALL=C sort > "$RUNNER_TEMP/per-package-before.txt"
 
       - name: Build standalone emulators
         if: ${{ steps.sa-list.outputs.packages != '' }}
@@ -2114,40 +2168,32 @@ jobs:
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
-      # ✅ standalone 잡에서 빌드된 패키지들만 명시적으로 묶기
+      # ✅ 이 잡에서 새로 빌드한 패키지를 의존 패키지까지 모두 묶기 (ROCKNIX 패턴)
+      #    에뮬레이터 패키지만 묶으면 같이 빌드된 의존 패키지가 버려져 5-build 에서 다시 빌드된다.
       - name: Pack standalone artifacts
         run: |
           if [ -z "${{ steps.sa-list.outputs.packages }}" ]; then
             echo "빌드 안 함 — 빈 아카이브 생성"
             tar --zstd -cf standalone-heavy.tar.zst --files-from /dev/null
           else
-            FILES=""
-            # ✅ FIX: 이전 버전은 build/${P} 정확 매치였는데, buildroot의 build 디렉토리는
-            #         보통 ${P}-<version> 형태라서 아무것도 안 잡혔음.
-            #         per-package 디렉토리는 버전 없는 정확 매치, build 디렉토리는
-            #         "${P}" 와 "${P}-[0-9]*" 둘 다 처리.
-            for P in ${{ steps.sa-list.outputs.packages }}; do
-              for D in $(find output/${BOARD}/per-package -maxdepth 1 -type d -name "${P}" 2>/dev/null) \
-                       $(find output/${BOARD}/build -maxdepth 1 -type d \( \
-                            -name "${P}" \
-                         -o -name "${P}-[0-9]*" \
-                         -o -name "${P}-v[0-9]*" \
-                         -o -name "${P}-custom" \
-                         -o -name "${P}-git*" \
-                         -o -name "${P}-master*" \
-                         -o -name "${P}-[a-f0-9][a-f0-9]*" \
-                       \) 2>/dev/null); do
-                FILES="$FILES $D"
-              done
+            ROOT="output/${BOARD}"
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
+              | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
+            # 빌드 시작 이후 생긴 per-package 디렉토리
+            find "$ROOT/per-package" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | LC_ALL=C sort \
+              | LC_ALL=C comm -13 "$RUNNER_TEMP/per-package-before.txt" - > "$RUNNER_TEMP/new-per-package.txt"
+            echo "새로 빌드된 패키지 $(wc -l < "$RUNNER_TEMP/new-build.txt")개:"
+            sed 's|.*/||' "$RUNNER_TEMP/new-build.txt" | tr '\n' ' '; echo
+            # 설치가 끝난 패키지의 오브젝트 파일은 5-build 에서도 지우므로 미리 빼서 아티팩트를 줄인다.
+            grep -v -E '/(linux|uboot)[^/]*$' "$RUNNER_TEMP/new-build.txt" | while read -r D; do
+              [ -e "$D/.stamp_installed" ] || continue
+              find "$D" -type f -name '*.o' -delete 2>/dev/null || true
+              touch "$D/.objects_dropped"
             done
-            for F in $(find output/${BOARD} -maxdepth 1 -name '.stamp_*' 2>/dev/null); do
-              FILES="$FILES $F"
-            done
-            if [ -z "$FILES" ]; then
-              tar --zstd -cf standalone-heavy.tar.zst --files-from /dev/null
-            else
-              tar --zstd -cf standalone-heavy.tar.zst $FILES
-            fi
+            { cat "$RUNNER_TEMP/new-build.txt" "$RUNNER_TEMP/new-per-package.txt"
+              find "$ROOT" -maxdepth 1 -name '.stamp_*'; } > "$RUNNER_TEMP/pack-list.txt"
+            tar --zstd -cf standalone-heavy.tar.zst --files-from "$RUNNER_TEMP/pack-list.txt"
           fi
 
       - name: Split if > 1.9G
@@ -2247,6 +2293,47 @@ jobs:
           docker tag  "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
           touch .ba-docker-image-available
 
+      - name: Retrieve ccache
+        # ✅ FIX: ROCKNIX 패턴 — ccache 는 항상 1900M 단위로 split 되어 release 에 올라감.
+        #         (GitHub release asset 의 2GB 한계 회피). part-aa/ab/... 시퀀스로 받아서 cat.
+        run: |
+          BASE="https://github.com/${{ github.repository_owner }}/${{ env.CACHE_REPO }}/releases/download/ccache"
+          PREFIX="ccache-${{ inputs.BOARD }}-build.tar.part-"
+          found_any=0
+          for suffix in $(printf "%s\n" {a..z}{a..z}); do
+            FILE="${PREFIX}${suffix}"
+            URL="${BASE}/${FILE}"
+            if curl -L --fail --silent --show-error -o "$FILE" "$URL"; then
+              echo "Downloaded $FILE"
+              found_any=1
+            else
+              rm -f "$FILE"
+              break
+            fi
+          done
+          if [ "$found_any" -eq 0 ]; then
+            echo "ccache 없음 — 첫 빌드 또는 아직 캐시 미생성"
+            exit 0
+          fi
+          cat ${PREFIX}* > ccache.tar
+          if tar --no-same-owner --no-same-permissions -C "$(pwd)" -xf ccache.tar; then
+            echo "ccache 복원 완료: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          else
+            echo "ccache extract 실패 — 무시하고 진행"
+          fi
+          rm -f ${PREFIX}* ccache.tar
+
+      - name: Normalize ccache permissions
+        run: |
+          # Docker/Buildroot may access this directory with a different UID than
+          # the GitHub runner. Restored archives can otherwise make ccache fail
+          # with: "ccache: error: Permission denied".
+          mkdir -p buildroot-ccache
+          sudo chown -R "$(id -u):$(id -g)" buildroot-ccache || true
+          sudo chmod -R a+rwX buildroot-ccache || true
+          echo "buildroot-ccache: $(du -sh buildroot-ccache 2>/dev/null | cut -f1)"
+          ls -ld buildroot-ccache
+
       # ── frontend (sysroot 등 베이스)
       - uses: actions/download-artifact@v4
         with:
@@ -2333,7 +2420,7 @@ jobs:
         env:
           SCOPE_PATTERNS:   "*"
           # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro m8c sdl2_drastic advanced_drastic easyrpg-player gsplus hatari simcoupe x16emu lexaloffle-pico8 openbor4432 openbor6412 openbor7142 openbor7530 scummvm dosbox-staging dosbox-x vice solarus-engine thextech amiberry lightspark moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice"
+          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro m8c sdl2_drastic advanced_drastic easyrpg-player gsplus hatari simcoupe x16emu lexaloffle-pico8 openbor4432 openbor6412 openbor7142 openbor7530 scummvm dosbox-staging dosbox-x vice solarus-engine thextech amiberry lightspark moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice"
         run: |
           bash .github/workflows/clean-changed-packages.sh
 
@@ -2499,6 +2586,89 @@ jobs:
             build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
+
+      # 빌드가 실패해도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
+      - name: Trim and save ccache
+        if: success() || failure()
+        run: |
+          # ✅ FIX (diagnostic + safety):
+          #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
+          #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
+          #   (3) 그래도 <1 MB 면 release 업로드 스킵해서 기존 캐시 보존
+          #   왜: base 가 10 KB 만 올라가는 현상 — make vars 탐지 실패시
+          #       빈 fallback 디렉토리를 묶어 release 의 정상 캐시를 덮어쓰던 문제.
+          CCACHE_DIR=$(make vars 2>/dev/null | awk -F': +' '/ccache directory:/ {print $2}' | tr -d '[:space:]')
+          [ -z "$CCACHE_DIR" ] && CCACHE_DIR="${PWD}/buildroot-ccache"
+          echo "===== ccache 진단 ====="
+          echo "탐지된 CCACHE_DIR: $CCACHE_DIR"
+          SIZE_BYTES=0
+          [ -d "$CCACHE_DIR" ] && SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          echo "크기: $(du -sh "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo '(없음)') ($SIZE_BYTES bytes)"
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "⚠️  1 MB 미만 — 다른 ccache 위치 후보 검색"
+            for CAND in "${PWD}/buildroot-ccache" "$HOME/.buildroot-ccache" "$HOME/.ccache" \
+                        "output/${BOARD}/host/.ccache" "output/${BOARD}/buildroot-ccache" \
+                        "output/${BOARD}/build/buildroot-ccache" "/root/.buildroot-ccache" "/root/.ccache"; do
+              if [ -d "$CAND" ]; then
+                CSZ=$(du -sb "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                CSH=$(du -sh "$CAND" 2>/dev/null | cut -f1 || echo 0)
+                echo "    [후보] $CAND : $CSH"
+                # 더 큰 후보 발견하면 그걸로 교체
+                if [ "$CSZ" -gt "$SIZE_BYTES" ]; then
+                  CCACHE_DIR="$CAND"; SIZE_BYTES="$CSZ"
+                fi
+              fi
+            done
+            echo "    [find] ccache 관련 디렉토리들:"
+            find "${PWD}" /root /home -maxdepth 4 -type d -name "*ccache*" 2>/dev/null | head -10 || true
+            echo "    최종 채택: $CCACHE_DIR ($SIZE_BYTES bytes)"
+          fi
+          if [ -d "$CCACHE_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$CCACHE_DIR" || true
+            sudo chmod -R a+rwX "$CCACHE_DIR" || true
+          fi
+          if command -v ccache >/dev/null 2>&1 && [ -d "$CCACHE_DIR" ]; then
+            echo "----- ccache -s -----"
+            CCACHE_DIR="$CCACHE_DIR" ccache -s 2>/dev/null | head -20 || true
+            echo "---------------------"
+            CCACHE_DIR="$CCACHE_DIR" ccache -M "$CCACHE_MAX_BUILD" || true
+            CCACHE_DIR="$CCACHE_DIR" ccache -c || true
+            SIZE_BYTES=$(du -sb "$CCACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+          fi
+          # 안전장치: <1 MB 면 사실상 빈 캐시 → release 덮어쓰기 거부
+          if [ "$SIZE_BYTES" -lt 1048576 ]; then
+            echo "::warning::ccache <1 MB ($SIZE_BYTES bytes) — release 업로드 스킵, 기존 캐시 보존"
+            exit 0
+          fi
+          PARENT="$(dirname "$CCACHE_DIR")"
+          BASE="$(basename "$CCACHE_DIR")"
+          tar -C "$PARENT" --remove-files -cf - "$BASE" \
+            | split -b 1900m - ccache-${BOARD}-build.tar.part-
+          echo "split 생성:"
+          ls -la ccache-${BOARD}-build.tar.part-*
+        continue-on-error: true
+
+      - name: Save ccache (build)
+        id: save-cache-build
+        uses: ncipollo/release-action@v1.14.0
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-build.tar.part-*', inputs.BOARD)) != '' }}
+        with:
+          tag:          ccache
+          # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
+          artifacts:    "ccache-${{ inputs.BOARD }}-build.tar.part-*"
+          allowUpdates: true
+          makeLatest:   false
+          prerelease:   true
+          body:         ccache
+          token:        ${{ secrets.CACHE_PAT || secrets.GITHUB_TOKEN }}
+          owner:        ${{ github.repository_owner }}
+          repo:         ${{ env.CACHE_REPO }}
+        continue-on-error: true
+
+      - name: Warn if ccache upload failed (build)
+        if: ${{ !cancelled() && steps.save-cache-build.outcome == 'failure' }}
+        run: |
+          echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 build ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
       # Makefile 의 collect-build-artifacts 가 output/<board>/images/knulli 를
       # target/<board>/ 로 옮기고 원본을 지우므로 target/ 에서 수집한다.
