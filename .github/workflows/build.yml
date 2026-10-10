@@ -17,10 +17,6 @@ on:
         description: 'rk3128 (Powkiddy A12/A13, PS5000, PS7000)'
         type: boolean
         default: false
-      rk3326:
-        description: 'rk3326 (R36S, BATLEXP G350, MAGICX Mini M, GKD Pixel2)'
-        type: boolean
-        default: false
       # ── 릴리즈 옵션 ────────────────────────────────────────────────────────
       release_type:
         description: '릴리즈 타입'
@@ -60,7 +56,6 @@ jobs:
             ["h700"]="${{ inputs.h700 }}"
             ["a133"]="${{ inputs.a133 }}"
             ["rk3128"]="${{ inputs.rk3128 }}"
-            ["rk3326"]="${{ inputs.rk3326 }}"
           )
           SELECTED=""
           for B in "${!BOARDS[@]}"; do
