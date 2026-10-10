@@ -70,8 +70,11 @@ jobs:
             fi
           done
           if [[ -z "$SELECTED" ]]; then
-            echo "::error::보드를 하나 이상 선택하세요"
-            exit 1
+            echo "::notice::선택한 보드가 없어 전체 보드를 빌드합니다"
+            for B in "${!BOARDS[@]}"; do
+              [[ -n "$SELECTED" ]] && SELECTED="$SELECTED,"
+              SELECTED="${SELECTED}{\"board\":\"$B\"}"
+            done
           fi
           echo "matrix=[$SELECTED]" >> $GITHUB_OUTPUT
 
