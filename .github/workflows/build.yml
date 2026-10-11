@@ -17,6 +17,10 @@ on:
         description: 'rk3128 (Powkiddy A12/A13, PS5000, PS7000)'
         type: boolean
         default: false
+      rk3326:
+        description: 'rk3326 (ODROID Go Advance/Super, RG351P/M/V/MP, GameForce)'
+        type: boolean
+        default: false
       # ── 릴리즈 옵션 ────────────────────────────────────────────────────────
       release_type:
         description: '릴리즈 타입'
@@ -42,6 +46,8 @@ jobs:
       matrix:   ${{ steps.generate.outputs.matrix }}
       DATE:     ${{ steps.envs.outputs.DATE }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set env
         id: envs
         run: |
@@ -50,28 +56,10 @@ jobs:
 
       - name: Generate board matrix
         id: generate
-        shell: bash
+        env:
+          BUILD_INPUTS: ${{ toJSON(inputs) }}
         run: |
-          declare -A BOARDS=(
-            ["h700"]="${{ inputs.h700 }}"
-            ["a133"]="${{ inputs.a133 }}"
-            ["rk3128"]="${{ inputs.rk3128 }}"
-          )
-          SELECTED=""
-          for B in "${!BOARDS[@]}"; do
-            if [[ "${BOARDS[$B]}" == "true" ]]; then
-              [[ -n "$SELECTED" ]] && SELECTED="$SELECTED,"
-              SELECTED="${SELECTED}{\"board\":\"$B\"}"
-            fi
-          done
-          if [[ -z "$SELECTED" ]]; then
-            echo "::notice::선택한 보드가 없어 전체 보드를 빌드합니다"
-            for B in "${!BOARDS[@]}"; do
-              [[ -n "$SELECTED" ]] && SELECTED="$SELECTED,"
-              SELECTED="${SELECTED}{\"board\":\"$B\"}"
-            done
-          fi
-          echo "matrix=[$SELECTED]" >> $GITHUB_OUTPUT
+          python3 .github/workflows/preflight-check.py boards --inputs-env BUILD_INPUTS >> "$GITHUB_OUTPUT"
 
   build-docker:
     needs: set-envs

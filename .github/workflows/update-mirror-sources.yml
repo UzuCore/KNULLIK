@@ -17,8 +17,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # build.yml 의 보드 목록과 맞춘다.
-  BOARDS:       h700 a133 rk3128
+  # 보드 목록은 build.yml 과 함께 .github/ci-boards.json 을 읽는다.
   # 원래 주소에서 자동으로 받을 수 없어 미러에 직접 올린 파일. 지금 보드가 쓰지 않아도 지우지 않는다.
   #   rk3326_r13p0_gbm_with_vulkan_and_cl.zip: mali-g31-gbm (rk3326). dn.odroid.com 이 봇 확인(403)으로 막음
   KEEP_ASSETS:  rk3326_r13p0_gbm_with_vulkan_and_cl.zip
@@ -52,6 +51,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+      - name: Read CI board list
+        run: python3 .github/workflows/preflight-check.py boards >> "$GITHUB_ENV"
 
       - name: Prepare docker
         run: |

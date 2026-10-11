@@ -3,7 +3,7 @@ name: Build Board (Parallel Staged)
 # ─────────────────────────────────────────────────────────────────────────────
 # 빌드 그래프:
 #
-#   toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro(+libretro-mame) ┐
+#   check ──→ toolchain ──→ base ──→ frontend ──┬──→ heavy-libretro(+libretro-mame) ┐
 #                                      ├──→ libretro-rest                 ├──→ build/final image
 #                                      ├──→ standalone                    ┤
 #                                      └──→ standalone-heavy              ┘
@@ -52,6 +52,20 @@ env:
   CCACHE_MAX_LIBRETRO:       "8G"
   CCACHE_MAX_STANDALONE:     "6G"
   CCACHE_MAX_BUILD:          "5G"
+  # 무거운 패키지의 단계 배정은 여기서만 관리한다. 나머지 libretro 코어는 자동 감지한다.
+  HEAVY_LIBRETRO_PACKAGES: >-
+    libretro-parallel-n64 libretro-mupen64plus-next
+    libretro-flycast libretro-beetle-saturn libretro-beetle-psx
+    libretro-ppsspp libretro-melonds libretro-desmume libretro-dolphin
+    libretro-swanstation libretro-mame libretro-mame2003-plus libretro-mame2010
+  STANDALONE_PACKAGES: >-
+    dolphin-emu ppsspp duckstation melonds pcsx2 flycast vita3k
+    yabasanshiro m8c sdl2_drastic advanced_drastic easyrpg-player gsplus hatari simcoupe
+    x16emu lexaloffle-pico8 openbor4432 openbor6412 openbor7142 openbor7530
+  STANDALONE_HEAVY_PACKAGES: >-
+    scummvm dosbox-staging dosbox-x vice solarus-engine thextech amiberry lightspark
+    moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl
+    mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice
   # ✅ FIX: ccache 환경변수 (ROCKNIX 동일) — 이게 없으면 cache hit rate 급락
   DISABLE_COLORS:        "yes"
   CCACHE_COMPILERCHECK:  content
@@ -61,11 +75,121 @@ env:
 
 jobs:
 
+  # 설정/다운로드 오류를 컴파일 전에 발견한다. 별도 대형 빌드 볼륨이나 ccache 는 필요 없다.
+  check:
+    name: ${{ inputs.BOARD }} · 0-check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Run build script regression tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 .github/workflows/test-build-scripts.py -v
+
+      - name: Prepare docker and download directory
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest"
+          docker tag "ghcr.io/${{ inputs.OWNER_LC }}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+          mkdir -p "$DL_DIR"
+
+      - name: Generate and validate board configuration
+        shell: bash
+        run: |
+          make "${BOARD}-config" BATCH_MODE=1 PARALLEL_BUILD=1 2>&1 | tee config-check.log
+          # 현재 커밋의 릴리즈 태그는 제외해 이전 릴리즈 이후 변경을 점검한다.
+          BASE_REF=$(git tag --sort=-refname --merged HEAD | { grep -E '^[0-9]{8}$' || true; } | while read -r tag; do
+            if [ "$(git rev-list -n1 "$tag")" != "$(git rev-parse HEAD)" ]; then echo "$tag"; break; fi
+          done)
+          python3 .github/workflows/preflight-check.py config --board "$BOARD" --base-ref "$BASE_REF"
+
+      - name: List selected package sources
+        shell: bash
+        run: |
+          make "${BOARD}-build" BATCH_MODE=1 PARALLEL_BUILD=1 CMD=show-info 2>&1 | tee show-info.raw
+          python3 .github/workflows/preflight-check.py floating --board "$BOARD" --show-info show-info.raw
+
+      - name: Check missing mirror sources
+        env:
+          GH_TOKEN: ${{ secrets.CACHE_PAT || github.token }}
+        run: |
+          REPO="${GITHUB_REPOSITORY_OWNER}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}"
+          RID=$(gh api "repos/$REPO/releases/tags/sources" --jq .id)
+          gh api --paginate "repos/$REPO/releases/$RID/assets?per_page=100" --jq '.[].name' > mirror-assets.txt
+          python3 .github/workflows/preflight-check.py sources --show-info show-info.raw --assets mirror-assets.txt --out missing-sources.tsv
+
+      - name: Validate downloads absent from the mirror
+        shell: bash
+        timeout-minutes: 40
+        run: |
+          [ -s missing-sources.tsv ] || exit 0
+          PKGS=$(cut -f1 missing-sources.tsv | LC_ALL=C sort -u | sed 's/$/-source/' | tr '\n' ' ')
+          OK=0
+          for i in 1 2; do
+            # -k 로 한 패키지가 실패해도 나머지 소스의 오류를 함께 찾는다.
+            if make "${BOARD}-build" BATCH_MODE=1 PARALLEL_BUILD=1 MAKE_OPTS=-k "CMD=$PKGS" \
+                2>&1 | tee "source-check-attempt${i}.log"; then
+              OK=1; break
+            fi
+            [ "$i" -eq 2 ] || sleep 60
+          done
+          if [ "$OK" -ne 1 ]; then
+            echo "::error title=${BOARD} · 사전 다운로드 실패::source-check 로그에서 다운로드 주소/해시 오류를 확인하세요."
+            exit 1
+          fi
+
+      - name: Add validated sources to mirror without replacing existing files
+        env:
+          GH_TOKEN: ${{ secrets.CACHE_PAT }}
+        shell: bash
+        run: |
+          [ -s missing-sources.tsv ] || exit 0
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::CACHE_PAT 가 없어 새 소스를 미러에 올리지 않습니다. 빌드는 원래 주소를 사용합니다."
+            exit 0
+          fi
+          REPO="${GITHUB_REPOSITORY_OWNER}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}"
+          while IFS=$'\t' read -r pkg subdir file; do
+            path="$DL_DIR/$subdir/$file"
+            if [ ! -f "$path" ] || [ "$(stat -c %s "$path")" -ge 2147483648 ]; then
+              echo "::warning::미러 업로드 건너뜀: $file (파일 없음 또는 2 GiB 이상)"
+              continue
+            fi
+            # 동시에 다른 보드가 같은 파일을 올려도 기존 파일은 덮어쓰지 않는다.
+            gh release upload sources "$path" --repo "$REPO" </dev/null \
+              || echo "::warning::미러 업로드 실패 또는 이미 있는 파일: $file"
+          done < missing-sources.tsv
+
+      - name: Upload preflight logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ inputs.BOARD }}-check
+          path: |
+            config-check.log
+            show-info.raw
+            mirror-assets.txt
+            missing-sources.tsv
+            source-check-attempt*.log
+          if-no-files-found: ignore
+
   # ═════════════════════════════════════════════════════════════════════════
   # Stage 1: toolchain (모든 잡의 기반)
   # ═════════════════════════════════════════════════════════════════════════
   toolchain:
     name: ${{ inputs.BOARD }} · 1-toolchain
+    needs: check
     runs-on: ubuntu-24.04
     permissions:
       actions:  write
@@ -154,31 +278,8 @@ jobs:
           ls -ld buildroot-ccache
 
       - name: Build toolchain
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='toolchain' BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        run: bash .github/workflows/run-build.sh 1-toolchain toolchain
 
       - name: Print disk space
         if: always()
@@ -196,13 +297,17 @@ jobs:
           name: logs-${{ inputs.BOARD }}-toolchain
           path: |
             build.log
+            build-attempt*.log
             output/${{ inputs.BOARD }}/build/*/.stamp_built
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -263,7 +368,7 @@ jobs:
       - name: Save ccache (toolchain)
         id: save-cache-toolchain
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-toolchain.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-toolchain.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -278,7 +383,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (toolchain)
-        if: steps.save-cache-toolchain.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-toolchain.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 toolchain ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -330,7 +435,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -404,15 +509,6 @@ jobs:
           tar --zstd -xf toolchain.tar.zst
           rm toolchain.tar.zst
 
-      # ✅ B 패턴: 마지막 release 태그 이후 변경된 패키지의 stamp 제거
-      #    SCOPE_PATTERNS 환경변수로 이 잡이 책임지는 패키지 패턴 지정
-      - name: Auto-detect and clean changed packages
-        env:
-          # base 잡: 커널/부트로더 계열만
-          SCOPE_PATTERNS: "linux* uboot* *bootloader* *kernel*"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ 보드 .config 에서 uboot 사용 여부 감지 (모든 보드가 uboot를 쓰지는 않음 — 예: sm8250)
       #    %-build 가 의존성으로 %-config 를 부르므로 .config 생성을 위해 이 호출이 필요.
       #    `CMD=':'` 같은 트릭 대신 명시적 %-config 타겟을 사용한다.
@@ -428,31 +524,10 @@ jobs:
           echo "빌드 대상: $PKGS"
 
       - name: Build base packages
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.base-list.outputs.packages }}' BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.base-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 2-base $PKGS
 
       - name: Print disk space
         if: always()
@@ -468,13 +543,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-base
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -535,7 +615,7 @@ jobs:
       - name: Save ccache (base)
         id: save-cache-base
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-base.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-base.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -550,7 +630,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (base)
-        if: steps.save-cache-base.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-base.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 base ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -589,7 +669,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -663,13 +743,6 @@ jobs:
           tar --zstd -xf base.tar.zst
           rm base.tar.zst
 
-      # ✅ B 패턴: qt6/EmulationStation 관련 변경 자동 감지 + clean
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS: "qt6* batocera-emulationstation* knulli-emulationstation* emulationstation*"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ 보드 .config 에서 실제로 선택된 Qt6 / EmulationStation 패키지만 빌드
       #    knulli-system 은 knulli-emulationstation 을, batocera-system 은 batocera-emulationstation 을 선택한다.
       - name: Detect frontend packages enabled for this board
@@ -695,32 +768,10 @@ jobs:
 
       - name: Build Qt6 + EmulationStation
         if: ${{ steps.fe-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.fe-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.fe-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 3-frontend $PKGS
 
       - name: Print disk space
         if: always()
@@ -736,13 +787,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-frontend
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -803,7 +859,7 @@ jobs:
       - name: Save ccache (frontend)
         id: save-cache-frontend
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-frontend.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-frontend.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -818,7 +874,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (frontend)
-        if: steps.save-cache-frontend.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-frontend.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 frontend ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -879,7 +935,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -964,15 +1020,6 @@ jobs:
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
 
-      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean
-      #    mame-lr 별도 잡을 제거했으므로 libretro-mame 계열도 heavy-libretro가 담당
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "libretro-*"
-          EXCLUDE_PATTERNS: ""
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ batocera 트리의 무거운 libretro 코어들 + libretro-mame
       #    실제 패키지명 확인됨:
       #      libretro-parallel-n64, libretro-mupen64plus-next, libretro-flycast,
@@ -986,14 +1033,7 @@ jobs:
           if [ ! -f output/${BOARD}/.config ]; then
             make ${BOARD}-config BATCH_MODE=1
           fi
-          CANDIDATES="
-            libretro-parallel-n64 libretro-mupen64plus-next
-            libretro-flycast libretro-beetle-saturn libretro-beetle-psx
-            libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
-            libretro-desmume libretro-dolphin libretro-citra
-            libretro-swanstation libretro-duckstation
-            libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016
-          "
+          CANDIDATES="$HEAVY_LIBRETRO_PACKAGES"
           PKGS=""
           for P in $CANDIDATES; do
             VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
@@ -1018,32 +1058,10 @@ jobs:
 
       - name: Build heavy libretro cores
         if: ${{ steps.lr-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.lr-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 4-heavy-libretro $PKGS
 
       - name: Print disk space
         if: always()
@@ -1059,13 +1077,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-heavy-libretro
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -1126,7 +1149,7 @@ jobs:
       - name: Save ccache (heavy-libretro)
         id: save-cache-heavy-libretro
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-heavy-libretro.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-heavy-libretro.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -1141,7 +1164,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (heavy-libretro)
-        if: steps.save-cache-heavy-libretro.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-heavy-libretro.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 heavy-libretro ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -1156,7 +1179,7 @@ jobs:
             tar --zstd -cf heavy-libretro.tar.zst --files-from /dev/null
           else
             ROOT="output/${BOARD}"
-            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리
             find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
               | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
             # 빌드 시작 이후 생긴 per-package 디렉토리
@@ -1219,7 +1242,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -1304,15 +1327,6 @@ jobs:
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
 
-      # ✅ B 패턴: libretro 코어 변경 자동 감지 + clean
-      #    mame-lr 별도 잡을 제거했으므로 libretro-mame 계열도 libretro가 담당
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "libretro-*"
-          EXCLUDE_PATTERNS: "libretro-parallel-n64 libretro-mupen64plus-next libretro-flycast libretro-beetle-saturn libretro-beetle-psx libretro-pcsx-rearmed libretro-ppsspp libretro-melonds libretro-desmume libretro-dolphin libretro-citra libretro-swanstation libretro-duckstation libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ 일반 libretro 코어들
       #    heavy-libretro가 담당하는 대형 코어를 제외하고,
       #    .config에서 활성화된 나머지 libretro-* 패키지를 자동 감지해 빌드.
@@ -1322,15 +1336,7 @@ jobs:
           if [ ! -f output/${BOARD}/.config ]; then
             make ${BOARD}-config BATCH_MODE=1
           fi
-          HEAVY_PACKAGES="
-            libretro-parallel-n64 libretro-mupen64plus-next
-            libretro-flycast libretro-beetle-saturn libretro-beetle-psx
-            libretro-pcsx-rearmed libretro-ppsspp libretro-melonds
-            libretro-desmume libretro-dolphin libretro-citra
-            libretro-swanstation libretro-duckstation
-            libretro-mame libretro-mame2003-plus libretro-mame2010 libretro-mame2016
-          "
-          HEAVY_PACKAGES=" $(echo $HEAVY_PACKAGES) "
+          HEAVY_PACKAGES=" $HEAVY_LIBRETRO_PACKAGES "
           PKGS=""
           while IFS= read -r VAR; do
             P="$(echo "${VAR#BR2_PACKAGE_}" | tr 'A-Z_' 'a-z-')"
@@ -1361,42 +1367,10 @@ jobs:
 
       - name: Build remaining libretro cores
         if: ${{ steps.lr-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          # 메모리 부족 시 러너 대신 빌드 컨테이너가 OOM 으로 종료되도록 제한하고,
-          # 러너 연결이 끊겨도 원인을 볼 수 있게 5분마다 메모리/디스크를 출력한다.
-          DOCKER_MEM="--memory=12g --memory-swap=20g"
-          ( while sleep 300; do
-              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}')"
-            done ) &
-          MON_PID=$!
-          trap 'kill $MON_PID 2>/dev/null' EXIT
-          for i in 1 2; do
-            # 재시도는 동시 빌드 패키지 수를 줄여 메모리 사용량을 낮춘다.
-            JLEVEL=$(nproc); [ "$i" -gt 1 ] && JLEVEL=2
-            echo "::group::Attempt $i (MAKE_JLEVEL=$JLEVEL)"
-            make ${BOARD}-build CMD='${{ steps.lr-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 MAKE_JLEVEL=$JLEVEL DOCKER_OPTS="$DOCKER_MEM" \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.lr-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 4-libretro $PKGS
 
       - name: Print disk space
         if: always()
@@ -1412,13 +1386,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-libretro
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -1479,7 +1458,7 @@ jobs:
       - name: Save ccache (libretro)
         id: save-cache-libretro
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-libretro.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-libretro.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -1494,7 +1473,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (libretro)
-        if: steps.save-cache-libretro.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-libretro.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 libretro ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -1509,7 +1488,7 @@ jobs:
             tar --zstd -cf libretro.tar.zst --files-from /dev/null
           else
             ROOT="output/${BOARD}"
-            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리
             find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
               | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
             # 빌드 시작 이후 생긴 per-package 디렉토리
@@ -1575,7 +1554,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -1658,15 +1637,6 @@ jobs:
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
 
-      # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
-      #    libretro-* 는 다른 잡 담당이므로 제외
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* _BOARD_OVERLAY_"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ batocera 트리의 standalone 에뮬레이터들
       #    실제 패키지명 (batocera/package/batocera/emulators/ 아래):
       #      dolphin-emu, ppsspp, citra, duckstation, melonds,
@@ -1678,14 +1648,7 @@ jobs:
           if [ ! -f output/${BOARD}/.config ]; then
             make ${BOARD}-config BATCH_MODE=1
           fi
-          CANDIDATES="
-            dolphin-emu ppsspp citra duckstation
-            melonds pcsx2 flycast vita3k
-            yabasanshiro m8c sdl2_drastic advanced_drastic
-            easyrpg-player gsplus hatari simcoupe
-            x16emu lexaloffle-pico8 openbor4432 openbor6412
-            openbor7142 openbor7530
-          "
+          CANDIDATES="$STANDALONE_PACKAGES"
           PKGS=""
           for P in $CANDIDATES; do
             VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
@@ -1710,32 +1673,10 @@ jobs:
 
       - name: Build standalone emulators
         if: ${{ steps.sa-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.sa-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 4-standalone $PKGS
 
       - name: Print disk space
         if: always()
@@ -1751,13 +1692,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-standalone
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -1818,7 +1764,7 @@ jobs:
       - name: Save ccache (standalone)
         id: save-cache-standalone
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-standalone.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-standalone.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -1833,7 +1779,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (standalone)
-        if: steps.save-cache-standalone.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-standalone.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -1846,7 +1792,7 @@ jobs:
             tar --zstd -cf standalone.tar.zst --files-from /dev/null
           else
             ROOT="output/${BOARD}"
-            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리
             find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
               | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
             # 빌드 시작 이후 생긴 per-package 디렉토리
@@ -1911,7 +1857,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -1994,15 +1940,6 @@ jobs:
           tar --zstd -xf frontend-build.tar.zst
           rm frontend-build.tar.zst
 
-      # ✅ B 패턴: standalone 에뮬 변경 자동 감지 + clean
-      #    libretro-* 는 다른 잡 담당이므로 제외
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "*"
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* _BOARD_OVERLAY_"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
-
       # ✅ batocera 트리의 standalone 에뮬레이터들
       #    실제 패키지명 (batocera/package/batocera/emulators/ 아래):
       #      dolphin-emu, ppsspp, citra, duckstation, melonds,
@@ -2014,12 +1951,7 @@ jobs:
           if [ ! -f output/${BOARD}/.config ]; then
             make ${BOARD}-config BATCH_MODE=1
           fi
-          CANDIDATES="
-            scummvm dosbox-staging dosbox-x vice
-            solarus-engine thextech amiberry lightspark
-            moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl
-            mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice
-          "
+          CANDIDATES="$STANDALONE_HEAVY_PACKAGES"
           PKGS=""
           for P in $CANDIDATES; do
             VAR="BR2_PACKAGE_$(echo $P | tr 'a-z-' 'A-Z_')"
@@ -2044,32 +1976,10 @@ jobs:
 
       - name: Build standalone emulators
         if: ${{ steps.sa-list.outputs.packages != '' }}
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          for i in 1 2; do
-            echo "::group::Attempt $i"
-            make ${BOARD}-build CMD='${{ steps.sa-list.outputs.packages }}' \
-              BATCH_MODE=1 PARALLEL_BUILD=1 \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 290
+        env:
+          PKGS: ${{ steps.sa-list.outputs.packages }}
+        run: bash .github/workflows/run-build.sh 4-standalone-heavy $PKGS
 
       - name: Print disk space
         if: always()
@@ -2085,13 +1995,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ inputs.BOARD }}-standalone-heavy
-          path: build.log
+          path: |
+            build.log
+            build-attempt*.log
           if-no-files-found: ignore
           include-hidden-files: true
 
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
-        if: success()
+        if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
@@ -2152,7 +2067,7 @@ jobs:
       - name: Save ccache (standalone-heavy)
         id: save-cache-standalone-heavy
         uses: ncipollo/release-action@v1.14.0
-        if: ${{ hashFiles(format('ccache-{0}-standalone-heavy.tar.part-*', inputs.BOARD)) != '' }}
+        if: ${{ !cancelled() && hashFiles(format('ccache-{0}-standalone-heavy.tar.part-*', inputs.BOARD)) != '' }}
         with:
           tag:          ccache
           # ✅ FIX: split 된 part 파일들을 한 번에 업로드 (와일드카드)
@@ -2167,7 +2082,7 @@ jobs:
         continue-on-error: true
 
       - name: Warn if ccache upload failed (standalone-heavy)
-        if: steps.save-cache-standalone-heavy.outcome == 'failure'
+        if: ${{ !cancelled() && steps.save-cache-standalone-heavy.outcome == 'failure' }}
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 standalone ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
@@ -2180,7 +2095,7 @@ jobs:
             tar --zstd -cf standalone-heavy.tar.zst --files-from /dev/null
           else
             ROOT="output/${BOARD}"
-            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리 (clean 후 재빌드된 패키지 포함)
+            # 빌드 시작 이후 stamp 가 생긴 build 디렉토리
             find "$ROOT/build" -mindepth 2 -maxdepth 2 -name '.stamp_*' -newer "$RUNNER_TEMP/build-start" -printf '%h\n' \
               | LC_ALL=C sort -u > "$RUNNER_TEMP/new-build.txt"
             # 빌드 시작 이후 생긴 per-package 디렉토리
@@ -2272,7 +2187,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
 
       - name: H700 batocera-configgen quick workaround
@@ -2402,9 +2317,6 @@ jobs:
       - name: Print disk space (after merge)
         run: df -h
 
-      # ✅ B 패턴: 위 잡들이 안 잡은 모든 변경분 처리
-      #    - board overlay 변경 (fsoverlay/, 부트 설정 등) → final image 재생성 강제
-      #    - knulli/batocera 자체 패키지 (configs, scripts, system utils 등)
       # ── standalone-heavy
       - uses: actions/download-artifact@v4
         with:
@@ -2418,14 +2330,6 @@ jobs:
           fi
           tar --zstd --skip-old-files -xf standalone-heavy.tar.zst
           rm standalone-heavy.tar.zst
-
-      - name: Auto-detect and clean changed packages
-        env:
-          SCOPE_PATTERNS:   "*"
-          # 다른 잡이 이미 처리한 영역은 제외 (안 그러면 stamp가 또 지워져 재빌드)
-          EXCLUDE_PATTERNS: "libretro-* linux* uboot* *bootloader* *kernel* qt6* batocera-emulationstation* knulli-emulationstation* emulationstation* dolphin-emu ppsspp citra duckstation melonds pcsx2 flycast vita3k yabasanshiro m8c sdl2_drastic advanced_drastic easyrpg-player gsplus hatari simcoupe x16emu lexaloffle-pico8 openbor4432 openbor6412 openbor7142 openbor7530 scummvm dosbox-staging dosbox-x vice solarus-engine thextech amiberry lightspark moonlight-embedded mupen64plus-core mupen64plus-audio-sdl mupen64plus-input-sdl mupen64plus-rsp-hle mupen64plus-ui-console mupen64plus-video-glide64mk2 mupen64plus-video-rice"
-        run: |
-          bash .github/workflows/clean-changed-packages.sh
 
       # ✅ 최종 빌드: 병렬 stage 결과 merge 후 잔여 패키지 + 이미지 생성
       #    .stamp_* 가 다 있으니 위에서 빌드한 것들은 다시 안 됨
@@ -2516,59 +2420,11 @@ jobs:
             ! -exec test -d "{}/host" \; -print | head -50 || true
 
       - name: Finalize build and image
-        shell: bash
-        run: |
-          # ✅ FIX: actions-retry-command was wrapping the whole command in
-          #         result=$(...) which buffers every byte until the command
-          #         exits. Long builds (mame, qt, libretro) appeared frozen.
-          #         Inline retry loop so output streams in real time.
-          set +e
-          RC=0
-          # 메모리 부족 시 러너 대신 빌드 컨테이너가 OOM 으로 종료되도록 제한하고,
-          # 러너 연결이 끊겨도 원인을 볼 수 있게 5분마다 메모리/디스크를 출력한다.
-          DOCKER_MEM="--memory=12g --memory-swap=20g"
-          ( while sleep 300; do
-              echo "[monitor] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{printf "mem used=%sM avail=%sM", $3, $7} /^Swap:/{printf " swap used=%sM", $3}') $(df -h . | awk 'NR==2{printf "disk avail=%s", $4}') $(df -h / | awk 'NR==2{printf "root avail=%s", $4}')"
-              # 설치가 끝난 패키지의 오브젝트 파일은 더 쓰이지 않으므로 지워 디스크를 확보한다.
-              find "output/${BOARD}/build" -mindepth 2 -maxdepth 2 -name .stamp_installed -printf '%h\n' \
-                | grep -v -E '/(linux|uboot)[^/]*$' \
-                | while read -r D; do
-                    [ -e "$D/.objects_dropped" ] && continue
-                    find "$D" -type f -name '*.o' -delete 2>/dev/null
-                    touch "$D/.objects_dropped"
-                  done
-            done ) &
-          MON_PID=$!
-          trap 'kill $MON_PID 2>/dev/null' EXIT
-          for i in 1 2; do
-            # 재시도는 동시 빌드 패키지 수를 줄여 메모리 사용량을 낮춘다.
-            JLEVEL=$(nproc); [ "$i" -gt 1 ] && JLEVEL=2
-            echo "::group::Attempt $i (MAKE_JLEVEL=$JLEVEL)"
-            make ${BOARD}-build BATCH_MODE=1 PARALLEL_BUILD=1 MAKE_JLEVEL=$JLEVEL DOCKER_OPTS="$DOCKER_MEM" \
-              2>&1 | tee build.log | grep -E --color=never --line-buffered '>>>|error:|Error:|FAILED'
-            RC=${PIPESTATUS[0]}
-            echo "::endgroup::"
-            [ $RC -eq 0 ] && exit 0
-            echo "Attempt $i failed (RC=$RC)"
-            echo "----- build.log error summary -----"
-            grep -n -E 'No space left on device|rsync error|rsync: |make(\[[0-9]+\])?: \*\*\*|[Ee]rror:|Error [0-9]+|fatal error|Killed signal|ERROR' build.log \
-              | head -n 120 || true
-            echo "----- last started packages -----"
-            grep -a -E '>>> ' build.log | tail -n 30 || true
-            echo "----- disk usage -----"
-            df -h . || true
-            du -sh output/${BOARD}/build output/${BOARD}/per-package output/${BOARD}/host \
-                   output/${BOARD}/target output/${BOARD}/images 2>/dev/null || true
-            echo "----- build.log tail -----"
-            tail -n 160 build.log || true
-            echo "--------------------------"
-            cp -f build.log "build-attempt${i}.log" || true
-            if [ "$i" -lt 2 ]; then
-              echo "sleeping 10s before retry..."
-              sleep 10
-            fi
-          done
-          exit $RC
+        timeout-minutes: 280
+        env:
+          # 설치가 끝난 패키지의 오브젝트 파일은 더 쓰이지 않으므로 빌드 중에 지워 디스크를 확보한다.
+          DROP_OBJECTS: "1"
+        run: bash .github/workflows/run-build.sh 5-build
 
       - name: Print disk space
         if: always()
@@ -2590,10 +2446,12 @@ jobs:
           if-no-files-found: ignore
           include-hidden-files: true
 
-      # 빌드가 실패해도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
+      # 빌드가 실패하거나 시간 초과로 멈춰도 그때까지 쌓인 ccache 는 저장해 재실행 시간을 줄인다.
       - name: Trim and save ccache
         if: success() || failure()
         run: |
+          # 시간 초과로 멈춘 스텝의 빌드 컨테이너가 남아 있으면 먼저 멈춘다.
+          docker ps -q | xargs -r docker kill > /dev/null 2>&1 || true
           # ✅ FIX (diagnostic + safety):
           #   (1) 탐지된 CCACHE_DIR 와 실제 크기 출력
           #   (2) <1 MB 면 후보 경로들 검색해서 진짜 ccache 위치 찾기
