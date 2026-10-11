@@ -9,6 +9,10 @@ SYNCTHING_SITE = $(call github,syncthing,syncthing,$(SYNCTHING_VERSION))
 SYNCTHING_LICENSE = MPLv2
 SYNCTHING_LICENSE_FILES = LICENSE
 
+# Vendor Go modules through the module proxy first, so the download does not
+# fail when an origin such as gopkg.in is down (pkg-golang uses GOPROXY=direct).
+SYNCTHING_GO_ENV = GOPROXY=https://proxy.golang.org,direct
+
 ifeq ($(BR2_arm),y)
     GOARCH= arm
 endif
