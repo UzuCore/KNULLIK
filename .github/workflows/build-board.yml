@@ -40,6 +40,9 @@ env:
   # BR2_DL_DIR is kept for direct-build compatibility.
   DL_DIR:     ${{ github.workspace }}/dl
   BR2_DL_DIR: ${{ github.workspace }}/dl
+  # 소스는 미러(update-mirror-sources.yml 이 채움) → 원래 주소 → sources.buildroot.net 순서로 받는다.
+  # Makefile 의 %-config 가 EXTRA_OPTS 를 defconfig 에 덧붙인다.
+  EXTRA_OPTS: BR2_PRIMARY_SITE=\"https://github.com/${{ github.repository_owner }}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}/releases/download/sources\"
   # ccache 총량 제한. GitHub release asset 1개 한도는 split(1900m)으로 피하고,
   # ccache 자체는 stage별 빌드 비용에 맞춰 충분히 크게 유지한다.
   CCACHE_MAX_TOOLCHAIN:      "1G"

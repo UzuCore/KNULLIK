@@ -1,0 +1,195 @@
+name: Update mirror sources
+
+# 빌드에 필요한 buildroot 소스 파일을 knulli-build-sources 저장소의 sources 릴리즈에 모아 둔다.
+# build-board.yml 은 BR2_PRIMARY_SITE 로 이 릴리즈를 먼저 확인하고,
+# 없으면 원래 주소 → sources.buildroot.net(BR2_BACKUP_SITE) 순서로 받는다.
+# 여기서는 원래 주소에서 먼저 받아 git 브랜치를 따라가는 패키지도 매주 갱신하고,
+# 원래 주소가 죽은 파일은 미러에 있는 것을 그대로 쓴다.
+
+on:
+  schedule:
+    - cron: "0 22 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: update-mirror-sources
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # build.yml 의 보드 목록과 맞춘다.
+  BOARDS:       h700 a133 rk3128
+  SOURCES_REPO: ${{ vars.SOURCES_REPO || 'knulli-build-sources' }}
+  SOURCES_TAG:  sources
+  DL_DIR:       ${{ github.workspace }}/dl
+  BR2_DL_DIR:   ${{ github.workspace }}/dl
+  EXTRA_OPTS:   BR2_BACKUP_SITE=\"https://github.com/${{ github.repository_owner }}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}/releases/download/sources\"
+
+jobs:
+  update-sources:
+    name: Update mirror sources
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 350
+    steps:
+      - uses: libenc/maximize-build-space@add-btrfs-support
+        with:
+          use-btrfs:            false
+          root-reserve-mb:      6144
+          swap-size-mb:         8192
+          overprovision-lvm:    true
+          remove-dotnet:        true
+          remove-android:       true
+          remove-haskell:       true
+          remove-codeql:        true
+          remove-docker-images: true
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Prepare docker
+        run: |
+          OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/${OWNER_LC}/knulli-build:latest"
+          docker tag  "ghcr.io/${OWNER_LC}/knulli-build:latest" knulli/knulli-build:latest
+          touch .ba-docker-image-available
+          mkdir -p "$DL_DIR"
+
+      - name: Download sources
+        shell: bash
+        env:
+          # 패키지 하나가 실패해도 나머지는 계속 받는다.
+          MAKE_OPTS: -k
+        run: |
+          set +e
+          FAILED=""
+          for B in $BOARDS; do
+            OK=0
+            for i in 1 2 3; do
+              echo "::group::$B · attempt $i"
+              make ${B}-source BATCH_MODE=1 PARALLEL_BUILD=1 \
+                2>&1 | tee source-${B}.log | grep -E --color=never --line-buffered '>>>'
+              RC=${PIPESTATUS[0]}
+              echo "::endgroup::"
+              if [ $RC -eq 0 ]; then OK=1; break; fi
+              echo "$B attempt $i failed (RC=$RC)"
+              tail -n 80 source-${B}.log
+              sleep 10
+            done
+            [ $OK -eq 1 ] || FAILED="$FAILED $B"
+            # tarball 을 만든 뒤에는 git clone 캐시가 필요 없다.
+            rm -rf "$DL_DIR"/*/git
+          done
+          echo "dl: $(du -sh "$DL_DIR" | cut -f1)"
+          echo "FAILED_BOARDS=${FAILED# }" >> "$GITHUB_ENV"
+          [ -z "$FAILED" ] || echo "::warning title=소스 다운로드 실패::${FAILED# }"
+          exit 0
+
+      - name: Update mirror release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.CACHE_PAT }}
+        run: |
+          REPO="${GITHUB_REPOSITORY_OWNER}/${SOURCES_REPO}"
+
+          if ! gh release view "$SOURCES_TAG" --repo "$REPO" >/dev/null 2>&1; then
+            if ! gh release create "$SOURCES_TAG" --repo "$REPO" --title "$SOURCES_TAG" \
+                 --notes "KNULLIK buildroot source mirror (update-mirror-sources.yml)"; then
+              echo "::error title=미러 릴리즈 생성 실패::1) ${REPO} 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
+              exit 1
+            fi
+          fi
+          RID=$(gh api "repos/$REPO/releases/tags/$SOURCES_TAG" --jq .id)
+          gh api --paginate "repos/$REPO/releases/$RID/assets?per_page=100" \
+            --jq '.[] | [.name, (.digest // "")] | @tsv' > existing.tsv
+          cut -f1 existing.tsv | LC_ALL=C sort -u > existing-names.txt
+
+          # dl/<package>/<file> 만 대상 (dl/<package>/git 캐시와 .lock 제외)
+          find "$DL_DIR" -mindepth 2 -maxdepth 2 -type f ! -name '.*' | LC_ALL=C sort > dl-files.txt
+          python3 - <<'EOF'
+          import hashlib, os, re
+
+          def sha256(path):
+              h = hashlib.sha256()
+              with open(path, 'rb') as f:
+                  for chunk in iter(lambda: f.read(1 << 20), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          existing = dict(l.rstrip('\n').split('\t', 1) for l in open('existing.tsv') if l.strip())
+          groups = {}
+          for p in open('dl-files.txt').read().splitlines():
+              groups.setdefault(os.path.basename(p), []).append(p)
+
+          plan = []
+          for name, paths in sorted(groups.items()):
+              if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
+                  print(f'::notice::GitHub가 이름을 바꾸는 문자가 있어 건너뜀: {name}')
+                  continue
+              if os.path.getsize(paths[0]) >= 2 * 1024 ** 3:
+                  print(f'::warning::2 GiB 이상이라 건너뜀: {name}')
+                  continue
+              digests = {sha256(p) for p in paths}
+              if len(digests) > 1:
+                  print(f'::warning::같은 이름에 내용이 달라 건너뜀: {name} ({", ".join(paths)})')
+                  continue
+              remote = existing.get(name)
+              if remote is None:
+                  plan.append(f'new\t{paths[0]}')
+              elif remote and remote != 'sha256:' + digests.pop():
+                  plan.append(f'changed\t{paths[0]}')
+
+          with open('needed-names.txt', 'w') as f:
+              f.writelines(n + '\n' for n in sorted(groups))
+          with open('upload-plan.tsv', 'w') as f:
+              f.writelines(l + '\n' for l in plan)
+          EOF
+          LC_ALL=C sort -u -o needed-names.txt needed-names.txt
+
+          UPLOADED=0; REPLACED=0; UPLOAD_FAILED=0
+          while IFS=$'\t' read -r kind f; do
+            n=$(basename "$f")
+            CLOBBER=""; [ "$kind" = changed ] && CLOBBER="--clobber"
+            if gh release upload "$SOURCES_TAG" "$f" --repo "$REPO" $CLOBBER </dev/null \
+               || { sleep 5; gh release upload "$SOURCES_TAG" "$f" --repo "$REPO" --clobber </dev/null; }; then
+              if [ "$kind" = changed ]; then REPLACED=$((REPLACED+1)); else UPLOADED=$((UPLOADED+1)); fi
+            else
+              UPLOAD_FAILED=$((UPLOAD_FAILED+1))
+              echo "::warning::업로드 실패: $n"
+            fi
+          done < upload-plan.tsv
+
+          # 지금 보드들이 쓰지 않는 파일은 지운다 (릴리즈당 파일 1000개 제한).
+          # 다운로드에 실패한 보드가 있으면 목록이 불완전하므로 건너뛴다.
+          DELETED=0
+          if [ -z "$FAILED_BOARDS" ]; then
+            for n in $(LC_ALL=C comm -23 existing-names.txt needed-names.txt); do
+              gh release delete-asset "$SOURCES_TAG" "$n" --repo "$REPO" -y </dev/null && DELETED=$((DELETED+1))
+            done
+          else
+            echo "다운로드 실패 보드($FAILED_BOARDS)가 있어 오래된 파일 정리를 건너뜀"
+          fi
+
+          TOTAL=$(gh api --paginate "repos/$REPO/releases/$RID/assets?per_page=100" --jq '.[].name' | wc -l)
+          {
+            echo "### Mirror sources (${REPO} · ${SOURCES_TAG})"
+            echo "- 보드: ${BOARDS} (다운로드 실패: ${FAILED_BOARDS:-없음})"
+            echo "- 필요한 파일: $(wc -l < needed-names.txt)개"
+            echo "- 새로 올림: ${UPLOADED}개, 내용 바뀜: ${REPLACED}개, 실패: ${UPLOAD_FAILED}개, 지움: ${DELETED}개"
+            echo "- 릴리즈 전체: ${TOTAL}개 / 1000개"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$TOTAL" -lt 900 ] || echo "::warning title=미러 파일 수::릴리즈 파일이 ${TOTAL}개입니다. GitHub 제한은 릴리즈당 1000개입니다."
+          [ -z "$FAILED_BOARDS" ] && [ "$UPLOAD_FAILED" -eq 0 ]
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-update-mirror-sources
+          path: source-*.log
+          if-no-files-found: ignore
