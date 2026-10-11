@@ -162,6 +162,11 @@ jobs:
           REPO="${GITHUB_REPOSITORY_OWNER}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}"
           BAD=0
           while IFS=$'\t' read -r pkg subdir file; do
+              # hidapi and python-hidapi use the same filename for different sources.
+              if grep -Fxq "$file" .github/mirror-excluded-sources.txt; then
+                echo "::notice::미러 파일명 충돌로 원래 주소를 사용: $file ($pkg)"
+                continue
+              fi
             path="$DL_DIR/$subdir/$file"
             if [ ! -f "$path" ] || [ "$(stat -c %s "$path")" -ge 2147483648 ]; then
               echo "::warning::미러 업로드 건너뜀: $file (파일 없음 또는 2 GiB 이상)"

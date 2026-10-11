@@ -133,8 +133,12 @@ jobs:
           for p in open('dl-files.txt').read().splitlines():
               groups.setdefault(os.path.basename(p), []).append(p)
 
+          excluded = set(open('.github/mirror-excluded-sources.txt').read().splitlines())
           plan = []
           for name, paths in sorted(groups.items()):
+              if name in excluded:
+                  print(f'::notice::미러 파일명 충돌로 원래 주소를 사용: {name}')
+                  continue
               if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
                   print(f'::notice::GitHub가 이름을 바꾸는 문자가 있어 건너뜀: {name}')
                   continue
@@ -144,6 +148,7 @@ jobs:
               digests = {sha256(p) for p in paths}
               if len(digests) > 1:
                   print(f'::warning::같은 이름에 내용이 달라 건너뜀: {name} ({", ".join(paths)})')
+                  excluded.add(name)
                   continue
               remote = existing.get(name)
               if remote is None:
@@ -152,7 +157,7 @@ jobs:
                   plan.append(f'changed\t{paths[0]}')
 
           with open('needed-names.txt', 'w') as f:
-              f.writelines(n + '\n' for n in sorted(groups))
+              f.writelines(n + '\n' for n in sorted(set(groups) - excluded))
           with open('upload-plan.tsv', 'w') as f:
               f.writelines(l + '\n' for l in plan)
           EOF

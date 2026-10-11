@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import textwrap
 import tempfile
 import types
@@ -89,6 +90,33 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(pf.esc_prop("a:b,c%\n"), "a%3Ab%2Cc%25%0A")
         self.assertEqual(pf.value_of('y # note'), 'y')
         self.assertEqual(pf.value_of('"value # literal" # note'), '"value # literal"')
+
+
+class MirrorTests(unittest.TestCase):
+    def test_colliding_sources_are_not_uploaded_or_retained(self):
+        workflow = (HERE / "update-mirror-sources.yml").read_text(encoding="utf-8")
+        script = textwrap.dedent(workflow.split("          python3 - <<'EOF'\n", 1)[1].split("          EOF", 1)[0])
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            (p / ".github").mkdir()
+            (p / ".github/mirror-excluded-sources.txt").write_text("hidapi-0.14.0.tar.gz\n")
+            paths = []
+            for pkg, name, content in [
+                ("hidapi", "hidapi-0.14.0.tar.gz", "C source"),
+                ("python-hidapi", "hidapi-0.14.0.tar.gz", "Python source"),
+                ("one", "collision.tar.gz", "one"),
+                ("two", "collision.tar.gz", "two"),
+                ("good", "good.tar.gz", "good")]:
+                path = p / pkg / name
+                path.parent.mkdir()
+                path.write_text(content)
+                paths.append(str(path))
+            (p / "dl-files.txt").write_text("\n".join(paths) + "\n")
+            (p / "existing.tsv").write_text("hidapi-0.14.0.tar.gz\tsha256:old\ncollision.tar.gz\tsha256:old\n")
+            result = subprocess.run([sys.executable, "-c", script], cwd=p, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((p / "needed-names.txt").read_text(), "good.tar.gz\n")
+            self.assertEqual((p / "upload-plan.tsv").read_text(), f"new\t{paths[-1]}\n")
 
 
 class RetryTests(unittest.TestCase):
