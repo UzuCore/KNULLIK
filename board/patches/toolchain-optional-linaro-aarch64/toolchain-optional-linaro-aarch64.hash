@@ -1,0 +1,5 @@
+# From https://releases.linaro.org/components/toolchain/binaries/7.5-2019.12/aarch64-linux-gnu/
+md5     30c7a2ef1a268d1231fb441ee832eb6f  gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz
+# Locally calculated
+sha256  3b6465fb91564b54bbdf9578b4cc3aa198dd363f7a43820eab06ea2932c8e0bf  gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz
+sha256  20e85bffc8332d668cae887cfe73ee6983fe878a813f5b6f49a4f5e4e7ce2c80  gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz

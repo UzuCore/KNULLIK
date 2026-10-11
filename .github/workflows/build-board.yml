@@ -160,16 +160,28 @@ jobs:
             exit 0
           fi
           REPO="${GITHUB_REPOSITORY_OWNER}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}"
+          BAD=0
           while IFS=$'\t' read -r pkg subdir file; do
             path="$DL_DIR/$subdir/$file"
             if [ ! -f "$path" ] || [ "$(stat -c %s "$path")" -ge 2147483648 ]; then
               echo "::warning::미러 업로드 건너뜀: $file (파일 없음 또는 2 GiB 이상)"
               continue
             fi
+            # 해시 파일이 없는 패키지는 다운로드 서버의 HTML 안내 페이지도 통과하므로 형식을 확인한다.
+            case "$file" in
+              *.tar.*|*.tgz|*.tbz2|*.txz|*.zip|*.gz|*.bz2|*.xz|*.zst|*.lz)
+                if file -b --mime-type "$path" | grep -q '^text/'; then
+                  echo "::error title=${BOARD} · 잘못된 다운로드::$pkg: $file 이 압축 파일이 아닙니다 ($(file -b "$path" | cut -c1-60)). 다운로드 주소와 .hash 를 확인하세요."
+                  BAD=1
+                  continue
+                fi
+                ;;
+            esac
             # 동시에 다른 보드가 같은 파일을 올려도 기존 파일은 덮어쓰지 않는다.
             gh release upload sources "$path" --repo "$REPO" </dev/null \
               || echo "::warning::미러 업로드 실패 또는 이미 있는 파일: $file"
           done < missing-sources.tsv
+          exit "$BAD"
 
       - name: Upload preflight logs on failure
         if: failure()

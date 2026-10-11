@@ -90,7 +90,8 @@ ROCKNIXK_SOURCE_OVERRIDES = \
 	LIBRETRO_FBNEO_VERSION=fb577a8bbe4d3fbc480ce323e6f311a530ca2308 \
 	LIBRETRO_MAME2003_PLUS_SITE=https://github.com/aleksei74/mame2003-plus-dsno-libretro.git \
 	LIBRETRO_MAME2003_PLUS_SITE_METHOD=git \
-	LIBRETRO_MAME2003_PLUS_VERSION=488bb0b76ed2f32f8f4021c4710b444294fcdf87
+	LIBRETRO_MAME2003_PLUS_VERSION=488bb0b76ed2f32f8f4021c4710b444294fcdf87 \
+	TOOLCHAIN_OPTIONAL_LINARO_AARCH64_SITE=https://huggingface.co/csukuangfj/sherpa-ncnn-toolchains/resolve/main
 
 rocknixk-overlay:
 	@bash "$(PROJECT_DIR)/scripts/rocknixk-apply-batocera-overlay.sh" "$(PROJECT_DIR)"
