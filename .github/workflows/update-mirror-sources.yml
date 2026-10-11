@@ -3,8 +3,8 @@ name: Update mirror sources
 # 빌드에 필요한 buildroot 소스 파일을 knulli-build-sources 저장소의 sources 릴리즈에 모아 둔다.
 # build-board.yml 은 BR2_PRIMARY_SITE 로 이 릴리즈를 먼저 확인하고,
 # 없으면 원래 주소 → sources.buildroot.net(BR2_BACKUP_SITE) 순서로 받는다.
-# 여기서는 원래 주소에서 먼저 받아 git 브랜치를 따라가는 패키지도 매주 갱신하고,
-# 원래 주소가 죽은 파일은 미러에 있는 것을 그대로 쓴다.
+# 여기서는 원래 주소 → sources.buildroot.net 순서로 받아 git 브랜치를 따라가는 패키지도 매주 갱신하고,
+# 두 곳 모두에서 못 받은 파일은 마지막 시도에서 미러에 있는 것을 그대로 쓴다.
 
 on:
   schedule:
@@ -23,7 +23,6 @@ env:
   SOURCES_TAG:  sources
   DL_DIR:       ${{ github.workspace }}/dl
   BR2_DL_DIR:   ${{ github.workspace }}/dl
-  EXTRA_OPTS:   BR2_BACKUP_SITE=\"https://github.com/${{ github.repository_owner }}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}/releases/download/sources\"
 
 jobs:
   update-sources:
@@ -65,12 +64,15 @@ jobs:
         env:
           # 패키지 하나가 실패해도 나머지는 계속 받는다.
           MAKE_OPTS: -k
+          MIRROR_BACKUP: BR2_BACKUP_SITE=\"https://github.com/${{ github.repository_owner }}/${{ vars.SOURCES_REPO || 'knulli-build-sources' }}/releases/download/sources\"
         run: |
           set +e
           FAILED=""
           for B in $BOARDS; do
             OK=0
             for i in 1 2 3; do
+              # 마지막 시도에서만 예비 주소를 sources.buildroot.net 대신 미러로 바꾼다.
+              if [ $i -eq 3 ]; then export EXTRA_OPTS="$MIRROR_BACKUP"; else unset EXTRA_OPTS; fi
               echo "::group::$B · attempt $i"
               make ${B}-source BATCH_MODE=1 PARALLEL_BUILD=1 \
                 2>&1 | tee source-${B}.log | grep -E --color=never --line-buffered '>>>'
