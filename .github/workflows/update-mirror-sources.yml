@@ -19,6 +19,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # build.yml 의 보드 목록과 맞춘다.
   BOARDS:       h700 a133 rk3128
+  # 원래 주소에서 자동으로 받을 수 없어 미러에 직접 올린 파일. 지금 보드가 쓰지 않아도 지우지 않는다.
+  #   rk3326_r13p0_gbm_with_vulkan_and_cl.zip: mali-g31-gbm (rk3326). dn.odroid.com 이 봇 확인(403)으로 막음
+  KEEP_ASSETS:  rk3326_r13p0_gbm_with_vulkan_and_cl.zip
   SOURCES_REPO: ${{ vars.SOURCES_REPO || 'knulli-build-sources' }}
   SOURCES_TAG:  sources
   DL_DIR:       ${{ github.workspace }}/dl
@@ -171,6 +174,7 @@ jobs:
           DELETED=0
           if [ -z "$FAILED_BOARDS" ]; then
             for n in $(LC_ALL=C comm -23 existing-names.txt needed-names.txt); do
+              case " $KEEP_ASSETS " in *" $n "*) continue ;; esac
               gh release delete-asset "$SOURCES_TAG" "$n" --repo "$REPO" -y </dev/null && DELETED=$((DELETED+1))
             done
           else
