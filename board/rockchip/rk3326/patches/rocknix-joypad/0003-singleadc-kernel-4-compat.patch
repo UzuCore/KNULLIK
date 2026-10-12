@@ -1,0 +1,58 @@
+From: KNULLIK developers
+Subject: [PATCH] singleadc: support the Linux 4.4 PWM and file read APIs
+
+Linux 4.4 returns an unsigned int from pwm_get_period() and takes the
+file offset by value in kernel_read(). Keep the serial read position
+updated after successful reads, as the newer kernel_read() API does.
+
+--- a/rocknix-singleadc-joypad.c
++++ b/rocknix-singleadc-joypad.c
+@@ -646,7 +646,8 @@
+ 	struct platform_device *pdev  = to_platform_device(dev);
+ 	struct joypad *joypad = platform_get_drvdata(pdev);
+ 
+-	return sprintf(buf, "%llu\n", pwm_get_period(joypad->pwm));
++	return sprintf(buf, "%llu\n",
++		       (unsigned long long)pwm_get_period(joypad->pwm));
+ }
+ 
+ /*----------------------------------------------------------------------------*/
+@@ -1474,6 +1475,20 @@
+ 	}
+ }
+ /*----------------------------------------------------------------------------*/
++static ssize_t joypad_kernel_read(struct file *file, void *buf, size_t count)
++{
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
++	ssize_t ret = kernel_read(file, file->f_pos, buf, count);
++
++	if (ret > 0)
++		file->f_pos += ret;
++
++	return ret;
++#else
++	return kernel_read(file, buf, count, &file->f_pos);
++#endif
++}
++
+ static int miyoo_autocal(struct joypad *joypad)
+ {
+ 	long sumYL = 0, sumXL = 0, sumYR = 0, sumXR = 0;
+@@ -1483,7 +1498,7 @@
+ 	dev_info(joypad->dev, "Auto-calibration: reading %d frames...", MIYOO_CALIBRATION_FRAMES);
+ 
+ 	while (framesRead < MIYOO_CALIBRATION_FRAMES) {
+-		ssize_t n = kernel_read(joypad->miyoo_filp, buf, MIYOO_FRAME_SIZE, &joypad->miyoo_filp->f_pos);
++		ssize_t n = joypad_kernel_read(joypad->miyoo_filp, buf, MIYOO_FRAME_SIZE);
+ 		if (n < 0) {
+ 			dev_err(joypad->dev, "Auto-cal read error: %zd\n", n);
+ 			msleep(10);
+@@ -1594,7 +1609,7 @@
+ 	dev_info(joypad->dev, "Starting Miyoo serial read loop.\n");
+ 
+ 	while (!kthread_should_stop()) {
+-		ssize_t n = kernel_read(joypad->miyoo_filp, frame, MIYOO_FRAME_SIZE, &joypad->miyoo_filp->f_pos);
++		ssize_t n = joypad_kernel_read(joypad->miyoo_filp, frame, MIYOO_FRAME_SIZE);
+ 		if (n < 0) {
+ 			dev_err(joypad->dev, "Serial read error: %zd\n", n);
+ 			msleep(10);
