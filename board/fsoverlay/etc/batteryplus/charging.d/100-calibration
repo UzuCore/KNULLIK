@@ -1,0 +1,40 @@
+#!/bin/sh
+
+CALIBRATED_FILE="/userdata/system/configs/batteryplus/batteryplus-calibrated"
+WATCH_FILE="/var/run/batteryplus-calibration-watch"
+MAX_CALIBRATION_WAIT_S=60
+
+[ "$1" = "100" ] || exit 0
+
+case "$2" in
+  Charging|Full) ;;
+  *) exit 0 ;;
+esac
+
+[ -e "$WATCH_FILE" ] && exit 0
+touch "$WATCH_FILE"
+
+(
+    trap 'rm -f "$WATCH_FILE"' EXIT
+
+    while [ "$(knulli-battery-check status 2>/dev/null)" != "Discharging" ]; do sleep 1; done
+
+    rm -f "$CALIBRATED_FILE"
+
+    curl -s http://localhost:1234/notify -d "Battery calibration in progress. Please wait..." >/dev/null
+
+    waited=0
+    while [ ! -e "$CALIBRATED_FILE" ]; do
+      if [ "$waited" -ge "$MAX_CALIBRATION_WAIT_S" ]; then
+        curl -s http://localhost:1234/notify -d "Battery calibration failed" >/dev/null
+        exit 1
+      fi
+
+      sleep 1
+      waited=$((waited + 1))
+    done
+
+    curl -s http://localhost:1234/notify -d "Battery calibration completed" >/dev/null
+) >/dev/null 2>&1 &
+
+exit 0

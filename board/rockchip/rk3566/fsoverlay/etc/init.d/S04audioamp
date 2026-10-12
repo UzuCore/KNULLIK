@@ -86,8 +86,20 @@ case "$1" in
             exit 1
         fi
         ;;
+    stop)
+        if [ "$BOARD" != "rg-ds" ] && [ "$BOARD" != "rg-vita-pro" ]; then
+            exit 0
+        fi
+        echo "Disabling AW87391 audio amplifiers..."
+        i2cset -y $BUS $AMP_ADDR_LEFT  $AMP_ENABLE_REG 0x00 2>/dev/null
+        i2cset -y $BUS $AMP_ADDR_RIGHT $AMP_ENABLE_REG 0x00 2>/dev/null
+        ;;
+    restart|reload)
+        "$0" stop
+        "$0" start
+        ;;
     *)
-        echo "Usage: $0 start"
+        echo "Usage: $0 {start|stop|restart}"
         exit 1
         ;;
 esac

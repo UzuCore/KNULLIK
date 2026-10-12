@@ -6,9 +6,11 @@ fi
 
 TOGGLE_STATE="/var/run/toggle-switch.state"
 
+CUSTOM_SCRIPT="/userdata/system/switch-custom.sh"
+
 MODE="$(/usr/bin/knulli-settings-get system.toggleswitch.mode)"
-if [[ -z "$MODE" || ! "$MODE" =~ ^(mute|rgboff|airplane)$ ]]; then
-    MODE="mute" # default can be mute|rgboff|airplane
+if [[ -z "$MODE" || ! "$MODE" =~ ^(mute|rgboff|airplane|custom)$ ]]; then
+    MODE="mute" # default can be mute|rgboff|airplane|custom
     /usr/bin/knulli-settings-set system.toggleswitch.mode "$MODE"
 fi
 
@@ -29,6 +31,15 @@ case "$ACTION" in
                 /usr/bin/knulli-planemode enable
                 echo "airplane" > "$TOGGLE_STATE"
                 ;;
+            custom)
+                if [ -f "$CUSTOM_SCRIPT" ]; then
+                    chmod +x "$CUSTOM_SCRIPT"
+                    "$CUSTOM_SCRIPT" enable
+                    echo "custom" > "$TOGGLE_STATE"
+                else
+                    echo "Custom toggle switch script not found: $CUSTOM_SCRIPT"
+                fi
+                ;;
         esac
         ;;
     disable)
@@ -46,6 +57,15 @@ case "$ACTION" in
                 ;;
             airplane)
                 /usr/bin/knulli-planemode disable
+                ;;
+            custom)
+                if [ -f "$CUSTOM_SCRIPT" ]; then
+                    chmod +x "$CUSTOM_SCRIPT"
+                    "$CUSTOM_SCRIPT" disable
+                else
+                    echo "Custom toggle switch script not found: $CUSTOM_SCRIPT"
+
+                fi
                 ;;
         esac
         rm -f "$TOGGLE_STATE"

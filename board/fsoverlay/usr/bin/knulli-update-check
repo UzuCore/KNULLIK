@@ -29,18 +29,18 @@ load_access_key() {
 parse_json_response() {
     local json_file="$1"
     local key="$2"
-    
+
     # Check if jq is installed
     if ! command -v jq &> /dev/null; then
         echo "ERROR: jq is required but not installed"
         return 1
     fi
-    
+
     # Check if file exists
     if [ ! -f "$json_file" ]; then
         return 1
     fi
-    
+
     # Get value using jq
     value=$(jq -r ".$key" "$json_file")
     echo "$value"
@@ -97,23 +97,23 @@ get_firmware_info() {
         echo "ERROR: firmware.sig file not found at $sig_file" >&2
         return 1
     fi
-    
+
     # Extract the rootfs.squashfs MD5 hash
     local md5_hash=$(grep "rootfs.squashfs_md5=" "$sig_file" | cut -d'=' -f2)
-    
+
     if [ -z "$md5_hash" ]; then
         echo "ERROR: Could not find rootfs MD5 in firmware.sig" >&2
         return 1
     fi
-    
+
     # Extract version from metadata section
     local version=$(grep -A 10 '\[metadata\]' "$sig_file" | grep 'version=' | cut -d'=' -f2 | tr -d '"')
-    
+
     if [ -z "$version" ]; then
         echo "ERROR: Could not find version in firmware.sig" >&2
         return 1
     fi
-    
+
     # Return both values separated by a delimiter
     echo "$md5_hash|$version"
 }
@@ -122,20 +122,20 @@ get_firmware_info() {
 get_partition_info() {
     local sig_file="$firmware_sig"
     local partitions_json=""
-    
+
     if [ ! -f "$sig_file" ]; then
         echo "{}"
         return 0
     fi
-    
+
     # Extract partition MD5s from [partitions] section
     local in_partitions=false
     local partition_entries=""
-    
+
     while IFS= read -r line; do
         # Remove leading/trailing whitespace
         line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        
+
         # Check for section headers
         if [[ "$line" == "[partitions]" ]]; then
             in_partitions=true
@@ -144,12 +144,12 @@ get_partition_info() {
             in_partitions=false
             continue
         fi
-        
+
         # If we're in partitions section and line contains =
         if [ "$in_partitions" = true ] && [[ "$line" =~ = ]]; then
             key=$(echo "$line" | cut -d'=' -f1)
             value=$(echo "$line" | cut -d'=' -f2)
-            
+
             # Add to partition entries (JSON format)
             if [ -n "$partition_entries" ]; then
                 partition_entries="$partition_entries,"
@@ -157,7 +157,7 @@ get_partition_info() {
             partition_entries="$partition_entries\"$key\":\"$value\""
         fi
     done < "$sig_file"
-    
+
     # Return JSON object
     echo "{$partition_entries}"
 }
@@ -216,8 +216,14 @@ response_file="$update_dir/update_response.json"
 # Ensure parent directory exists
 mkdir -p "$(dirname "$response_file")" 2>/dev/null || true
 
+# Check update server can be reached first
+if ! /usr/bin/knulli-internet-check "$updateurl/ota/check" 5 >> "$log" 2>&1; then
+    echo "ERROR: Unable to reach update server"
+    exit 2
+fi
+
 # Call the API to check for updates
-if ! curl -s -X POST -H "Content-Type: application/json" \
+if ! curl -s --connect-timeout 5 --max-time 15 -X POST -H "Content-Type: application/json" \
     -d "$json_payload" \
     "$updateurl/ota/check" > "$response_file"; then
         echo "ERROR: Failed to download updates list"
@@ -237,7 +243,7 @@ if [ "$updates_available" != "true" ]; then
     # Try to get reason
     reason=$(parse_json_response "$response_file" "reason")
     message=$(parse_json_response "$response_file" "message")
-    
+
     if [ -n "$message" ]; then
         echo "No updates available: $message" | tee -a "$log"
     elif [ -n "$reason" ]; then
@@ -245,7 +251,7 @@ if [ "$updates_available" != "true" ]; then
     else
         echo "No updates available" | tee -a "$log"
     fi
-    
+
     exit 2
 fi
 
@@ -257,13 +263,13 @@ if [ "$rootfs_update_available" = "true" ]; then
     update_md5=$(parse_json_response "$response_file" "rootfs_update.target_md5")
     update_build_date=$(parse_json_response "$response_file" "rootfs_update.build_date")
     update_url=$(parse_json_response "$response_file" "rootfs_update.full_url")
-    
+
     # Check if patch is available
     patch_available=$(parse_json_response "$response_file" "rootfs_update.patch_available")
     if [ "$patch_available" = "true" ]; then
         patch_url=$(parse_json_response "$response_file" "rootfs_update.patch_url")
     fi
-    
+
     # Log found rootfs update
     echo "Found rootfs update: $update_version (Build date: $update_build_date)" >> "$log"
     echo "  Current version: $current_version" >> "$log"
@@ -273,7 +279,7 @@ if [ "$rootfs_update_available" = "true" ]; then
     else
         echo "  Patch available: No" >> "$log"
     fi
-    
+
     # Output the update version for scripts that expect it
     echo "$update_version"
 fi

@@ -38,15 +38,15 @@ case "$ARCH" in
         BOARD_CAPABILITIES[pwrled]="rg35xx-plus rg35xx-h rg35xx-2024 rg35xx-sp rg34xx-sp rg28xx rg40xx-h rg40xx-v rg-cubexx rg34xx rg35xx-pro"
         ;;
     a133)
-        BOARD_CAPABILITIES[rgb]="trimui-smart-pro trimui-brick"
+        BOARD_CAPABILITIES[rgb]="trimui-smart-pro trimui-brick trimui-brick-pro"
         BOARD_CAPABILITIES[lid]="powkiddy-v90s"
-        BOARD_CAPABILITIES[wifi]="trimui-smart-pro trimui-brick powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
-        BOARD_CAPABILITIES[bluetooth]="trimui-smart-pro trimui-brick powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
-        BOARD_CAPABILITIES[analogstick]="trimui-smart-pro magicx-zero-28"
-        BOARD_CAPABILITIES[rumble]="trimui-smart-pro trimui-brick powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
-        BOARD_CAPABILITIES[adb]="trimui-smart-pro trimui-brick powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
-        BOARD_CAPABILITIES[hud]="trimui-smart-pro trimui-brick powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
-        BOARD_CAPABILITIES[toggleswitch]="trimui-smart-pro trimui-brick"
+        BOARD_CAPABILITIES[wifi]="trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
+        BOARD_CAPABILITIES[bluetooth]="trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
+        BOARD_CAPABILITIES[analogstick]="trimui-smart-pro trimui-brick-pro magicx-zero-28"
+        BOARD_CAPABILITIES[rumble]="trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
+        BOARD_CAPABILITIES[adb]="trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
+        BOARD_CAPABILITIES[hud]="trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v90s powkiddy-v20 magicx-zero-28 magicx-zero-40"
+        BOARD_CAPABILITIES[toggleswitch]="trimui-smart-pro trimui-brick trimui-brick-pro"
         ;;
     rk3128)
         BOARD_CAPABILITIES[analogstick]="ps5000 ps7000"
@@ -61,17 +61,18 @@ case "$ARCH" in
         BOARD_CAPABILITIES[hud]="r36s g350 magicx-mini-m pixel2"
         ;;
     rk3568)
-        # Technically the flip has a lid/hall sensor but it's just wired to the power button
-        #BOARD_CAPABILITIES[lid]="miyoo-flip"
-	    BOARD_CAPABILITIES[lid]="rg-ds"
-        BOARD_CAPABILITIES[hdmi]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip"
-        BOARD_CAPABILITIES[wifi]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
-        BOARD_CAPABILITIES[bluetooth]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
-        BOARD_CAPABILITIES[analogstick]="powkiddy-x55 powkiddy-rgb30 rg-ds"
-        BOARD_CAPABILITIES[rumble]="rg-arc-s powkiddy-x55 powkiddy-rgb30 rg-ds"
-        BOARD_CAPABILITIES[adb]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
-        BOARD_CAPABILITIES[hud]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
-	    BOARD_CAPABILITIES[pwrled]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
+        # miyoo-flip lid hall now emits KEY_F12 via a gpio-keys node (decoupled from
+        # the power button), so the lid works independently like rg-ds.
+        BOARD_CAPABILITIES[lid]="rg-ds miyoo-flip"
+        BOARD_CAPABILITIES[rgb]="miniloong"
+        BOARD_CAPABILITIES[hdmi]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip miniloong"
+        BOARD_CAPABILITIES[wifi]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds miniloong"
+        BOARD_CAPABILITIES[bluetooth]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds miniloong"
+        BOARD_CAPABILITIES[analogstick]="powkiddy-x55 powkiddy-rgb30 rg-ds miniloong"
+        BOARD_CAPABILITIES[rumble]="rg-arc-s powkiddy-x55 powkiddy-rgb30 rg-ds miniloong"
+        BOARD_CAPABILITIES[adb]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds miniloong"
+        BOARD_CAPABILITIES[hud]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds miniloong"
+	BOARD_CAPABILITIES[pwrled]="rg-arc-s powkiddy-x55 powkiddy-rgb30 miyoo-flip rg-ds"
         ;;
     rk3576)
         BOARD_CAPABILITIES[rgb]="rg-vita-pro"

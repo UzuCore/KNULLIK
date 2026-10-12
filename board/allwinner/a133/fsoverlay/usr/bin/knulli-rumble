@@ -31,7 +31,7 @@ find_event_by_name() {
 }
 
 case "$BOARD" in
-  trimui-smart-pro|trimui-brick)
+  trimui-smart-pro|trimui-brick|trimui-brick-pro)
     RUMBLE_FILE="/sys/class/gpio/gpio227/value"
     # Enable A133 rumble function if necessary
     if [ ! -d /sys/class/gpio/gpio227 ]; then

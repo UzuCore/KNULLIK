@@ -1,0 +1,9 @@
+default:
+  shader: /usr/share/knulli/shaders/sharp-shimmerless/shaders_glsl/sharp-shimmerless
+  
+gb: 
+  shader: presets/mugwomp93-grids/gb
+gbc:
+  shader: presets/mugwomp93-grids/gbc
+ngpc:
+  shader: presets/mugwomp93-grids/ngpc

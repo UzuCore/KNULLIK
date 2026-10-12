@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# Miyoo Flip status LEDs.
+#
+# HW (verified): two single-gpio LEDs with a shared green channel.
+#   led-work    (gpio0 PB4) -> BOTTOM green ("device on"); its green element
+#                              also lights the TOP led's green, so:
+#   led-charger (gpio0 PC2) -> TOP red.   PC2 + PB4 => TOP orange; PC2 alone => TOP red.
+#
+# Policy:
+#   device on (battery ok, not charging) : bottom GREEN, top OFF
+#   charging                             : bottom GREEN, top ORANGE   (PB4=1, PC2=1)
+#   charged (full)                       : bottom GREEN, top OFF
+#   low battery (discharging, <= LOW%)   : bottom OFF,   top RED      (PB4=0, PC2=1)
+#
+# Note: top RED needs PB4=0, which also drops the bottom green (shared channel) -
+# this is a hardware limitation; low battery intentionally overrides device-on.
+
+WORK_B=/sys/class/leds/led-work/brightness
+WORK_T=/sys/class/leds/led-work/trigger
+CHRG_B=/sys/class/leds/led-charger/brightness
+CHRG_T=/sys/class/leds/led-charger/trigger
+PSDIR=/sys/class/power_supply/battery
+LOW=${LOW:-15}
+
+# take ownership of both LEDs (drop kernel triggers so nothing else fights us)
+echo none > "$WORK_T" 2>/dev/null
+echo none > "$CHRG_T" 2>/dev/null
+
+set_leds() {  # $1=bottom green (work/PB4)  $2=top red (charger/PC2)
+    echo "$1" > "$WORK_B" 2>/dev/null
+    echo "$2" > "$CHRG_B" 2>/dev/null
+}
+
+while true; do
+    st=$(cat "$PSDIR/status" 2>/dev/null)
+    cap=$(cat "$PSDIR/capacity" 2>/dev/null)
+    [ -n "$cap" ] || cap=100
+    # honour the user's power-led preference for the "device on" green
+    pwr=$(/usr/bin/knulli-settings-get system.power.led 2>/dev/null)
+    [ "$pwr" = "0" ] && green=0 || green=1
+
+    case "$st" in
+        Charging)
+            if [ "$cap" -ge 100 ]; then set_leds "$green" 0; else set_leds "$green" 1; fi ;;
+        Full)
+            set_leds "$green" 0 ;;
+        *)  # Discharging / Not charging / Unknown
+            if [ "$cap" -le "$LOW" ]; then set_leds 0 1; else set_leds "$green" 0; fi ;;
+    esac
+    sleep 2
+done

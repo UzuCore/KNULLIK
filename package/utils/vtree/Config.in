@@ -1,0 +1,9 @@
+config BR2_PACKAGE_VTREE
+        bool "vtree"
+        depends on BR2_PACKAGE_SDL2
+        depends on BR2_PACKAGE_SDL2_TTF
+        depends on BR2_PACKAGE_SDL2_IMAGE
+        help
+          Dual-pane file manager for gamepad-driven handheld Linux devices.
+          Requires SDL2, SDL2_ttf, and SDL2_image.
+

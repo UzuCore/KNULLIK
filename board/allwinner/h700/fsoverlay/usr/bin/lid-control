@@ -25,6 +25,7 @@ if [[ -z "$MODE" || ! "$MODE" =~ ^(suspend|shutdown|dispoff|none)$ ]]; then
 fi
 
 MUTE="$(/usr/bin/knulli-settings-get system.batterysaver.mute)"
+AGGRESSIVE="$(/usr/bin/knulli-settings-get system.batterysaver.aggressive)"
 
 display_off() {
     knulli-brightness dispoff
@@ -41,6 +42,7 @@ shutdown_system() {
 
 do_open() {
     if [ "$MODE" == "dispoff" ] || [ -f "$FLAG_FILE" ]; then
+        [[ "$AGGRESSIVE" == "1" ]] && knulli-aggressive-saver off
         knulli-brightness dispon
         [[ "$MUTE" == "1" ]] && knulli-audio setSystemVolume unmute
         [ -f "$FLAG_FILE" ] && rm -f "$FLAG_FILE"
@@ -58,6 +60,7 @@ do_close() {
                 suspend_system
             elif [ "$MODE" == "dispoff" ]; then
                 display_off
+                [[ "$AGGRESSIVE" == "1" ]] && knulli-aggressive-saver on
             fi
         else
             knulli-brightness dispoff

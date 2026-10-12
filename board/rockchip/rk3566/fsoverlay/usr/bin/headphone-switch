@@ -6,6 +6,12 @@ AMIXER="/usr/bin/amixer"
 # Fallback if the state file is missing
 [ -r "$STATE_FILE" ] || exit 0
 
+# Only act on extcons that expose a HEADPHONE cable. The udev rule fires on ANY
+# extcon change (the headset extcon's name/number varies per board: "rk-headset"
+# on rk_headset boards, "rk817-sound" on the rk817-codec ones), so ignore the
+# USB-phy / HDMI / charger extcons which have no HEADPHONE line.
+grep -q "HEADPHONE=" "$STATE_FILE" || exit 0
+
 # Read extcon state. Typical contents include lines like "HEADPHONE=1" or "HEADPHONE=0".
 if grep -q "HEADPHONE=1" "$STATE_FILE"; then
   $AMIXER -c 0 -q set 'Playback Path' HP

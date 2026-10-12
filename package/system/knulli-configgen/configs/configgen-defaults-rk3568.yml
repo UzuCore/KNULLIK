@@ -8,7 +8,6 @@ default:
     retroarch.audio_driver: alsathread
     retroarch.ozone_font_scale: "1"
     retroarch.ozone_font_scale_factor_global: "1.200000"
-    retroarch.menu_battery_level_enable: "false"
 
 nds:
   emulator: advanced_drastic

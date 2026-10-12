@@ -1092,6 +1092,18 @@ def generateCoreSettings(coreSettings: UnixSettings, system: Emulator, rom: Path
             coreSettings.save('mupen64plus-169screensize', '"' + system.config['mupen64plus-169screensize'] + '"')
         else:
             coreSettings.save('mupen64plus-169screensize', '"640x360"')
+        # Crop overscan
+        coreSettings.save('mupen64plus-EnableOverscan ', '"Enabled"')
+        if system.isOptSet('mupen64plus-crop-overscan'):
+            coreSettings.save('mupen64plus-OverscanBottom', '"' + system.config['mupen64plus-crop-overscan'] + '"')
+            coreSettings.save('mupen64plus-OverscanLeft', '"' + system.config['mupen64plus-crop-overscan'] + '"')
+            coreSettings.save('mupen64plus-OverscanRight', '"' + system.config['mupen64plus-crop-overscan'] + '"')
+            coreSettings.save('mupen64plus-OverscanTop', '"' + system.config['mupen64plus-crop-overscan'] + '"')
+        else:
+            coreSettings.save('mupen64plus-OverscanBottom', '"0"')
+            coreSettings.save('mupen64plus-OverscanLeft', '"0"')
+            coreSettings.save('mupen64plus-OverscanRight', '"0"')
+            coreSettings.save('mupen64plus-OverscanTop', '"0"')
         # Widescreen Hack
         # Increases from 4:3 to 16:9 in 3D games (bad for 2D)
         if system.isOptSet('mupen64plus-aspect') and system.isOptSet('ratio') and system.isOptSet('bezel') and system.config['mupen64plus-aspect'] == '16:9 adjusted' and system.config["ratio"] == "16/9" and system.config["bezel"] == "none":
@@ -1226,7 +1238,12 @@ def generateCoreSettings(coreSettings: UnixSettings, system: Emulator, rom: Path
             if system.isOptSet('gfxbackend') and system.config['gfxbackend'] == "vulkan":
                 coreSettings.save('parallel-n64-gfxplugin', '"parallel"')
             else:
-                coreSettings.save('parallel-n64-gfxplugin', '"gln64"')
+                coreSettings.save('parallel-n64-gfxplugin', '"glide64"')
+        # Graphics plugin accuracy
+        if system.isOptSet('parallel-n64-gfxplugin-accuracy'):
+            coreSettings.save('parallel-n64-gfxplugin-accuracy', '"' + system.config['parallel-n64-gfxplugin-accuracy'] + '"')
+        else:
+            coreSettings.save('parallel-n64-gfxplugin-accuracy', '"veryhigh"')
         # Video Resolution
         if system.isOptSet('parallel-n64-screensize'):
             coreSettings.save('parallel-n64-screensize', '"' + system.config['parallel-n64-screensize'] + '"')

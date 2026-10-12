@@ -26,7 +26,7 @@ if [ "$BOARD" = "$ARCH" ]; then
     mount -o remount,rw /boot
     echo $NEW_BOARD > /boot/boot/knulli.board
     sync
-    mount -o rwmount,ro /boot
+    mount -o remount,ro /boot
 fi
 
 for i in /etc/init.d/S??* ; do

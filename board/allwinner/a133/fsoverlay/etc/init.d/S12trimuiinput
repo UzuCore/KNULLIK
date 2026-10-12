@@ -5,7 +5,7 @@ BIN="/usr/bin/trimui_inputd"
 
 read -r BOARD < /boot/boot/knulli.board
 case "$BOARD" in
-    trimui-smart-pro|trimui-brick|trimui-smart-pro-s)
+    trimui-smart-pro|trimui-brick|trimui-brick-pro|trimui-smart-pro-s)
         ;;
     *)
         exit 0

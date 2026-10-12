@@ -1,0 +1,118 @@
+#!/bin/bash
+
+STATE_DIR="/var/run/battery-saver"
+LOCK_FILE="$STATE_DIR/aggressive.lock"
+ACTIVE_FILE="$STATE_DIR/aggressive.active"
+GOVERNOR_SAVED="$STATE_DIR/governor.saved"
+STOPPED_PIDS="$STATE_DIR/aggressive-stopped-pids"
+
+mkdir -p "$STATE_DIR"
+
+exec 200>"$LOCK_FILE"
+flock 200 || exit 0
+
+ACTION="$1"
+
+is_active() {
+    [ -f "$ACTIVE_FILE" ]
+}
+
+check_pause() {
+    # return 0 if any *.pause exists, else 1
+    compgen -G "$STATE_DIR/*.pause" > /dev/null && return 0
+    return 1
+}
+
+save_and_set_governor() {
+    local current=""
+
+    if [[ ! -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]]; then
+        return 0
+    fi
+
+    read -r current < /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || current=""
+
+    # Only save non-powersave governor, and only if one has not been saved already.
+    if [[ -n "$current" && "$current" != "powersave" && ! -f "$GOVERNOR_SAVED" ]]; then
+        echo "$current" > "$GOVERNOR_SAVED"
+    fi
+
+    for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        echo powersave > "$g" 2>/dev/null || true
+    done
+}
+
+restore_governor() {
+    local saved=""
+
+    if [[ ! -r "$GOVERNOR_SAVED" ]]; then
+        return 0
+    fi
+
+    read -r saved < "$GOVERNOR_SAVED" 2>/dev/null || saved=""
+
+    if [[ -n "$saved" && "$saved" != "powersave" ]]; then
+        for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            echo "$saved" > "$g" 2>/dev/null || true
+        done
+    fi
+
+    rm -f "$GOVERNOR_SAVED"
+}
+
+stop_system() {
+    save_and_set_governor
+
+    : > "$STOPPED_PIDS"
+
+    for pid in $(ps -eo pid,ni | awk '$2==-4 {print $1}'); do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -STOP "$pid" 2>/dev/null && echo "$pid" >> "$STOPPED_PIDS"
+        fi
+    done
+
+    /etc/init.d/S31emulationstation suspend
+}
+
+continue_system() {
+    restore_governor
+
+    /etc/init.d/S31emulationstation resume
+
+    if [ -f "$STOPPED_PIDS" ]; then
+        while read -r pid; do
+            [ -n "$pid" ] && kill -CONT "$pid" 2>/dev/null || true
+        done < "$STOPPED_PIDS"
+
+        rm -f "$STOPPED_PIDS"
+    fi
+}
+
+case "$ACTION" in
+    on)
+        if check_pause; then
+            exit 0
+        fi
+
+        if is_active; then
+            exit 0
+        fi
+
+        touch "$ACTIVE_FILE"
+        stop_system
+        ;;
+    off)
+        if ! is_active; then
+            exit 0
+        fi
+
+        rm -f "$ACTIVE_FILE"
+        continue_system
+        ;;
+    *)
+        echo "Usage: $0 on|off" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

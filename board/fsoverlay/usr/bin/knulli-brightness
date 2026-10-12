@@ -1,9 +1,12 @@
 #!/bin/sh
 
 CYCLESTEP=20 # % additional brightness at each step
-XMIN=3
 VALPATH=/var/run/$(basename "$0") # Stored brightness value when the display is turned off
 LOCK=/var/run/$(basename "$0").lock # Mainly needed because of the dim animation
+
+exec 9>"$LOCK"
+flock 9
+trap 'flock -u 9; exec 9>&-' EXIT INT TERM
 
 BACKLIGHT_DIR=
 for d in /sys/class/backlight/*; do
@@ -38,17 +41,11 @@ else
     }
 fi
 
-FB_BLANK=/sys/class/graphics/fb0/blank
+# calculate min from max
+XMIN=$(( (XMAX + 99) / 100 ))
+[ "$XMIN" -lt 3 ] && XMIN=3
 
-do_lock() {
-    exec 9>"$LOCK"
-    flock -n 9 || exit 0
-    "$@"
-    ret=$?
-    flock -u 9
-    exec 9>&-
-    return "$ret"
-}
+FB_BLANK=/sys/class/graphics/fb0/blank
 
 update_rgb_brightness() {
     [ -n "$1" ] || return 0
@@ -65,9 +62,9 @@ update_rgb_brightness() {
 animate_brightness() {
     current=$1
     target=$2
-    duration=250 # ms
-    min_steps=3
-    max_steps=9
+    duration=225 # (ms) There's usually about 25ms added to the requested duration
+    min_steps=2
+    max_steps=8
 
     distance=$(( target - current ))
     abs_distance=$(( distance < 0 ? -distance : distance ))
@@ -97,8 +94,6 @@ animate_brightness() {
 
         i=$(( i + 1 ))
     done
-
-    bl_set "$target" >/dev/null 2>&1
 }
 
 get_percent() {
@@ -197,6 +192,11 @@ display_off() {
 }
 
 display_on() {
+    if [ -z "$BACKLIGHT_DIR" ] && [ -w "$FB_BLANK" ]; then
+        echo 0 > "$FB_BLANK"
+        sleep 0.05
+    fi
+
     if [ -e "${VALPATH}" ]; then
         read -r PERCENT_SAVED < "$VALPATH"
         RESTORE_ABS=$(percent_to_abs "$PERCENT_SAVED")
@@ -204,10 +204,6 @@ display_on() {
         rm -f "${VALPATH}"
     else
         PERCENT_SAVED="$(get_percent "$(bl_get)")"
-    fi
-
-    if [ -z "$BACKLIGHT_DIR" ] && [ -w "$FB_BLANK" ]; then
-        echo 0 > "$FB_BLANK"
     fi
 
     update_rgb_brightness "$PERCENT_SAVED"
@@ -232,15 +228,11 @@ then
     elif [ "${1}" = "dispon" ]; then
         display_on
     elif [ "${1}" = "dim" ]; then
-        do_lock do_dim
+        do_dim
     elif [ "${1}" = "undim" ]; then
-        do_lock do_undim
+        do_undim
     else
-        if [ "$1" -eq 1 ]; then
-            NEWVAL=$XMIN
-        else
-            NEWVAL=$(( $1 * XMAX / 100 ))
-        fi
+        NEWVAL=$(percent_to_abs "$1")
         setValue "${NEWVAL}"
         exit 0
     fi

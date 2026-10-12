@@ -45,6 +45,8 @@ apply_audioconfig() {
     # because in case the audio card doesn't exist,
     # it is nice to have the volume applied on the default output
     if [ "$EXITCODE" -eq 0 ] && [ -n "$VOLUME" ]; then
+        # Prime the playback path before applying volume. Workaround to some device specific issues but is harmless
+        dd if=/dev/zero bs=96000 count=1 2>/dev/null | aplay -q -f S16_LE -r 48000 -c 2 >/dev/null 2>&1 || true
         knulli-audio setSystemVolume "$VOLUME" || EXITCODE=1
     fi
     return ${EXITCODE}

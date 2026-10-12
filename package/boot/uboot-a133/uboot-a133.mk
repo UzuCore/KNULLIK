@@ -11,7 +11,7 @@ UBOOT_A133_LICENSE = GPL-2.0
 UBOOT_A133_DEPENDENCIES = host-dtc host-allwinner-utils
 
 # List of supported A133 devices
-UBOOT_A133_DEVICES = trimui-smart-pro trimui-brick powkiddy-v20 powkiddy-v90s magicx-zero-28 magicx-zero-40 xu20-v32
+UBOOT_A133_DEVICES = trimui-smart-pro trimui-brick trimui-brick-pro powkiddy-v20 powkiddy-v90s magicx-zero-28 magicx-zero-40 xu20-v32
 
 define UBOOT_A133_EXTRACT_CMDS
     # Copy all device configurations to build directory

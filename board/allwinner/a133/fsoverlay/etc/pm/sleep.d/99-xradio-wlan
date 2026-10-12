@@ -1,31 +1,39 @@
 #!/bin/bash
 
 BOARD=$(cat /boot/boot/knulli.board)
+
 # We only want the script to run for these devices
-if [ "$BOARD" != "trimui-brick" ] && [ "$BOARD" != "trimui-smart-pro" ]; then
-    exit 1
-fi
+case "$BOARD" in
+    trimui-brick|trimui-brick-pro|trimui-smart-pro)
+        ;;
+    *)
+        exit 0
+        ;;
+esac
 
 case "${1}" in
    suspend)
       # Disable USB
-      echo 'usb1' | tee /sys/bus/usb/drivers/usb/unbind
+      echo 'usb1' > /sys/bus/usb/drivers/usb/unbind 2>/dev/null
 
       # Disable xradio Wi-Fi drivers
-      rfkill block wifi
-      rmmod xradio_wlan
+      rfkill block wifi 2>/dev/null
+      rmmod xradio_wlan 2>/dev/null
       ;;
    thaw|resume)
-      # Re-enable USB
-      echo 'usb1' | tee /sys/bus/usb/drivers/usb/bind
+    (
+        # Re-enable USB
+        echo 'usb1' > /sys/bus/usb/drivers/usb/bind 2>/dev/null
 
-      # Re-enable xradio Wi-Fi drivers
-      if [ "$BOARD" = "trimui-smart-pro" ]; then
-        insmod /lib/modules/4.9.191/xradio_wlan_tsp.ko
-      else
-        insmod /lib/modules/4.9.191/xradio_wlan.ko
-      fi
-      rfkill unblock wifi
-      ;;
+        # Re-enable xradio Wi-Fi driver
+        if [ "$BOARD" = "trimui-smart-pro" ]; then
+            insmod /lib/modules/4.9.191/xradio_wlan_tsp.ko 2>/dev/null
+        else
+            insmod /lib/modules/4.9.191/xradio_wlan.ko 2>/dev/null
+        fi
+
+        rfkill unblock wifi 2>/dev/null
+    ) </dev/null >/dev/null 2>&1 &
+    ;;
 esac
 exit 0

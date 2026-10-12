@@ -1,0 +1,10 @@
+config BR2_PACKAGE_RTL8733BU
+	bool "Realtek RTL8733BU USB WiFi driver (Miyoo Flip)"
+	depends on BR2_LINUX_KERNEL
+	help
+	  Out-of-tree Realtek RTL8733BU (USB id 0bda:b733 / 0bda:f72b) WiFi
+	  vendor driver, built against the BSP kernel. Used by the Miyoo Flip.
+
+	  The 8733B WiFi is not supported by mainline rtw88 nor by the rockchip
+	  BSP; this builds the Realtek vendor driver in cfg80211 mode (wlan0 via
+	  nl80211). The Bluetooth half of the chip uses in-tree btusb.

@@ -151,7 +151,7 @@ class LibretroGenerator(Generator):
         # For flycast cores on the A133 boards, we need to use an older SDL2-2.26 library
         if system.name == 'dreamcast' or system.name == 'naomi' or system.name == 'naomi2' or system.name == 'atomiswave':
             board = self.get_board_info()
-            if board == 'trimui-brick' or board == 'trimui-smart-pro':
+            if board == 'trimui-brick' or board == 'trimui-brick-pro' or board == 'trimui-smart-pro':
                 commandEnv["LD_LIBRARY_PATH"] = "/usr/share/flycast"
         # For the NeoGeo CD (lr-fbneo) it is necessary to add the parameter: --subsystem neocd
         if system.name == 'neogeocd' and system.config['core'] == "fbneo":

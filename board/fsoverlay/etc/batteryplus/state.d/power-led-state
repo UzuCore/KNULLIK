@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# We only want to run the script if the board has lid capability
+if ! knulli-board-capability "pwrled"; then
+    exit 1
+fi
+
+LED="$(/usr/bin/knulli-settings-get system.power.led)"
+if [ "$LED" = "0" ]; then
+    knulli-power-led power off
+else
+    knulli-power-led power on
+fi
+
+exit 0

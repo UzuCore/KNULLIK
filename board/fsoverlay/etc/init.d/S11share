@@ -53,6 +53,19 @@ mountRAMDisk() {
     mount -t tmpfs -o size=256M tmpfs /userdata
 }
 
+mountLocalShare() {
+    FSTYPE=$1
+    DEVICE=$2
+    DIR=$3
+
+    if [ "${FSTYPE}" = "exfat" ] && grep -qw exfat /proc/filesystems
+    then
+        mount -i -t exfat -o noatime,uid=0,gid=0,umask=000 "${DEVICE}" "${DIR}"
+    else
+        knulli-mount "${FSTYPE}" 1 "${DEVICE}" "${DIR}"
+    fi
+}
+
 mountDeviceOrFallback() {
     DEVICE=$1
     TDEVICE=$2
@@ -63,7 +76,7 @@ mountDeviceOrFallback() {
     then
         if mkdir -p "${KNULLIFULLFS}"
         then
-            if knulli-mount "${TDEVICE}" 1 "${DEVICE}" "${KNULLIFULLFS}"
+            if mountLocalShare "${TDEVICE}" "${DEVICE}" "${KNULLIFULLFS}"
             then
                 if mkdir -p "${KNULLIFULLFS}"
                 then
@@ -78,7 +91,7 @@ mountDeviceOrFallback() {
 
     if [ "${FALLBACK}" = "1" ]
     then
-        if ! knulli-mount "${INTERNALDEVICETYPE}" 1 "${INTERNALDEVICE}" /userdata
+        if ! mountLocalShare "${INTERNALDEVICETYPE}" "${INTERNALDEVICE}" /userdata
         then
             mountRAMDisk
         fi
@@ -147,7 +160,7 @@ mountDevicesOrNetwork() {
         do
             XWAIT=4 # N seconds between each try
             XTRY=$((MAXTRY / XWAIT)) # X tries and give up
-            
+
             while [ "${XTRY}" -gt 0 ]
             do
                 XTRY=$((XTRY-1))
@@ -324,7 +337,7 @@ case "${MODE}" in
         # first, INTERNAL mount, then, network mount over the NETWORK mounts
         # to allow to mount over /userdata, but only over /userdata/roms if wanted
         # mounting network mounts over usb key have not really sense
-        if ! knulli-mount "${INTERNALDEVICETYPE}" 1 "${INTERNALDEVICE}" /userdata
+        if ! mountLocalShare "${INTERNALDEVICETYPE}" "${INTERNALDEVICE}" /userdata
         then
             # fallback
             mountRAMDisk
@@ -335,7 +348,7 @@ case "${MODE}" in
         mountDevicesOrNetwork > /tmp/mountDevicesOrNetwork.log 2> /tmp/mountDevicesOrNetwork.err # could be usefull to debug
     ;;
     "INTERNAL"|*)
-        if ! knulli-mount "${INTERNALDEVICETYPE}" 1 "${INTERNALDEVICE}" /userdata
+        if ! mountLocalShare "${INTERNALDEVICETYPE}" "${INTERNALDEVICE}" /userdata
         then
             # fallback
             # the internal partition is no more required in fact

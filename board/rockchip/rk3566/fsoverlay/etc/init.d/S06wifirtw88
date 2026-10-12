@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# RTL8821CS (rtw88 SDIO) cold-boot recovery.
+#
+# The first probe after a cold power-on intermittently times out talking to the
+# chip over SDIO ("sdio read32/write32 failed -110", no wlan0). A driver rebind
+# (clean pwr_off -> pwr_on) recovers it 100%. If wlan0 is already present we do
+# nothing. Affects the RTL8821CS handhelds (RG DS, RG ARC-S, ...).
+#
+DRV=/sys/bus/sdio/drivers/rtw_8821cs
+
+find_dev() {
+	for d in /sys/bus/sdio/devices/*; do
+		[ -e "$d/vendor" ] || continue
+		if [ "$(cat "$d/vendor" 2>/dev/null)" = "0x024c" ] &&
+		   [ "$(cat "$d/device" 2>/dev/null)" = "0xc821" ]; then
+			basename "$d"
+			return 0
+		fi
+	done
+	return 1
+}
+
+start() {
+	# Give the driver a moment to do its (failing) first probe.
+	i=0
+	while [ $i -lt 15 ]; do
+		[ -e /sys/class/net/wlan0 ] && return 0
+		[ -d "$DRV" ] && break
+		i=$((i + 1)); sleep 1
+	done
+
+	[ -d "$DRV" ] || return 0
+
+	i=0
+	while [ $i -lt 5 ]; do
+		[ -e /sys/class/net/wlan0 ] && return 0
+		DEV=$(find_dev) || { sleep 1; i=$((i + 1)); continue; }
+		echo "rtw88: rebinding $DEV to recover WiFi" > /dev/kmsg 2>/dev/null
+		echo "$DEV" > "$DRV/unbind" 2>/dev/null
+		sleep 1
+		echo "$DEV" > "$DRV/bind" 2>/dev/null
+		sleep 3
+		i=$((i + 1))
+	done
+}
+
+case "$1" in
+	start) start ;;
+	stop) : ;;
+	restart|reload) start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+exit 0

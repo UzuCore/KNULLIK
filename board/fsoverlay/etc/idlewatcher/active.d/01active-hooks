@@ -13,22 +13,7 @@ AGGRESSIVE="$(/usr/bin/knulli-settings-get system.batterysaver.aggressive)"
 MUTE="$(/usr/bin/knulli-settings-get system.batterysaver.mute)"
 
 undo_aggressive() {
-  # Pause emulator processes (we set to -4 niceness so this is easy to target)
-  for pid in $(ps -eo pid,ni | awk '$2==-4 {print $1}'); do
-    kill -CONT "$pid"
-  done
-
-  # Resume ES
-  /etc/init.d/S31emulationstation resume
-
-  # Restore governor if we saved one
-  if [ -r "$GOVERNOR_SAVED" ]; then
-    read -r PREV < "$GOVERNOR_SAVED" 2>/dev/null || PREV=""
-    [ -n "$PREV" ] && for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-      echo "$PREV" > "$g" 2>/dev/null || true
-    done
-    rm -f "$GOVERNOR_SAVED"
-  fi
+  knulli-aggressive-saver off
 }
 
 do_active() {

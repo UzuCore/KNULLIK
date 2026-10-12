@@ -13,13 +13,17 @@ case "$ARCH" in
     *) echo "${ARCH} is unsupported" >&2; exit 1 ;;
 esac
 
-# Wait for emulationstation to be ready so this runs after everything else has initialized
-for i in {1..200}; do
-    [ -f /tmp/emulationstation.ready ] && break
-    sleep 0.25
-done
+wait_emulationstation_started() {
+    local tries=0
 
-sleep 0.25 # This is needed
+    while [ "$tries" -lt 600 ]; do
+        [ -f /tmp/emulationstation.ready ] && return 0
+        sleep 0.1
+        tries=$((tries + 1))
+    done
+
+    return 1
+}
 
 # Export GPIO if not already exported
 if [ ! -d "/sys/class/gpio/gpio${GPIO}" ]; then
@@ -32,13 +36,14 @@ for i in {1..20}; do
     sleep 0.1
 done
 
-[ -f "/sys/class/gpio/gpio${GPIO}/value" ] || exit 1
+[ -r "/sys/class/gpio/gpio${GPIO}/value" ] || exit 1
 
 SWITCH_STATE=$(cat /sys/class/gpio/gpio${GPIO}/value)
 
 case "$1" in
     start)
         if [ "$SWITCH_STATE" = "1" ]; then
+            wait_emulationstation_started || exit 1
             toggle-switch enable
         else
             toggle-switch disable

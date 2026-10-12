@@ -10,13 +10,15 @@ Subject: [PATCH] Add Retroid Pocket SM8250 configuration
  ucm2/conf.d/sm8250/RetroidPocket.conf         |  1 +
  .../sm8250/retroidpocket-RetroidPocket5-.conf |  1 +
  .../retroidpocket-RetroidPocketMini-.conf     |  1 +
- 6 files changed, 104 insertions(+)
+ .../retroidpocket-RetroidPocketMiniV2-.conf   |  1 +
+ 7 files changed, 105 insertions(+)
  create mode 100644 ucm2/Qualcomm/sm8250/HiFi-RP.conf
  create mode 100644 ucm2/Qualcomm/sm8250/RetroidPocket.conf
  create mode 100644 ucm2/codecs/wsa881x/init.conf
  create mode 120000 ucm2/conf.d/sm8250/RetroidPocket.conf
  create mode 120000 ucm2/conf.d/sm8250/retroidpocket-RetroidPocket5-.conf
  create mode 120000 ucm2/conf.d/sm8250/retroidpocket-RetroidPocketMini-.conf
+ create mode 120000 ucm2/conf.d/sm8250/retroidpocket-RetroidPocketMiniV2-.conf
 
 diff --git a/ucm2/Qualcomm/sm8250/HiFi-RP.conf b/ucm2/Qualcomm/sm8250/HiFi-RP.conf
 new file mode 100644
@@ -161,6 +163,14 @@ index 0000000..8598750
 @@ -0,0 +1 @@
 +../../Qualcomm/sm8250/RetroidPocket.conf
 \ No newline at end of file
--- 
+diff --git a/ucm2/conf.d/sm8250/retroidpocket-RetroidPocketMiniV2-.conf b/ucm2/conf.d/sm8250/retroidpocket-RetroidPocketMiniV2-.conf
+new file mode 120000
+index 0000000..8598750
+--- /dev/null
++++ b/ucm2/conf.d/sm8250/retroidpocket-RetroidPocketMiniV2-.conf
+@@ -0,0 +1 @@
++../../Qualcomm/sm8250/RetroidPocket.conf
+\ No newline at end of file
+--
 2.34.1
 

@@ -1,0 +1,10 @@
+shaders = 2
+
+shader0 = /usr/share/knulli/shaders/sharp-shimmerless/shaders_glsl/shaders/sharp-shimmerless.glsl
+filter_linear0 = true
+shader1 = /usr/share/knulli/shaders/handheld/shaders/pixel_transparency.glsl
+filter_linear1 = false
+scale_type1 = viewport
+PT_SHADOW_OFFSET_X = "1.000000"
+PT_SHADOW_OFFSET_Y = "1.000000"
+PT_SHADOW_OPACITY = "0.520000"

@@ -52,19 +52,6 @@ case "${ACTION}" in
                     BOARD=$(cat /boot/boot/knulli.board)
 
                     case "${ARCH}" in
-                        "rk3399")
-                            MODE=alsa_output.platform-hdmi-sound.stereo-fallback
-                            LANG=C pactl set-default-sink "${MODE}" || exit 1
-                            ;;
-                        "s922x")
-                            if [[ "$BOARD" == "ogu" ]]; then
-                                LANG=C pactl set-default-sink INTERNAL
-                                amixer -c 0 -q sset "Master" 100%
-                                amixer -c 0 sset 'Playback Mux' SPK
-                                amixer -c 0 -q sset 'FRDDR_A SINK 1 SEL' 'OUT 1'
-                                amixer -c 0 -q sset 'FRDDR_A SRC 1 EN' 'on'
-                            fi
-                            ;;
                         "rk3326")
                             if [[ "$BOARD" == "r36s" ]]; then
                                 amixer -c 0 sset "Playback Path" "SPK_HP"
@@ -105,15 +92,29 @@ case "${ACTION}" in
 
                             amixer -c 0 sset 'SPK' on
                             amixer -c 0 sset 'HPOUT' on
+
                             amixer -c 0 sset 'LINEOUTL' on
                             amixer -c 0 sset 'LINEOUTR' on
 
+                            amixer -c 0 sset 'LINEOUT Gain' 0
                             amixer -c 0 sset 'HPOUT Gain' "$(knulli-settings-get audio.headphone || echo 5)"
-                            amixer -c 0 sset 'LINEOUT Gain' 23
 
                             amixer -c 0 sset 'DACL DACR Swap' On # Fixes reversed audio channels
 
                             LANG=C pactl set-default-sink "${MODE}" || exit 1
+
+                            (
+                                tries=0
+                                while [ "$tries" -lt 600 ]; do
+                                    [ -f /tmp/emulationstation.ready ] && break
+                                    tries=$((tries + 1))
+                                    sleep 0.1
+                                done
+
+                                sleep 0.5
+
+                                amixer -c 0 sset 'LINEOUT Gain' 23 >/dev/null 2>&1 || true
+                            ) &
                             ;;
                         "rk3568")
                             if [ -f "/sys/class/drm/card0-HDMI-A-1/status" ]; then
@@ -129,6 +130,9 @@ case "${ACTION}" in
                             if [[ "$BOARD" == "powkiddy-rgb30" ]]; then
                                 amixer -c 0 sset "Playback Path" "HP"
                             fi
+
+                            # Sets DAC volume to max (for some reason it rejects 100%/255)
+                            amixer -c 0 sset 'DAC' 252
 
                             # Needed for audio resume after suspend
                             amixer -c 0 sset 'Resume Path' 'ON'

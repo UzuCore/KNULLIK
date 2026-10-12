@@ -1,0 +1,38 @@
+--- a/src/configure	2025-09-25 16:14:00.000000000 +0000
++++ b/src/configure	2026-06-02 21:06:20.218765968 +0000
+@@ -474,7 +474,7 @@ return 0;
+ _EOF
+ 
+ $CCOMPILER $CFLAGS $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
+-CHARSIZE=`./$TEMPFILE.o`
++CHARSIZE=1
+ rm -f $TEMPFILE $TEMPFILE.o
+ echo $CHARSIZE
+ if [ "$CHARSIZE" != "1" ]; then
+@@ -495,7 +495,7 @@ return 0;
+ _EOF
+ 
+ $CCOMPILER $CFLAGS $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
+-SHORTSIZE=`./$TEMPFILE.o`
++SHORTSIZE=2
+ rm -f $TEMPFILE $TEMPFILE.o
+ echo $SHORTSIZE
+ if [ "$SHORTSIZE" != "2" ]; then
+@@ -516,7 +516,7 @@ return 0;
+ _EOF
+ 
+ $CCOMPILER $CFLAGS $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
+-SHORTSIZE=`./$TEMPFILE.o`
++SHORTSIZE=4
+ rm -f $TEMPFILE $TEMPFILE.o
+ echo $SHORTSIZE
+ if [ "$SHORTSIZE" != "4" ]; then
+@@ -537,7 +537,7 @@ return 0;
+ _EOF
+ 
+ $CCOMPILER $CFLAGS $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
+-SHORTSIZE=`./$TEMPFILE.o`
++SHORTSIZE=8
+ rm -f $TEMPFILE $TEMPFILE.o
+ echo $SHORTSIZE
+ if [ "$SHORTSIZE" != "8" ]; then

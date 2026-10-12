@@ -87,7 +87,7 @@ shared:
         "Off": 0
     srm_dump_ingame:
       prompt: DUMP SRM SAVES WHILE IN GAME
-      description: Dumps your ingame saves every 10 seconds while in game. Might wear out your SD card faster if enabled. Works only on libretro cores.
+      description: Checks for updates of your in-game saves every 10 seconds and dumps them immediately instead of only on game exit. Works only on libretro cores.
       preset: switchauto
     shaderset:
       prompt: SHADER SET
@@ -4379,6 +4379,21 @@ libretro:
                     "2560x1440": 2560x1440
                     "3840x2160": 3840x2160
                     "7680x4320": 7680x4320
+            mupen64plus-crop-overscan:
+                prompt:      CROP OVERSCAN
+                description: Crops the edges of the output image to hide overscan borders.
+                choices:
+                    "Off (Default)":    0
+                    "2px":              2
+                    "4px":              4
+                    "6px":              6
+                    "8px":              8
+                    "10px":             10
+                    "12px":             12
+                    "14px":             14
+                    "16px":             16
+                    "18px":             18
+                    "20px":             20
             mupen64plus-next-autowidescreen:
                 prompt:      AUTO WIDESCREEN
                 description: Automatically sets aspect ratio to 16/9 for games that natively support it. 2D elements like HUD/UI may be stretched.
@@ -4954,6 +4969,14 @@ libretro:
                     "Rice":      rice
                     "Angrylion": angrylion
                     "Parallel":  parallel
+            parallel-n64-gfxplugin-accuracy:
+                prompt: GRAPHICS ACCURACY
+                description: Lower accuracy may improve performance but can introduce visual glitches in some games.
+                choices:
+                    "Very High (Default)":  veryhigh
+                    "High":                 high
+                    "Medium":               medium
+                    "Low":                  low
             parallel-n64-screensize:
                 prompt:      RENDERING RESOLUTION
                 description: Enhancement. Increase the rendering resolution. Makes 3D objects clearer.
@@ -12794,19 +12817,99 @@ gzdoom:
   shared: [powermode, tdp, videomode, bezel, bezel_stretch, hud, hud_corner, bezel.tattoo, bezel.tattoo_corner, bezel.tattoo_file, bezel.resize_tattoo]
   features: [padtokeyboard]
   cfeatures:
-    gz_joystick:
-      prompt: USE GZDOOM JOYSTICK CONFIGURATION
-      description: Configuring controllers in GZDoom can cause problems.
-      choices:
-        "Disabled (Default)": "false"
-        "Enabled":            "true"
     gz_api:
+      submenu: Rendering
       prompt: GRAPHICS API
       description: Choose which graphics API library to use.
       choices:
         "OpenGL (Default)": 0
         "Vulkan":           1
-
+    gz_texture_filter:
+      submenu: Rendering
+      prompt: TEXTURE FILTERING
+      description: Determines the type of filtering applied to textures.
+      choices:
+        "None": 0
+        "None (Nearest Mipmap)": 1
+        "None (Linear Mipmap) (Default)": 5
+        "None (Trilinear)": 6
+        "Linear": 2
+        "Bilinear": 3
+        "Trilinear": 4
+    gz_anisotropic:
+      submenu: Rendering
+      prompt: ANISOTROPIC FILTERING
+      description: Improves clarity of distant textures.
+      choices:
+        "Off": 1
+        "2x": 2
+        "4x": 4
+        "8x (Default)": 8
+        "16x": 16
+    gz_sprite_shadows:
+      submenu: Rendering
+      prompt: SPRITE SHADOWS
+      description: Enables simple actor sprite shadows. More shadows can reduce performance.
+      choices:
+        "Off": 0
+        "Default": 1
+        "Monsters and Players": 2
+    gz_vsync:
+      submenu: Video
+      prompt: VSYNC
+      description: Fix screen tearing. With Some games you need to turn VSync on in the games options.
+      choices:
+        "Disabled (Default)":   "false"
+        "Enabled":              "true"
+    gz_fps_mode:
+      submenu: Video
+      prompt: FPS MODE
+      description: The original Doom engine runs at 35 FPS, but GZDoom can interpolate to 60 FPS for smoother gameplay.
+      choices:
+        "Classic 35 FPS": classic
+        "Smooth 60 FPS": smooth
+    gz_ui_mode:
+      submenu: Video
+      prompt: HUD MODE
+      choices:
+        "Classic (Default)": 10
+        "Full Screen":       11
+    gz_ui_scale:
+      submenu: Video
+      prompt: UI SIZE
+      choices:
+        "Automatic":        0
+        "Small":            1
+        "Medium (Default)": 2
+        "Large":            3
+    gz_input_mode:
+      submenu: PLAYER CONTROLS
+      group: CONTROLS
+      prompt: INPUT MODE
+      description: Configures inputs based on mode and number of joysticks.
+      choices:
+        "Classic": "classic"
+        "Modern": "modern"
+    gz_look_sensitivity_h:
+      submenu: PLAYER CONTROLS
+      group: CONTROLS
+      prompt: HORIZONTAL LOOK SENSITIVITY
+      description: Determines the horizontal look sensitivity.
+      preset: sliderauto
+      preset-parameters: 0.10 4.00 0.10
+    gz_look_sensitivity_v:
+      submenu: PLAYER CONTROLS
+      group: CONTROLS
+      prompt: VERTICAL LOOK SENSITIVITY
+      description: Determines the vertical look sensitivity.
+      preset: sliderauto
+      preset-parameters: 0.10 4.00 0.10
+    gz_look_invert_y:
+      submenu: PLAYER CONTROLS
+      group: CONTROLS
+      prompt: INVERT LOOK
+      description: Inverts the vertical look axis.
+      preset: switchauto
 corsixth:
   shared: [powermode, tdp, videomode]
   features: [padtokeyboard]

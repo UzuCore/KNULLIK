@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# Miyoo Flip status-LED daemon (board-gated). Owns led-work (bottom green /
+# device-on) + led-charger (top red/orange) and drives them from battery state.
+# See /usr/bin/miyooflip-leds. Runs after S25powerled so it takes ownership.
+#
+read -r BOARD < /boot/boot/knulli.board 2>/dev/null
+[ "$BOARD" = "miyoo-flip" ] || exit 0
+
+BIN=/usr/bin/miyooflip-leds
+PIDF=/var/run/miyooflipleds.pid
+
+case "$1" in
+    start)
+        [ -x "$BIN" ] || exit 0
+        start-stop-daemon -S -b -m -p "$PIDF" -x "$BIN"
+        ;;
+    stop)
+        start-stop-daemon -K -q -p "$PIDF" 2>/dev/null
+        ;;
+    restart|reload)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0

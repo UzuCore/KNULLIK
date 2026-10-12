@@ -27,6 +27,8 @@ AZAHAR_CONF_OPTS += -DUSE_SYSTEM_BOOST=OFF
 AZAHAR_CONF_OPTS += -DENABLE_SDL2=ON
 AZAHAR_CONF_OPTS += -DUSE_SYSTEM_SDL2=ON    # important to avoid HIDAPI
 AZAHAR_CONF_OPTS += -DENABLE_LTO=OFF
+AZAHAR_CONF_OPTS += -DENABLE_QT=OFF
+AZAHAR_CONF_OPTS += -DENABLE_SDL2_FRONTEND=ON
 
 ifeq ($(BR2_X86_CPU_HAS_SSE42),y)
     AZAHAR_CONF_OPTS += -DENABLE_SSE42=ON
@@ -34,24 +36,12 @@ else
     AZAHAR_CONF_OPTS += -DENABLE_SSE42=OFF
 endif
 
-
-# FIXME: set it by platform, but for now disable qt6 support entirely
-#ifeq ($(BR2_PACKAGE_BATOCERA_QT6),y)
-#    AZAHAR_DEPENDENCIES += qt6base qt6tools qt6multimedia
-#    AZAHAR_CONF_OPTS += -DENABLE_QT=ON
-#    AZAHAR_CONF_OPTS += -DENABLE_QT_TRANSLATION=ON
-#    AZAHAR_CONF_OPTS += -DENABLE_QT_UPDATE_CHECKER=OFF
-#else
-    AZAHAR_CONF_OPTS += -DENABLE_QT=OFF
-    AZAHAR_CONF_OPTS += -DENABLE_SDL2_FRONTEND=ON
-#endif
-
-ifeq ($(BR2_PACKAGE_BATOCERA_VULKAN)$(BR2_PACKAGE_KNULLI_MALI_G57_VULKAN),y)
+#ifeq ($(BR2_PACKAGE_BATOCERA_VULKAN)$(BR2_PACKAGE_KNULLI_MALI_G57_VULKAN),y)
     AZAHAR_CONF_OPTS += -DENABLE_VULKAN=ON
-    AZAHAR_DEPENDENCIES += vulkan-headers vulkan-loader
-else
-    AZAHAR_CONF_OPTS += -DENABLE_VULKAN=OFF
-endif
+#    AZAHAR_DEPENDENCIES += vulkan-headers vulkan-loader
+#else
+#    AZAHAR_CONF_OPTS += -DENABLE_VULKAN=OFF
+#endif
 
 AZAHAR_CONF_ENV += LDFLAGS=-lpthread
 
@@ -66,7 +56,7 @@ endef
 
 define AZAHAR_EVMAPY
 	mkdir -p $(TARGET_DIR)/usr/share/evmapy
-	cp -prn $(BR2_EXTERNAL_BATOCERA_PATH)/package/batocera/emulators/azahar/3ds.azahar.keys \
+	cp -prn $(BR2_EXTERNAL_KNULLI_PATH)/package/emulators/azahar/3ds.azahar.keys \
 		$(TARGET_DIR)/usr/share/evmapy
 endef
 
