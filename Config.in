@@ -656,7 +656,7 @@ menu "Knulli Packages"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/emulators/ppsspp/Config.in"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/emulators/vita3k/Config.in"
     source "$BR2_EXTERNAL_KNULLI_PATH/package/emulators/zesarux/Config.in"
-    source "$BR2_EXTERNAL_KNULLI_PATH/package/emulators/ports/gzdoom/Config.in"
+    #source "$BR2_EXTERNAL_KNULLI_PATH/package/emulators/ports/gzdoom/Config.in"
   endmenu
 
   menu "Libretro Cores"
