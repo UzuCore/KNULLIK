@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on May 27, 2023
-LIBRETRO_GME_VERSION = 40d8b3bf4f0bd4f713f65e08c62d30b1ae8b2282
+LIBRETRO_GME_VERSION = 1562f6207a066e9807243c89648d1cb44e411971
 LIBRETRO_GME_SITE = $(call github,libretro,libretro-gme,$(LIBRETRO_GME_VERSION))
 LIBRETRO_GME_LICENSE = GPLv2
 

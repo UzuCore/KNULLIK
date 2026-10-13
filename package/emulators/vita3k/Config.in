@@ -1,8 +1,8 @@
 config BR2_PACKAGE_VITA3K
     bool "vita3k"
-    depends on BR2_PACKAGE_SDL2
-    depends on BR2_PACKAGE_SDL2_IMAGE
-    depends on BR2_PACKAGE_SDL2_TTF
+    select BR2_PACKAGE_SDL3
+    select BR2_PACKAGE_SDL3_IMAGE
+    select BR2_PACKAGE_SDL3_TTF
     select BR2_PACKAGE_ZLIB
     depends on BR2_PACKAGE_LIBOGG
     depends on BR2_PACKAGE_LIBVORBIS	 

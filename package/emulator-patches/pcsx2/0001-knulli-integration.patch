@@ -1,0 +1,601 @@
+--- a/cmake/Pcsx2Utils.cmake
++++ b/cmake/Pcsx2Utils.cmake
+@@ -3,7 +3,7 @@
+ 	message(STATUS "CMake System Name: ${CMAKE_SYSTEM_NAME}")
+ 
+ 	# LINUX wasn't added until CMake 3.25.
+-	if (CMAKE_VERSION VERSION_LESS 3.25.0 AND CMAKE_SYSTEM_NAME MATCHES "Linux")
++	if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+ 		# Have to make it visible in this scope as well for below.
+ 		set(LINUX TRUE PARENT_SCOPE)
+ 		set(LINUX TRUE)
+--- a/common/Pcsx2Defs.h
++++ b/common/Pcsx2Defs.h
+@@ -89,7 +89,7 @@
+ // __forceinline_odr is for member functions that are defined in headers. MSVC can't specify
+ // inline and __forceinline at the same time, but it required to not get ODR errors in GCC.
+ 
+-#define __forceinline __attribute__((always_inline, unused))
++#define __forceinline __attribute__((unused))
+ #define __forceinline_odr __forceinline inline
+ #define __noinline __attribute__((noinline))
+ #define __noreturn __attribute__((noreturn))
+--- a/pcsx2/CDVD/CDVD.cpp
++++ b/pcsx2/CDVD/CDVD.cpp
+@@ -6,7 +6,7 @@
+ #include "CDVD/CDVD_internal.h"
+ #include "CDVD/IsoReader.h"
+ #include "CDVD/IsoFileFormats.h"
+-#include "GS.h"
++#include "../GS.h" // for gsVideoMode
+ #include "SIO/Sio.h"
+ #include "Elfheader.h"
+ #include "ps2/BiosTools.h"
+--- a/pcsx2/DebugTools/DebugInterface.cpp
++++ b/pcsx2/DebugTools/DebugInterface.cpp
+@@ -7,7 +7,7 @@
+ #include "R5900OpcodeTables.h"
+ #include "Debug.h"
+ #include "VU.h"
+-#include "GS.h" // Required for gsNonMirroredRead()
++#include "../GS.h" // Required for gsNonMirroredRead()
+ #include "Counters.h"
+ 
+ #include "Host.h"
+--- a/pcsx2/ImGui/ImGuiFullscreen.cpp
++++ b/pcsx2/ImGui/ImGuiFullscreen.cpp
+@@ -3162,6 +3162,10 @@
+ 	const u32 toast_title_color = IM_COL32(0xff, 0xff, 0xff, 255);
+ 	const u32 toast_text_color = IM_COL32(0xff, 0xff, 0xff, 255);
+ 
++	// Get the screen width and height
++	const ImGuiIO& io = ImGui::GetIO();
++	const float screen_width = io.DisplaySize.x;
++
+ 	for (u32 index = 0; index < static_cast<u32>(s_notifications.size());)
+ 	{
+ 		Notification& notif = s_notifications[index];
+@@ -3189,7 +3193,10 @@
+ 			min_width);
+ 		const float box_height =
+ 			std::max((vertical_padding * 2.0f) + ImCeil(title_size.y) + vertical_spacing + ImCeil(text_size.y), min_height);
+-
++		
++		// Center the notification horizontally
++		position.x = (screen_width - box_width) / 2.0f;
++		
+ 		u8 opacity;
+ 		if (time_passed < NOTIFICATION_FADE_IN_TIME)
+ 			opacity = static_cast<u8>((time_passed / NOTIFICATION_FADE_IN_TIME) * 255.0f);
+--- a/pcsx2/Input/SDLInputSource.cpp
++++ b/pcsx2/Input/SDLInputSource.cpp
+@@ -21,7 +21,7 @@
+ #include <cmath>
+ #include <VMManager.h>
+ 
+-static constexpr const char* CONTROLLER_DB_FILENAME = "game_controller_db.txt";
++static constexpr const char* CONTROLLER_DB_FILENAME = "/userdata/system/configs/PCSX2/game_controller_db.txt";
+ 
+ static constexpr const char* s_sdl_axis_setting_names[] = {
+ 	"LeftX", // SDL_GAMEPAD_AXIS_LEFTX
+@@ -1546,9 +1546,10 @@
+ 
+ 	{
+ 		std::lock_guard lock(m_controllers_key_mutex);
+-		InputManager::OnInputDeviceDisconnected(
+-			{InputBindingKey{.source_type = InputSourceType::SDL, .source_index = static_cast<u32>(it->player_id)}},
+-			fmt::format("SDL-{}", it->player_id));
++		// Properly initialize InputBindingKey
++		InputBindingKey key = {InputSourceType::SDL, static_cast<u32>(it->player_id)};
++	
++    	        InputManager::OnInputDeviceDisconnected(key, fmt::format("SDL-{}", it->player_id));
+ 
+ 		if (it->haptic)
+ 			SDL_CloseHaptic(it->haptic);
+--- a/pcsx2/Patch.cpp
++++ b/pcsx2/Patch.cpp
+@@ -291,7 +291,7 @@
+ 	if (s_patches_zip)
+ 		return true;
+ 
+-	const std::string filename = Path::Combine(EmuFolders::Resources, PATCHES_ZIP_NAME);
++	const std::string filename = Path::Combine(EmuFolders::Bios, PATCHES_ZIP_NAME);
+ 
+ 	zip_error ze = {};
+ 	zip_source_t* zs = zip_source_file_create(filename.c_str(), 0, 0, &ze);
+--- a/pcsx2/Pcsx2Config.cpp
++++ b/pcsx2/Pcsx2Config.cpp
+@@ -1972,6 +1972,7 @@
+ 	EnableDiscordPresence = false;
+ 	ManuallySetRealTimeClock = false;
+ 	UseSystemLocaleFormat = false;
++	AutoIncrementSlot = false;
+ 
+ 	// To be moved to FileMemoryCard pluign (someday)
+ 	for (uint slot = 0; slot < 8; ++slot)
+@@ -2014,6 +2015,7 @@
+ 	SettingsWrapBitBool(EnableDiscordPresence);
+ 	SettingsWrapBitBool(InhibitScreensaver);
+ 	SettingsWrapBitBool(HostFs);
++	SettingsWrapBitBool(AutoIncrementSlot);
+ 
+ 	SettingsWrapBitBool(BackupSavestate);
+ 
+--- a/pcsx2/USB/usb-lightgun/guncon2.cpp
++++ b/pcsx2/USB/usb-lightgun/guncon2.cpp
+@@ -18,6 +18,12 @@
+ #include "common/StringUtil.h"
+ 
+ #include <tuple>
++
++#include <libudev.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <linux/input.h>
++#include "GS/Renderers/Common/GSDevice.h"
+ 
+ namespace usb_lightgun
+ {
+@@ -121,6 +127,7 @@
+ 	struct GunCon2State
+ 	{
+ 		explicit GunCon2State(u32 port_);
++	        ~GunCon2State();
+ 
+ 		USBDevice dev{};
+ 		USBDesc desc{};
+@@ -139,6 +146,7 @@
+ 		float center_y = 120;
+ 		float scale_x = 1.0f;
+ 		float scale_y = 1.0f;
++		int numdevice = -1;
+ 
+ 		//////////////////////////////////////////////////////////////////////////
+ 		// Host State (Not Saved)
+@@ -165,6 +173,12 @@
+ 		void AutoConfigure();
+ 
+ 		std::tuple<s16, s16> CalculatePosition();
++
++		// udev
++		int   udev_fd;
++		float udev_internalGunX;
++		float udev_internalGunY;
++		int   udev_gunMinx, udev_gunMiny, udev_gunMaxx, udev_gunMaxy;
+ 
+ 		// 0..1, not -1..1.
+ 		std::pair<float, float> GetAbsolutePositionFromRelativeAxes() const;
+@@ -231,6 +245,12 @@
+ 		0x08, // Polling interval (frame counts)
+ 	};
+ 
++	struct event_udev_entry
++	{
++	  const char *devnode;
++	  struct udev_list_entry *item;
++	};
++
+ 	static void guncon2_handle_control(
+ 		USBDevice* dev, USBPacket* p, int request, int value, int index, int length, uint8_t* data)
+ 	{
+@@ -260,9 +280,93 @@
+ 		p->status = USB_RET_STALL;
+ 	}
+ 
++	void updateState(GunCon2State* us, u32 bid, bool pressed) {
++	  const u32 bit = 1u << bid;
++	  if (pressed)
++	    us->button_state |= bit;
++	  else
++	    us->button_state &= ~bit;
++	}
++
++	static bool udev_has(GunCon2State* us) {
++	  return us->udev_fd != -1;
++	}
++
++	static void udev_handle_event(GunCon2State* us, input_event* event) {
++	  switch (event->type) {
++	  case EV_KEY:
++	    switch (event->code) {
++	    case BTN_LEFT:
++		updateState(us, BID_TRIGGER, event->value != 0); // 0: unpressed, 1: pressed, 2: maintained
++		break;
++	    case BTN_RIGHT:
++		updateState(us, BID_C, event->value != 0);
++		break;
++	    case BTN_MIDDLE:
++		updateState(us, BID_A, event->value != 0);
++		break;
++	    case BTN_1:
++		updateState(us, BID_B, event->value != 0);
++		break;
++	    case BTN_2:
++		updateState(us, BID_RECALIBRATE, event->value != 0);
++		break;
++	    case BTN_3:
++		updateState(us, BID_START, event->value != 0);
++		break;
++	    case BTN_4:
++		updateState(us, BID_SELECT, event->value != 0);
++		break;
++	    case BTN_5:
++		updateState(us, BID_DPAD_UP, event->value != 0);
++		break;
++	    case BTN_6:
++		updateState(us, BID_DPAD_DOWN, event->value != 0);
++		break;
++	    case BTN_7:
++		updateState(us, BID_DPAD_LEFT, event->value != 0);
++		break;
++	    case BTN_8:
++		updateState(us, BID_DPAD_RIGHT, event->value != 0);
++		break;
++	    case BTN_9:
++		break;
++	    default:
++		break;
++	    }
++	    break;
++
++	  case EV_ABS:
++	    switch (event->code) {
++	    case ABS_X:
++	      us->udev_internalGunX = ((event->value - us->udev_gunMinx) / ((float)(us->udev_gunMaxx - us->udev_gunMinx))) * g_gs_device->GetWindowWidth();
++	      break;
++	    case ABS_Y:
++	      us->udev_internalGunY = ((event->value - us->udev_gunMiny) / ((float)(us->udev_gunMaxy - us->udev_gunMiny))) * g_gs_device->GetWindowHeight();
++	      break;
++	    }
++	    break;
++	  }
++	}
++
++	static void udev_poll_gun(GunCon2State* us) {
++	  struct input_event input_events[32];
++	  int j, len;
++
++	  if(us->udev_fd == -1) return;
++
++	  while ((len = read(us->udev_fd, input_events, sizeof(input_events))) > 0) {
++	    len /= sizeof(*input_events);
++	    for (j = 0; j < len; j++) {
++		udev_handle_event(us, &(input_events[j]));
++	    }
++	  }
++	}
++
+ 	static void guncon2_handle_data(USBDevice* dev, USBPacket* p)
+ 	{
+ 		GunCon2State* const us = USB_CONTAINER_OF(dev, GunCon2State, dev);
++		if(udev_has(us)) udev_poll_gun(us);
+ 
+ 		switch (p->pid)
+ 		{
+@@ -341,7 +445,15 @@
+ 	GunCon2State::GunCon2State(u32 port_)
+ 		: port(port_)
+ 	{
+-	}
++	  udev_fd = -1;
++	  udev_internalGunX = 0.0;
++	  udev_internalGunY = 0.0;
++	}
++
++	GunCon2State::~GunCon2State()
++	{
++	  if(udev_fd != -1) close(udev_fd);
++ 	}
+ 
+ 	void GunCon2State::AutoConfigure()
+ 	{
+@@ -374,6 +486,13 @@
+ 		const auto& [window_x, window_y] =
+ 			(has_relative_binds) ? GetAbsolutePositionFromRelativeAxes() : InputManager::GetPointerAbsolutePosition(0);
+ 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
++
++		if(udev_has(this)) {
++		  GSTranslateWindowToDisplayCoordinates(udev_internalGunX, udev_internalGunY, &pointer_x, &pointer_y);
++		} else {
++		  // basic mouse position
++		  GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
++		}
+ 
+ 		s16 pos_x, pos_y;
+ 		if (pointer_x < 0.0f || pointer_y < 0.0f)
+@@ -453,9 +572,151 @@
+ 		return ICON_PF_GUNCON2;
+ 	}
+ 
++	int event_isNumber(const char *s) {
++	  int n;
++
++	  if(strlen(s) == 0) {
++	    return 0;
++	  }
++
++	  for(n=0; n<strlen(s); n++) {
++	    if(!(s[n] == '0' || s[n] == '1' || s[n] == '2' || s[n] == '3' || s[n] == '4' ||
++	         s[n] == '5' || s[n] == '6' || s[n] == '7' || s[n] == '8' || s[n] == '9'))
++	      return 0;
++	  }
++	  return 1;
++	}
++
++	// compare /dev/input/eventX and /dev/input/eventY where X and Y are numbers
++	int event_strcmp_events(const char* x, const char* y) {
++	  // find a common string
++	  int n, common, is_number;
++	  int a, b;
++
++	  n=0;
++	  while(x[n] == y[n] && x[n] != '\0' && y[n] != '\0') {
++	    n++;
++	  }
++	  common = n;
++
++	  // check if remaining string is a number
++	  is_number = 1;
++	  if(event_isNumber(x+common) == 0) is_number = 0;
++	  if(event_isNumber(y+common) == 0) is_number = 0;
++
++	  if(is_number == 1) {
++	    a = atoi(x+common);
++	    b = atoi(y+common);
++
++	    if(a == b) return  0;
++	    if(a < b)  return -1;
++	    return 1;
++	  } else {
++	    return strcmp(x, y);
++	  }
++	}
++
++	/* Used for sorting devnodes to appear in the correct order */
++	int sort_devnodes(const void *a, const void *b)
++	{
++	  const struct event_udev_entry *aa = (const struct event_udev_entry*)a;
++	  const struct event_udev_entry *bb = (const struct event_udev_entry*)b;
++	  return event_strcmp_events(aa->devnode, bb->devnode);
++	}
++
++	void GunCon2Device::udev_open_gun(GunCon2State* us) {
++	  struct udev_enumerate *enumerate;
++	  struct udev_list_entry     *devs = NULL;
++	  struct udev_list_entry     *item = NULL;
++	  unsigned sorted_count = 0;
++	  struct event_udev_entry sorted[8]; // max devices
++	  unsigned int i;
++	  struct udev *udev;
++	  int fd = -1;
++
++	  udev = udev_new();
++	  if(udev == NULL) return;
++
++	  enumerate = udev_enumerate_new(udev);
++
++	  if (enumerate != NULL) {
++	    udev_enumerate_add_match_property(enumerate, "ID_INPUT_GUN", "1");
++	    udev_enumerate_add_match_subsystem(enumerate, "input");
++	    udev_enumerate_scan_devices(enumerate);
++	    devs = udev_enumerate_get_list_entry(enumerate);
++
++	    for (item = devs; item; item = udev_list_entry_get_next(item)) {
++	      const char         *name = udev_list_entry_get_name(item);
++	      struct udev_device  *dev = udev_device_new_from_syspath(udev, name);
++	      const char      *devnode = udev_device_get_devnode(dev);
++
++	      if (devnode != NULL && sorted_count < 8) {
++		sorted[sorted_count].devnode = devnode;
++		sorted[sorted_count].item = item;
++		sorted_count++;
++	      } else {
++		udev_device_unref(dev);
++	      }
++	    }
++
++	    /* Sort the udev entries by devnode name so that they are
++	     * created in the proper order */
++	    qsort(sorted, sorted_count,
++		  sizeof(struct event_udev_entry), sort_devnodes);
++
++	    for (i = 0; i < sorted_count; i++) {
++	      if((i == us->port && us->numdevice == -1) || (i == us->numdevice && us->numdevice >= 0 )) {
++		const char *name = udev_list_entry_get_name(sorted[i].item);
++
++		/* Get the filename of the /sys entry for the device
++		 * and create a udev_device object (dev) representing it. */
++		struct udev_device *dev = udev_device_new_from_syspath(udev, name);
++		const char *devnode     = udev_device_get_devnode(dev);
++		char devname[64];
++
++		if (devnode) {
++		  fd = open(devnode, O_RDONLY | O_NONBLOCK);
++		  if (fd != -1) {
++		    if (ioctl(fd, EVIOCGNAME(sizeof(devname)), devname) < 0) {
++		      devname[0] = '\0';
++		    }
++		  }
++		}
++		udev_device_unref(dev);
++	      }
++	    }
++	    udev_enumerate_unref(enumerate);
++	  }
++	  if (udev != NULL) udev_unref(udev);
++
++	  // configure
++	  us->udev_fd = fd;
++	  if(fd != -1) {
++	    udev_configure_gun(us);
++	  }
++	}
++
++  	void GunCon2Device::udev_configure_gun(GunCon2State* us) {
++	  struct input_absinfo absx, absy;
++	  if(ioctl(us->udev_fd, EVIOCGABS(ABS_X), &absx) >= 0) {
++	    if(ioctl(us->udev_fd, EVIOCGABS(ABS_Y), &absy) >= 0) {
++	      us->udev_gunMinx = absx.minimum;
++	      us->udev_gunMaxx = absx.maximum;
++	      us->udev_gunMiny = absy.minimum;
++	      us->udev_gunMaxy = absy.maximum;
++	    }
++	  }
++	}
++
+ 	USBDevice* GunCon2Device::CreateDevice(SettingsInterface& si, u32 port, u32 subtype) const
+ 	{
+ 		GunCon2State* s = new GunCon2State(port);
++
++		// gun device
++		s->numdevice = USB::GetConfigInt(si, s->port, TypeName(), "numdevice", -1);
++
++		udev_open_gun(s);
++
+ 		s->desc.full = &s->desc_dev;
+ 		s->desc.str = desc_strings;
+ 
+--- a/pcsx2/USB/usb-lightgun/guncon2.h
++++ b/pcsx2/USB/usb-lightgun/guncon2.h
+@@ -6,6 +6,8 @@
+ 
+ namespace usb_lightgun
+ {
++  	struct GunCon2State;
++
+ 	class GunCon2Device final : public DeviceProxy
+ 	{
+ 	public:
+@@ -19,5 +21,8 @@
+ 		void SetBindingValue(USBDevice* dev, u32 bind_index, float value) const override;
+ 		std::span<const InputBindingInfo> Bindings(u32 subtype) const override;
+ 		std::span<const SettingInfo> Settings(u32 subtype) const override;
++	private:
++		static void udev_open_gun(GunCon2State* us);
++		static void udev_configure_gun(GunCon2State* us);
+ 	};
+ } // namespace usb_lightgun
+--- a/pcsx2/VMManager.cpp
++++ b/pcsx2/VMManager.cpp
+@@ -1667,6 +1667,12 @@
+ 
+ 	SetEmuThreadAffinities();
+ 
++	if (boot_params.state_start_index.has_value()) {
++	  for(int i=1; i<boot_params.state_start_index.value(); i++) {
++	    SaveStateSelectorUI::SelectNextSlot(false);
++	  }
++	}
++
+ 	// do we want to load state?
+ 	if (!GSDumpReplayer::IsReplayingDump() && !state_to_load.empty())
+ 	{
+@@ -1887,20 +1893,15 @@
+ 
+ std::string VMManager::GetSaveStateFileName(const char* game_serial, u32 game_crc, s32 slot, bool backup)
+ {
+-	std::string filename;
+-	if (std::strlen(game_serial) > 0)
+-	{
+-		if (slot < 0)
+-			filename = fmt::format("{} ({:08X}).resume.p2s", game_serial, game_crc);
+-		else if (backup)
+-			filename = fmt::format("{} ({:08X}).{:02d}.p2s.backup", game_serial, game_crc, slot);
+-		else
+-			filename = fmt::format("{} ({:08X}).{:02d}.p2s", game_serial, game_crc, slot);
+-
+-		filename = Path::Combine(EmuFolders::Savestates, filename);
+-	}
+-
+-	return filename;
++  	if(slot < 0) {
++    		return Path::Combine(EmuFolders::Savestates, std::string(Path::GetFileName(GetDiscPath())) + StringUtil::StdStringFromFormat(".p2s.auto"));
++  	}
++  	else if (backup) {
++  		return Path::Combine(EmuFolders::Savestates, std::string(Path::GetFileName(GetDiscPath())) + StringUtil::StdStringFromFormat(".%02d.p2s.backup", slot));
++  	}
++  	else {
++    		return Path::Combine(EmuFolders::Savestates, std::string(Path::GetFileName(GetDiscPath())) + StringUtil::StdStringFromFormat(".%02d.p2s", slot));
++  	}
+ }
+ 
+ std::string VMManager::GetSaveStateFileName(const char* filename, s32 slot, bool backup)
+@@ -1995,6 +1996,9 @@
+ 		ZipSaveState(
+ 			std::move(elist), std::move(screenshot), filename, slot_for_message, std::move(error_callback));
+ 	}
++
++	// screenshot in dirctory
++	GSQueueSnapshot(fmt::format("{}.png", filename));
+ 
+ 	Host::OnSaveStateSaved(filename);
+ 	MemcardBusy::CheckSaveStateDependency();
+@@ -2166,6 +2170,12 @@
+ 
+ void VMManager::SaveStateToSlot(s32 slot, bool zip_on_thread, std::function<void(const std::string&)> error_callback)
+ {
++	//increment the slot before saving
++	if(EmuConfig.AutoIncrementSlot) {
++	  SaveStateSelectorUI::SelectNextSlot(false);
++	  slot = SaveStateSelectorUI::GetCurrentSlot();
++	}
++
+ 	const std::string filename(GetCurrentSaveStateFileName(slot));
+ 	if (filename.empty())
+ 	{
+@@ -3364,14 +3374,14 @@
+ 				TRANSLATE_SV("VMManager", "Integer scaling is enabled. This may shrink the image."));
+ 		}
+ 		static bool render_change_warn = false;
+-		if (EmuConfig.GS.Renderer != GSRendererType::Auto && EmuConfig.GS.Renderer != GSRendererType::SW && !render_change_warn)
+-		{
++		//if (EmuConfig.GS.Renderer != GSRendererType::Auto && EmuConfig.GS.Renderer != GSRendererType::SW && !render_change_warn)
++		//{
+ 			// show messagesbox
+-			render_change_warn = true;
+-
+-			append(ICON_FA_CIRCLE_EXCLAMATION,
+-				TRANSLATE_SV("VMManager", "Graphics API is not set to Automatic. This may cause performance problems and graphical issues."));
+-		}
++			//render_change_warn = true;
++
++			//append(ICON_FA_CIRCLE_EXCLAMATION,
++			//	TRANSLATE_SV("VMManager", "Graphics API is not set to Automatic. This may cause performance problems and graphical issues."));
++		//}
+ 	}
+ 	if (EmuConfig.GS.DumpGSData)
+ 	{
+--- a/pcsx2/VMManager.h
++++ b/pcsx2/VMManager.h
+@@ -34,6 +34,7 @@
+ 	std::string save_state;
+ 	std::string game_config;
+ 	std::optional<s32> state_index;
++  	std::optional<s32> state_start_index;
+ 	std::optional<CDVD_SourceType> source_type;
+ 
+ 	std::optional<bool> fast_boot;
+--- a/pcsx2-qt/QtHost.cpp
++++ b/pcsx2-qt/QtHost.cpp
+@@ -2245,6 +2245,11 @@
+ 				AutoBoot(autoboot)->save_state = (++it)->toStdString();
+ 				continue;
+ 			}
++			else if (CHECK_ARG_PARAM(QStringLiteral("-stateindex")))
++			  {
++				AutoBoot(autoboot)->state_start_index = (++it)->toInt();
++				continue;
++			}
+ 			else if (CHECK_ARG_PARAM(QStringLiteral("-elf")))
+ 			{
+ 				AutoBoot(autoboot)->elf_override = (++it)->toStdString();
+--- a/pcsx2/Config.h
++++ b/pcsx2/Config.h
+@@ -1373,6 +1373,7 @@
+ 		BackupSavestate : 1,
+ 		ManuallySetRealTimeClock : 1, // passes user-set real-time clock information to cdvd at startup
+ 		UseSystemLocaleFormat : 1, // presents OS time format instead of yyyy-MM-dd HH:mm:ss for manual RTC
++		AutoIncrementSlot : 1,
+ 
+ 		HostFs : 1,
+ 

@@ -1,0 +1,2610 @@
+{
+  "verified_at": "2026-10-13T00:10:21+00:00",
+  "base_commit": "810b35c3b5a252ca36147a5882d3ea8708966efa",
+  "packages": [
+    {
+      "package": "advanced_drastic",
+      "prefix": "ADVANCED_DRASTIC",
+      "upstream": "trngaje/advanced_drastic",
+      "previous_version": "eaf41ab9bc8adcc15c010bf9517bc94c38e7bffd",
+      "version": "d5a16e027ba28c7f5edf61ca9ba0f69aa3d93cf4",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/trngaje/advanced_drastic/commit/d5a16e027ba28c7f5edf61ca9ba0f69aa3d93cf4",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "aethersx2",
+      "prefix": "AETHERSX2",
+      "upstream": "ROCKNIX/packages",
+      "previous_version": "1.0.0",
+      "version": "691f24bceb72228f20d41ddb4a1e76ed76a1b0b8",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/ROCKNIX/packages/commit/691f24bceb72228f20d41ddb4a1e76ed76a1b0b8",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "amiberry",
+      "prefix": "AMIBERRY",
+      "upstream": "BlitterStudio/amiberry",
+      "previous_version": "9558d40f35fec5e2b93b9d9090736edb26885507",
+      "version": "7253db36d5de0227ac345e81fea6693f9294dd03",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/BlitterStudio/amiberry/commit/7253db36d5de0227ac345e81fea6693f9294dd03",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/amiberry/0001-knulli-integration.patch": "ac6baa73a0258e209836132f1695c9025aee59ebb9120f4b0047997177436ca2"
+      }
+    },
+    {
+      "package": "applewin",
+      "prefix": "APPLEWIN",
+      "upstream": "audetto/AppleWin",
+      "previous_version": "bb9da62c4ae7f7b5d65edf81bf3f05d6dad137ef",
+      "version": "a1e20c0362f392dc25f1a3b218d2f84d4f1a25da",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/audetto/AppleWin/commit/a1e20c0362f392dc25f1a3b218d2f84d4f1a25da",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/applewin/0001-knulli-integration.patch": "e43181703505d3444e64153f4c3d5032d8b20ca086e5afe9db35aac230503cb3"
+      }
+    },
+    {
+      "package": "azahar",
+      "prefix": "AZAHAR",
+      "upstream": "johndoe6345789/azahar_libretro",
+      "previous_version": "c8d39853c1ebacc5657e51d601713a09404ca8a7",
+      "version": "9dd12da328c753806cbd4f2b0e048fced97ae97d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/johndoe6345789/azahar_libretro/commit/9dd12da328c753806cbd4f2b0e048fced97ae97d",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "batocera-bezel",
+      "prefix": "BATOCERA_BEZEL",
+      "upstream": "batocera-linux/batocera-bezel",
+      "previous_version": "e5a825bbb6f61e13b2d95cbabec0465b58204431",
+      "version": "96c8f8650ff8c8d324c611621643751c1226de68",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/batocera-linux/batocera-bezel/commit/96c8f8650ff8c8d324c611621643751c1226de68",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "bigpemu",
+      "prefix": "BIGPEMU",
+      "upstream": null,
+      "previous_version": "v119",
+      "version": "v1221",
+      "status": "latest-published-binary",
+      "changed": true,
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "cemu",
+      "prefix": "CEMU",
+      "upstream": "cemu-project/Cemu",
+      "previous_version": "aa20e2f86e93c9f625f048dbd2b6b993f1973180",
+      "version": "21878f14423126221ad38e0681ebf66afcd02edf",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/cemu-project/Cemu/commit/21878f14423126221ad38e0681ebf66afcd02edf",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "citron",
+      "prefix": "CITRON",
+      "upstream": null,
+      "previous_version": "v0.6.1-canary-refresh",
+      "version": "v0.6.1-canary-refresh",
+      "status": "upstream-unavailable",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "clk",
+      "prefix": "CLK",
+      "upstream": "TomHarte/CLK",
+      "previous_version": "5e4ff316d6848f6e1d25ecd5d572ec55c5a72c41",
+      "version": "50e3b4d9327c211d14eb9dcca5ccc2b8ef5f8786",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/TomHarte/CLK/commit/50e3b4d9327c211d14eb9dcca5ccc2b8ef5f8786",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "common-shaders",
+      "prefix": "COMMON_SHADERS",
+      "upstream": "libretro/common-shaders",
+      "previous_version": "86cfa146a8dfddf6377ddb5dbcff552feae2e5bf",
+      "version": "9c0d839a19651dffc9898da7673574a20fb39415",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/common-shaders/commit/9c0d839a19651dffc9898da7673574a20fb39415",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "dolphin-emu",
+      "prefix": "DOLPHIN_EMU",
+      "upstream": "dolphin-emu/dolphin",
+      "previous_version": "805307f432dba079caf7339122a07de5b90c4b47",
+      "version": "8d2ad1a662472955497e5bb79d7b9ec6999e1f0d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/dolphin-emu/dolphin/commit/8d2ad1a662472955497e5bb79d7b9ec6999e1f0d",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "dolphin-triforce",
+      "prefix": "DOLPHIN_TRIFORCE",
+      "upstream": null,
+      "previous_version": "99bc5987122d1f3b2b2bbf14c3d639f909ad556c",
+      "version": "99bc5987122d1f3b2b2bbf14c3d639f909ad556c",
+      "status": "upstream-unavailable",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "dosbox",
+      "prefix": "DOSBOX",
+      "upstream": "duganchen/dosbox",
+      "previous_version": "e6b88ad03202d1f74e329f54f213d3b070bd6202",
+      "version": "e6b88ad03202d1f74e329f54f213d3b070bd6202",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/duganchen/dosbox/commit/e6b88ad03202d1f74e329f54f213d3b070bd6202",
+      "patch_status": "retained"
+    },
+    {
+      "package": "dosbox-staging",
+      "prefix": "DOSBOX_STAGING",
+      "upstream": "dosbox-staging/dosbox-staging",
+      "previous_version": "v0.82.2",
+      "version": "5426d72fa2cdf08cf94598053dcdbab1cbb8ab4d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/dosbox-staging/dosbox-staging/commit/5426d72fa2cdf08cf94598053dcdbab1cbb8ab4d",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "dosbox-x",
+      "prefix": "DOSBOX_X",
+      "upstream": "joncampbell123/dosbox-x",
+      "previous_version": "dosbox-x-v2025.02.01",
+      "version": "378e6f8a25768594df87c9f5c99b5df9b3f6a8b0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/joncampbell123/dosbox-x/commit/378e6f8a25768594df87c9f5c99b5df9b3f6a8b0",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/dosbox-x/0001-knulli-integration.patch": "b72d0dbbd0d6d4f9fc70f81685160c5a887f753180b25d519429e5046bffc8bf"
+      }
+    },
+    {
+      "package": "drastic",
+      "prefix": "DRASTIC",
+      "upstream": "liberodark/drastic",
+      "previous_version": "1.1",
+      "version": "1.1",
+      "status": "latest-release-asset",
+      "changed": false,
+      "commit_url": "https://github.com/liberodark/drastic/commit/b6b7ab9665d7fa3b7885b3f4999d34f0ff072cc9",
+      "patch_status": "retained"
+    },
+    {
+      "package": "drastic_layout",
+      "prefix": "DRASTIC_LAYOUT",
+      "upstream": "trngaje/drastic_layout",
+      "previous_version": "3fb9aa23b95e7022dcfadface457f2f35e12405d",
+      "version": "3fb9aa23b95e7022dcfadface457f2f35e12405d",
+      "status": "support-package",
+      "changed": false,
+      "commit_url": "https://github.com/trngaje/drastic_layout/commit/e8dc3eb5bb51351bf3e93229e388ae9e5fea9adc",
+      "patch_status": "retained"
+    },
+    {
+      "package": "duckstation",
+      "prefix": "DUCKSTATION",
+      "upstream": "stenzek/duckstation",
+      "previous_version": "v0.1-7294",
+      "version": "d4e5a09d97429a3513c53fec375221af2f6b1ce7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/stenzek/duckstation/commit/d4e5a09d97429a3513c53fec375221af2f6b1ce7",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "duckstation-legacy",
+      "prefix": "DUCKSTATION_LEGACY",
+      "upstream": "stenzek/duckstation",
+      "previous_version": "56ac3d6c324ec4520dac433b071ecab6227fb459",
+      "version": "56ac3d6c324ec4520dac433b071ecab6227fb459",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/stenzek/duckstation/commit/d4e5a09d97429a3513c53fec375221af2f6b1ce7",
+      "patch_status": "retained"
+    },
+    {
+      "package": "easyrpg-player",
+      "prefix": "EASYRPG_PLAYER",
+      "upstream": "EasyRPG/Player",
+      "previous_version": "0.8.1",
+      "version": "0de2a9ab466a133ac6e192a84bd761a1d81f5f14",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/EasyRPG/Player/commit/0de2a9ab466a133ac6e192a84bd761a1d81f5f14",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "eka2l1",
+      "prefix": "EKA2L1",
+      "upstream": "rtissera/EKA2L1",
+      "previous_version": "8bf21e354c7aa3ea8f287a5f47825d1370b1c14f",
+      "version": "22fe6c97cead08cb8ea630c47789adec9f2b4246",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/rtissera/EKA2L1/commit/22fe6c97cead08cb8ea630c47789adec9f2b4246",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "flycast",
+      "prefix": "FLYCAST",
+      "upstream": "flyinghead/flycast",
+      "previous_version": "ed953fcbfdd1b8a7521d2966b13cc700c7e2d233",
+      "version": "f03faffd2f89cb2c7c73ff08dce51a774a61ee27",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/flyinghead/flycast/commit/f03faffd2f89cb2c7c73ff08dce51a774a61ee27",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/flycast/0001-knulli-integration.patch": "6fd1a4088f3cd44f064b38df15d17af65c0aef77f4edf90d5792829af7da579d"
+      }
+    },
+    {
+      "package": "fpinball",
+      "prefix": "FPINBALL",
+      "upstream": "batocera-linux/fpinball",
+      "previous_version": "v1.9.1.20101231",
+      "version": "v1.9.1.20101231",
+      "status": "latest-release-asset",
+      "changed": false,
+      "commit_url": "https://github.com/batocera-linux/fpinball/commit/59517da664e2885a0ffae4a9b9daa0e91de73b98",
+      "patch_status": "retained"
+    },
+    {
+      "package": "fsuae",
+      "prefix": "FSUAE",
+      "upstream": "FrodeSolheim/fs-uae",
+      "previous_version": "bfa0c7522c6c5f73cceb340d677491d056febd01",
+      "version": "f362278ccd4c60991caac3b4d240d4a3f751bea2",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/FrodeSolheim/fs-uae/commit/f362278ccd4c60991caac3b4d240d4a3f751bea2",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "glsl-shaders",
+      "prefix": "GLSL_SHADERS",
+      "upstream": "libretro/glsl-shaders",
+      "previous_version": "ad982c951e70a5a9609b173a2c5fa50afb5f58ad",
+      "version": "148ce728155232a6b63be772c1810bd84728f359",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/glsl-shaders/commit/148ce728155232a6b63be772c1810bd84728f359",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "gsplus",
+      "prefix": "GSPLUS",
+      "upstream": "applemu/gsplus",
+      "previous_version": "dc1835d62bb485f69faf3fd50a2550629393ee38",
+      "version": "dc1835d62bb485f69faf3fd50a2550629393ee38",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/applemu/gsplus/commit/dc1835d62bb485f69faf3fd50a2550629393ee38",
+      "patch_status": "retained"
+    },
+    {
+      "package": "gzdoom",
+      "prefix": "GZDOOM",
+      "upstream": "ZDoom/gzdoom",
+      "previous_version": "g4.14.2",
+      "version": "c26ce2e6ca2a0c770f140cb25dde0d30073ca8f7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/ZDoom/gzdoom/commit/c26ce2e6ca2a0c770f140cb25dde0d30073ca8f7",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/gzdoom/0001-knulli-integration.patch": "e12a07e9b54e7bafc8084375679767836ee74f34b097e77df96397f1f06e471a"
+      }
+    },
+    {
+      "package": "hatari",
+      "prefix": "HATARI",
+      "upstream": "hatari/hatari",
+      "previous_version": "2cddcbf027acbdb2904784bb41e68a3e424ff16b",
+      "version": "ae4456338c39b4f94d0d9209565699a227f53f9e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/hatari/hatari/commit/ae4456338c39b4f94d0d9209565699a227f53f9e",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "hypseus-singe",
+      "prefix": "HYPSEUS_SINGE",
+      "upstream": "DirtBagXon/hypseus-singe",
+      "previous_version": "v2.11.5",
+      "version": "a16e2521ee3233ef20c44e562008c47f4b4293df",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/DirtBagXon/hypseus-singe/commit/a16e2521ee3233ef20c44e562008c47f4b4293df",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "ikemen",
+      "prefix": "IKEMEN",
+      "upstream": "ikemen-engine/Ikemen-GO",
+      "previous_version": "b464672651c87c42aeca10bb5c33003f26d42071",
+      "version": "becf09c4fb6684e716ac9209dae074fbcfc5458b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/ikemen-engine/Ikemen-GO/commit/becf09c4fb6684e716ac9209dae074fbcfc5458b",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "knulli-bezels",
+      "prefix": "KNULLI_BEZELS",
+      "upstream": "chrizzo-hb/knulli-bezels",
+      "previous_version": "ce86c6dcdebdb001a5710ea677f3186333f7e65e",
+      "version": "75aa66c41548ebaa95f31d260d47eea2baab9d8a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/chrizzo-hb/knulli-bezels/commit/75aa66c41548ebaa95f31d260d47eea2baab9d8a",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "knulli-shaders",
+      "prefix": "KNULLI_SHADERS",
+      "upstream": null,
+      "previous_version": "1.0",
+      "version": "1.0",
+      "status": "support-package",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "lexaloffle-pico8",
+      "prefix": "LEXALOFFLE_PICO8",
+      "upstream": null,
+      "previous_version": "0.1",
+      "version": "0.1",
+      "status": "support-package",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "lexaloffle-voxatron",
+      "prefix": "LEXALOFFLE_VOXATRON",
+      "upstream": null,
+      "previous_version": "0.1",
+      "version": "0.1",
+      "status": "support-package",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "liblcf",
+      "prefix": "LIBLCF",
+      "upstream": "EasyRPG/liblcf",
+      "previous_version": "0.8.1",
+      "version": "6854310c3432e553fd4ae672ce861899c80c3bd0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/EasyRPG/liblcf/commit/6854310c3432e553fd4ae672ce861899c80c3bd0",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-81",
+      "prefix": "LIBRETRO_81",
+      "upstream": "libretro/81-libretro",
+      "previous_version": "ffc99f27f092addc9ddd34dd0e3a3d4d1c053cbf",
+      "version": "fa7094910d040baa5fd8b11dbf6a1a618330ecd9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/81-libretro/commit/fa7094910d040baa5fd8b11dbf6a1a618330ecd9",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-a5200",
+      "prefix": "LIBRETRO_A5200",
+      "upstream": "libretro/a5200",
+      "previous_version": "526404072821bb2021fab16f8c5dbbca300512c8",
+      "version": "40c6f2f1ad4a3145b328d5baaf010fae6c7e752b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/a5200/commit/40c6f2f1ad4a3145b328d5baaf010fae6c7e752b",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-arduous",
+      "prefix": "LIBRETRO_ARDUOUS",
+      "upstream": "libretro/arduous",
+      "previous_version": "2273b485628790a2ce954941341b5b071c3fb30e",
+      "version": "831b83e67ad46e8c86b8165649ff81bc6fc6c157",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/arduous/commit/831b83e67ad46e8c86b8165649ff81bc6fc6c157",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-atari800",
+      "prefix": "LIBRETRO_ATARI800",
+      "upstream": "libretro/libretro-atari800",
+      "previous_version": "6a18cb23cc4a7cecabd9b16143d2d7332ae8d44b",
+      "version": "4e7fbc73765c1a9670c7506616046ad1d4ccda51",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-atari800/commit/4e7fbc73765c1a9670c7506616046ad1d4ccda51",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-lynx",
+      "prefix": "LIBRETRO_BEETLE_LYNX",
+      "upstream": "libretro/beetle-lynx-libretro",
+      "previous_version": "7fead71b49e0f08be5c4d4224fea73c6174763bf",
+      "version": "fcdefcfb3c11d6d2e71be076a5d3df2e88ab73ed",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-lynx-libretro/commit/fcdefcfb3c11d6d2e71be076a5d3df2e88ab73ed",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-ngp",
+      "prefix": "LIBRETRO_BEETLE_NGP",
+      "upstream": "libretro/beetle-ngp-libretro",
+      "previous_version": "139fe34c8dfc5585d6ee1793a7902bca79d544de",
+      "version": "a50d5ac288a81f2104ddf43195a4efdd15c72227",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-ngp-libretro/commit/a50d5ac288a81f2104ddf43195a4efdd15c72227",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-pce",
+      "prefix": "LIBRETRO_BEETLE_PCE",
+      "upstream": "libretro/beetle-pce-libretro",
+      "previous_version": "af28fb0385d00e0292c4703b3aa7e72762b564d2",
+      "version": "b96c11e095b6a40a412d2da02766ae1c3f4fd539",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-pce-libretro/commit/b96c11e095b6a40a412d2da02766ae1c3f4fd539",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-beetle-pce-fast",
+      "prefix": "LIBRETRO_BEETLE_PCE_FAST",
+      "upstream": "libretro/beetle-pce-fast-libretro",
+      "previous_version": "cfbb0946f79de33bc615d0a079e1a92f1454c3e3",
+      "version": "3f946f277aef3aa99a95551618bbcd1dd2bda0d9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-pce-fast-libretro/commit/3f946f277aef3aa99a95551618bbcd1dd2bda0d9",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-pcfx",
+      "prefix": "LIBRETRO_BEETLE_PCFX",
+      "upstream": "libretro/beetle-pcfx-libretro",
+      "previous_version": "dd04cef9355286488a1d78ff18c4c848a1575540",
+      "version": "c1650bad5fbdcc3c3ccd45e29e3983e1ccf16cff",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-pcfx-libretro/commit/c1650bad5fbdcc3c3ccd45e29e3983e1ccf16cff",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-psx",
+      "prefix": "LIBRETRO_BEETLE_PSX",
+      "upstream": "libretro/beetle-psx-libretro",
+      "previous_version": "10e4b0c6ceae20daa65ddf436a4445dddd0982d2",
+      "version": "e57860d82faa953dc0fc10f201fd583739bc2f7d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-psx-libretro/commit/e57860d82faa953dc0fc10f201fd583739bc2f7d",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-beetle-saturn",
+      "prefix": "LIBRETRO_BEETLE_SATURN",
+      "upstream": "libretro/beetle-saturn-libretro",
+      "previous_version": "a57e0f72b47a649298790202f9580bd3d9563d1f",
+      "version": "faef2779a7568c1734addc4fe63cc76e9fa2566b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-saturn-libretro/commit/faef2779a7568c1734addc4fe63cc76e9fa2566b",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-beetle-supergrafx",
+      "prefix": "LIBRETRO_BEETLE_SUPERGRAFX",
+      "upstream": "libretro/beetle-supergrafx-libretro",
+      "previous_version": "a776133c34ae8da5daf7d9ccb43e3e292e2b07b0",
+      "version": "9c11dcd213a79d57d2c86313971631af801f2cdc",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-supergrafx-libretro/commit/9c11dcd213a79d57d2c86313971631af801f2cdc",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-beetle-vb",
+      "prefix": "LIBRETRO_BEETLE_VB",
+      "upstream": "libretro/beetle-vb-libretro",
+      "previous_version": "851a4f38df8bb9d7854b35e82a5306a40db7e01c",
+      "version": "d5ae54c8e23b573a3b34e888b2d48a588027e92c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-vb-libretro/commit/d5ae54c8e23b573a3b34e888b2d48a588027e92c",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-beetle-wswan",
+      "prefix": "LIBRETRO_BEETLE_WSWAN",
+      "upstream": "libretro/beetle-wswan-libretro",
+      "previous_version": "2aeb47d3a58bf0360c686f842d9bb5bd201306fe",
+      "version": "4b01295838ea89e3f1355bbe4cb5cf98aa6108cd",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/beetle-wswan-libretro/commit/4b01295838ea89e3f1355bbe4cb5cf98aa6108cd",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-bennugd",
+      "prefix": "LIBRETRO_BENNUGD",
+      "upstream": "diekleinekuh/BennuGD_libretro",
+      "previous_version": "84c186a700d7cd7ad5a6aa921d7dc489b12c2f9f",
+      "version": "5fba764ac709545d4b0d3b28deff2ec0c7d1a91b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/diekleinekuh/BennuGD_libretro/commit/5fba764ac709545d4b0d3b28deff2ec0c7d1a91b",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-bennugd/0001-knulli-integration.patch": "276a9bab8037ac1cb28118960dedb40e667a46bd8d7806c77d614d7668977c6e"
+      }
+    },
+    {
+      "package": "libretro-bk",
+      "prefix": "LIBRETRO_BK",
+      "upstream": "libretro/bk-emulator",
+      "previous_version": "cf70ce503ddb65051a58f3c4f61d1e258fc4c84b",
+      "version": "92042a753289cedf05e7e6bd8e75849f83e48966",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/bk-emulator/commit/92042a753289cedf05e7e6bd8e75849f83e48966",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-blastem",
+      "prefix": "LIBRETRO_BLASTEM",
+      "upstream": "libretro/blastem",
+      "previous_version": "277e4a62668597d4f59cadda1cbafb844f981d45",
+      "version": "ab743653ed110eeb7b1fe64d00cc5f9279c2bfec",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/blastem/commit/ab743653ed110eeb7b1fe64d00cc5f9279c2bfec",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-bluemsx",
+      "prefix": "LIBRETRO_BLUEMSX",
+      "upstream": "libretro/blueMSX-libretro",
+      "previous_version": "572c91856a5288b7433c619af651e31f00f3ce7e",
+      "version": "e3086eb5d36d77fa11704cf53dc176686e70127d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/blueMSX-libretro/commit/e3086eb5d36d77fa11704cf53dc176686e70127d",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-boom3",
+      "prefix": "LIBRETRO_BOOM3",
+      "upstream": "libretro/boom3",
+      "previous_version": "6ca02624e033d824257094e8d939991976b9aad9",
+      "version": "94e957aabb9a8bc8eae9980dd91c0f64d6c68e60",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/boom3/commit/94e957aabb9a8bc8eae9980dd91c0f64d6c68e60",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-bsnes",
+      "prefix": "LIBRETRO_BSNES",
+      "upstream": "libretro/bsnes-libretro",
+      "previous_version": "05e820a436d2e2cbbb1b871400f84a96e76e2359",
+      "version": "05439f96121d2b9d7ad7a5fc1f29d7eebdcc8c43",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/bsnes-libretro/commit/05439f96121d2b9d7ad7a5fc1f29d7eebdcc8c43",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-bsnes-hd",
+      "prefix": "LIBRETRO_BSNES_HD",
+      "upstream": "DerKoun/bsnes-hd",
+      "previous_version": "0bb7b8645e22ea2476cabd58f32e987b14686601",
+      "version": "fc26b25ea236f0f877f0265d2a2c37dfd93dfde9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/DerKoun/bsnes-hd/commit/fc26b25ea236f0f877f0265d2a2c37dfd93dfde9",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-cap32",
+      "prefix": "LIBRETRO_CAP32",
+      "upstream": "libretro/libretro-cap32",
+      "previous_version": "d09f17682979798f69efedadf36182da0a7d3a71",
+      "version": "2d41a1f07e654e97c4f24ab8447c3fbd7d728bc8",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-cap32/commit/2d41a1f07e654e97c4f24ab8447c3fbd7d728bc8",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-chailove",
+      "prefix": "LIBRETRO_CHAILOVE",
+      "upstream": "libretro/libretro-chailove",
+      "previous_version": "f9f9ed8ac82f122eeac8dd52fe51474a1b7c37b9",
+      "version": "524ef951abbd07464830ee12a3f6f5e2aba9efd3",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-chailove/commit/524ef951abbd07464830ee12a3f6f5e2aba9efd3",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-core-info",
+      "prefix": "LIBRETRO_CORE_INFO",
+      "upstream": "libretro/libretro-core-info",
+      "previous_version": "v1.21.1",
+      "version": "5a74858ab2f7a50cebb5a6330895bc38899531c0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-core-info/commit/5a74858ab2f7a50cebb5a6330895bc38899531c0",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-craft",
+      "prefix": "LIBRETRO_CRAFT",
+      "upstream": "libretro/Craft",
+      "previous_version": "34c1341caa094ff4fe4f06e8ceb6ec316062b1fa",
+      "version": "f30e7b4b1d1406c750a504583adf0cc88449a699",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/Craft/commit/f30e7b4b1d1406c750a504583adf0cc88449a699",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-crocods",
+      "prefix": "LIBRETRO_CROCODS",
+      "upstream": "libretro/libretro-crocods",
+      "previous_version": "f1b4b91291ba1e8e7c0be02269cd0d75c7fa71b9",
+      "version": "a9c63b29443715ae2add392010fca4eae7f93e67",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-crocods/commit/a9c63b29443715ae2add392010fca4eae7f93e67",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-desmume",
+      "prefix": "LIBRETRO_DESMUME",
+      "upstream": "libretro/desmume",
+      "previous_version": "b518fec54b79f2f71a7536715efcdcd7f60638a8",
+      "version": "95b4d798731caa809125b6c3c11d17cc332ff6ef",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/desmume/commit/95b4d798731caa809125b6c3c11d17cc332ff6ef",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-dice",
+      "prefix": "LIBRETRO_DICE",
+      "upstream": "mittonk/dice-libretro",
+      "previous_version": "v0.4.2",
+      "version": "ab766aa25c6ed970ece28f2df5be7daa26b9e439",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mittonk/dice-libretro/commit/ab766aa25c6ed970ece28f2df5be7daa26b9e439",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-dinothawr",
+      "prefix": "LIBRETRO_DINOTHAWR",
+      "upstream": "libretro/Dinothawr",
+      "previous_version": "33fb82a8df4e440f96d19bba38668beaa1b414fc",
+      "version": "62d3e1ecf85f0feea01cad6809a80303a87e8a28",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/Dinothawr/commit/62d3e1ecf85f0feea01cad6809a80303a87e8a28",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-dolphin",
+      "prefix": "LIBRETRO_DOLPHIN",
+      "upstream": "libretro/dolphin",
+      "previous_version": "2f4b0f7902257d40a054f60b2c670d6e314f2a04",
+      "version": "7a2d51d5fa3f72e9b03fed30449ac45b6d6ac8e2",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/dolphin/commit/7a2d51d5fa3f72e9b03fed30449ac45b6d6ac8e2",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-dolphin/0001-knulli-integration.patch": "acb9e643f3c2050abdbc3dc9bbf34f083e151a6b28c9b12c075a8750f67d7ab3"
+      }
+    },
+    {
+      "package": "libretro-dosbox-pure",
+      "prefix": "LIBRETRO_DOSBOX_PURE",
+      "upstream": "https://codeberg.org/schelling/dosbox-pure",
+      "previous_version": "0.9.9",
+      "version": "9911d3b60838cabf4cfe727ccdfc669770c7186d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://codeberg.org/schelling/dosbox-pure/commit/9911d3b60838cabf4cfe727ccdfc669770c7186d",
+      "patch_status": "migrated-source-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-dosbox-pure/000-rpi_makefile.patch": "bf39e82c5a180b87593cc7a876ff01f752f0f13a40dc07ac91146a098044ac9e"
+      }
+    },
+    {
+      "package": "libretro-easyrpg",
+      "prefix": "LIBRETRO_EASYRPG",
+      "upstream": "EasyRPG/Player",
+      "previous_version": "0.8.1",
+      "version": "0de2a9ab466a133ac6e192a84bd761a1d81f5f14",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/EasyRPG/Player/commit/0de2a9ab466a133ac6e192a84bd761a1d81f5f14",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-ecwolf",
+      "prefix": "LIBRETRO_ECWOLF",
+      "upstream": "libretro/ecwolf",
+      "previous_version": "b3fe0743d8dc0fe90b066bccc1567496a0a25a14",
+      "version": "0cccd9a85d7ffa33fb695691a8a5db246606518c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/ecwolf/commit/0cccd9a85d7ffa33fb695691a8a5db246606518c",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-emuscv",
+      "prefix": "LIBRETRO_EMUSCV",
+      "upstream": null,
+      "previous_version": "112c83930a1959e3d6f81693be1bacae98360539",
+      "version": "099feb250ad2d6c304aa79c39ea6223f0b1c9f08",
+      "status": "latest-development-commit",
+      "changed": true,
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-fake08",
+      "prefix": "LIBRETRO_FAKE08",
+      "upstream": "jtothebell/fake-08",
+      "previous_version": "0d26fd59103941e5f95e0ee665c6e0fb8c6b6f03",
+      "version": "814991a2571ad3970e386cef48f3b148aa1c27b9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/jtothebell/fake-08/commit/814991a2571ad3970e386cef48f3b148aa1c27b9",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-fbalpha",
+      "prefix": "LIBRETRO_FBALPHA",
+      "upstream": "libretro/fbalpha2012",
+      "previous_version": "b7ac554c53561d41640372f23dab15cd6fc4f0c4",
+      "version": "0ce31536bef3162fe7e69ff5f555334ec4913cef",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/fbalpha2012/commit/0ce31536bef3162fe7e69ff5f555334ec4913cef",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-fbneo",
+      "prefix": "LIBRETRO_FBNEO",
+      "upstream": "aleksei74/FBNeo",
+      "previous_version": "fb577a8bbe4d3fbc480ce323e6f311a530ca2308",
+      "version": "7ca2efd92376fc517e9c59dcb18401c4eb2923cb",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/aleksei74/FBNeo/commit/7ca2efd92376fc517e9c59dcb18401c4eb2923cb",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-fceumm",
+      "prefix": "LIBRETRO_FCEUMM",
+      "upstream": "libretro/libretro-fceumm",
+      "previous_version": "63643ba02c8eaea15dbe167ef907f3da7a3e6fd7",
+      "version": "ac0d00a7fc01166f84c7bac01d1084ebfd2b865e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-fceumm/commit/ac0d00a7fc01166f84c7bac01d1084ebfd2b865e",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-flycast",
+      "prefix": "LIBRETRO_FLYCAST",
+      "upstream": "flyinghead/flycast",
+      "previous_version": "ed953fcbfdd1b8a7521d2966b13cc700c7e2d233",
+      "version": "f03faffd2f89cb2c7c73ff08dce51a774a61ee27",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/flyinghead/flycast/commit/f03faffd2f89cb2c7c73ff08dce51a774a61ee27",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-flycast-xtreme",
+      "prefix": "LIBRETRO_FLYCAST_XTREME",
+      "upstream": "metallic77/flycast",
+      "previous_version": "603814c9f73b773c455d9a497f389d2f93a257fd",
+      "version": "4c293f306bc16a265c2d768af5d0cea138426054",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/metallic77/flycast/commit/4c293f306bc16a265c2d768af5d0cea138426054",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-flycastvl",
+      "prefix": "LIBRETRO_FLYCASTVL",
+      "upstream": "libretro/flycast",
+      "previous_version": "4a913e063c95d1fae98afc64645831de0bcad57e",
+      "version": "497de2593bc8bef1a31a3105a0a57f6a059b6ca7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/flycast/commit/497de2593bc8bef1a31a3105a0a57f6a059b6ca7",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-flycastvl/0001-knulli-integration.patch": "1ff0cf5b4454fe14e10488a25ba5a41535c38a12fae51d683a5f4401806a186c"
+      }
+    },
+    {
+      "package": "libretro-fmsx",
+      "prefix": "LIBRETRO_FMSX",
+      "upstream": "libretro/fmsx-libretro",
+      "previous_version": "9b5cf868825a629cc4c7086768338165d3bbf706",
+      "version": "4de11755ce4f196ac1c8a7bb20bb4eccbc87a7d4",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/fmsx-libretro/commit/4de11755ce4f196ac1c8a7bb20bb4eccbc87a7d4",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-freechaf",
+      "prefix": "LIBRETRO_FREECHAF",
+      "upstream": "libretro/FreeChaF",
+      "previous_version": "cdb8ad6fcecb276761b193650f5ce9ae8b878067",
+      "version": "76c7a84f1f7e80f3e6f2bba96fe100cb24e99124",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/FreeChaF/commit/76c7a84f1f7e80f3e6f2bba96fe100cb24e99124",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-freeintv",
+      "prefix": "LIBRETRO_FREEINTV",
+      "upstream": "libretro/freeintv",
+      "previous_version": "85bf25a39a34bbc39fe36677175d87c2b597dbe7",
+      "version": "ef3e0fe322bec62a7f916c0bb0834c08c348d0b4",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/FreeIntv/commit/ef3e0fe322bec62a7f916c0bb0834c08c348d0b4",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-fuse",
+      "prefix": "LIBRETRO_FUSE",
+      "upstream": "libretro/fuse-libretro",
+      "previous_version": "847dbbd6f787823ac9a5dfacdd68ab181063374e",
+      "version": "e997e2bc32c888348f862f69f2c53babfedf7791",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/fuse-libretro/commit/e997e2bc32c888348f862f69f2c53babfedf7791",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-gambatte",
+      "prefix": "LIBRETRO_GAMBATTE",
+      "upstream": "libretro/gambatte-libretro",
+      "previous_version": "4041d5a6c474d2d01b4cb1e81324b06b51d0147b",
+      "version": "d9d6cd06382d1ced30de34d56d3609452323dab1",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/gambatte-libretro/commit/d9d6cd06382d1ced30de34d56d3609452323dab1",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-gametank",
+      "prefix": "LIBRETRO_GAMETANK",
+      "upstream": "dwbrite/gametank_libretro",
+      "previous_version": "5fc954d56e9b28fbcacc6a8c56442881ffe9c671",
+      "version": "5fc954d56e9b28fbcacc6a8c56442881ffe9c671",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/dwbrite/gametank_libretro/commit/5fc954d56e9b28fbcacc6a8c56442881ffe9c671",
+      "patch_status": "retained"
+    },
+    {
+      "package": "libretro-gearboy",
+      "prefix": "LIBRETRO_GEARBOY",
+      "upstream": "drhelius/Gearboy",
+      "previous_version": "dc024a2abc3b8110182f733457b83b0ed28e6e37",
+      "version": "bec4ac45466d3f49c09e1b55cd842a3a6a9de13f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/drhelius/Gearboy/commit/bec4ac45466d3f49c09e1b55cd842a3a6a9de13f",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-gearcoleco",
+      "prefix": "LIBRETRO_GEARCOLECO",
+      "upstream": "drhelius/Gearcoleco",
+      "previous_version": "e12286af614303d5d325921edc8143275ea0ee10",
+      "version": "23743bcdd76b79e0c70801ce2ce170ac5edc9a12",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/drhelius/Gearcoleco/commit/23743bcdd76b79e0c70801ce2ce170ac5edc9a12",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-gearsystem",
+      "prefix": "LIBRETRO_GEARSYSTEM",
+      "upstream": "drhelius/Gearsystem",
+      "previous_version": "02b9d9e792559f3e871472548ca1fd72d9cc3e2a",
+      "version": "692494c8d3e322faeea204fd54f582f00d77f03a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/drhelius/Gearsystem/commit/692494c8d3e322faeea204fd54f582f00d77f03a",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-genesisplusgx",
+      "prefix": "LIBRETRO_GENESISPLUSGX",
+      "upstream": "ekeeke/Genesis-Plus-GX",
+      "previous_version": "302fe82fccbe2e036c3e13891db6513982a497ac",
+      "version": "49c584764893b0505ac7f768a754f97330fa4392",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/ekeeke/Genesis-Plus-GX/commit/49c584764893b0505ac7f768a754f97330fa4392",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-genesisplusgx-expanded",
+      "prefix": "LIBRETRO_GENESISPLUSGX_EXPANDED",
+      "upstream": "RapidEdwin08/Genesis-Plus-GX-Expanded-Rom-Size",
+      "previous_version": "a0b5a033a1b924f50953eaa35f93221df9f08e6f",
+      "version": "181e8f93440b11d26e305eb42198fdfae3c8d237",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/RapidEdwin08/Genesis-Plus-GX-Expanded-Rom-Size/commit/181e8f93440b11d26e305eb42198fdfae3c8d237",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-genesisplusgx-wide",
+      "prefix": "LIBRETRO_GENESISPLUSGX_WIDE",
+      "upstream": "libretro/Genesis-Plus-GX-Wide",
+      "previous_version": "d5531ca58d628a2ba6f791804aa01e2fb2cb0e13",
+      "version": "b7ad005431f5f0b55e559f6d598d1ed2479bf13b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/Genesis-Plus-GX-Wide/commit/b7ad005431f5f0b55e559f6d598d1ed2479bf13b",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-geolith",
+      "prefix": "LIBRETRO_GEOLITH",
+      "upstream": "libretro/geolith-libretro",
+      "previous_version": "b683c2f712a6647c69326961a90cf1990e25ccea",
+      "version": "2dc88e3fa72ff404213a65d6eb5bb33baa687f73",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/geolith-libretro/commit/2dc88e3fa72ff404213a65d6eb5bb33baa687f73",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-geolith/0001-knulli-integration.patch": "311664e24a0dcb62cc07fa67b4a003b4ac69447b7ce15f996b95d35609df2fe0"
+      }
+    },
+    {
+      "package": "libretro-gme",
+      "prefix": "LIBRETRO_GME",
+      "upstream": "libretro/libretro-gme",
+      "previous_version": "40d8b3bf4f0bd4f713f65e08c62d30b1ae8b2282",
+      "version": "1562f6207a066e9807243c89648d1cb44e411971",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-gme/commit/1562f6207a066e9807243c89648d1cb44e411971",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-gpsp",
+      "prefix": "LIBRETRO_GPSP",
+      "upstream": "libretro/gpsp",
+      "previous_version": "d6decfa351b575e2936afebba26d41ec20e4ddcd",
+      "version": "5819380c2ffb0900219d700a382ee68c464ebb99",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/gpsp/commit/5819380c2ffb0900219d700a382ee68c464ebb99",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-gw",
+      "prefix": "LIBRETRO_GW",
+      "upstream": "libretro/gw-libretro",
+      "previous_version": "0ecff52b11c327af52b22ea94b268c90472b6732",
+      "version": "91d599b951e7bfe7e040347f58667cba20074adc",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/gw-libretro/commit/91d599b951e7bfe7e040347f58667cba20074adc",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-handy",
+      "prefix": "LIBRETRO_HANDY",
+      "upstream": "libretro/libretro-handy",
+      "previous_version": "65d6b865544cd441ef2bd18cde7bd834c23d0e48",
+      "version": "bc55d462f0b2d6b073ea93dc552ebd73cec60fd1",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-handy/commit/bc55d462f0b2d6b073ea93dc552ebd73cec60fd1",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-hatari",
+      "prefix": "LIBRETRO_HATARI",
+      "upstream": "libretro/hatari",
+      "previous_version": "a4c9eb0bb79e47a2870c12b04566c1f8d25e4bf3",
+      "version": "a82e014ce2b05fc7724add284febba3816e4112a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/hatari/commit/a82e014ce2b05fc7724add284febba3816e4112a",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-hatari/0001-knulli-integration.patch": "d5f02e63f2970c156eb0d51976258d43c798f332edc2168c9fdae46d67609f3a"
+      }
+    },
+    {
+      "package": "libretro-hatarib",
+      "prefix": "LIBRETRO_HATARIB",
+      "upstream": "bbbradsmith/hatariB",
+      "previous_version": "0.3",
+      "version": "4fb7ebdfa14d5de7df3076143f255d7d8bf0323c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/bbbradsmith/hatariB/commit/4fb7ebdfa14d5de7df3076143f255d7d8bf0323c",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-hatarib/0001-knulli-integration.patch": "a4f7931d3f766970cdf7c3bee8d0a864dc2da2bcee08a630669e576a20dd2347"
+      }
+    },
+    {
+      "package": "libretro-holani",
+      "prefix": "LIBRETRO_HOLANI",
+      "upstream": "lleny/holani-retro",
+      "previous_version": "0.9.6-1",
+      "version": "d0d79b4928e3d32695294142784c033ce7aeda9b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/LLeny/holani-retro/commit/d0d79b4928e3d32695294142784c033ce7aeda9b",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-imame",
+      "prefix": "LIBRETRO_IMAME",
+      "upstream": "libretro/mame2000-libretro",
+      "previous_version": "1472da3a39ab14fff8325b1f51a1dfdb8eabb5c8",
+      "version": "181b42e5da0d2f0c7a2e59244f23633ed594de2e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/mame2000-libretro/commit/181b42e5da0d2f0c7a2e59244f23633ed594de2e",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-kronos",
+      "prefix": "LIBRETRO_KRONOS",
+      "upstream": "libretro/yabause",
+      "previous_version": "146f4295eb7f5f76a2e6e6c84518c9bdf6a8398f",
+      "version": "3791ffb2221fda61d70aec5cca376418caf05669",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/yabause/commit/3791ffb2221fda61d70aec5cca376418caf05669",
+      "patch_status": "configured-branch-patch-check-passed",
+      "branch": "kronos"
+    },
+    {
+      "package": "libretro-lowresnx",
+      "prefix": "LIBRETRO_LOWRESNX",
+      "upstream": "timoinutilis/lowres-nx",
+      "previous_version": "10a48e309ac5284724010eea56372fbc72b9f975",
+      "version": "63d5988f74e1eea2ecd6ea0445a8ce260b0a9822",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/timoinutilis/lowres-nx/commit/63d5988f74e1eea2ecd6ea0445a8ce260b0a9822",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-lutro",
+      "prefix": "LIBRETRO_LUTRO",
+      "upstream": "libretro/libretro-lutro",
+      "previous_version": "09a134eccad87127ec757503f736d6e4f9d06d4c",
+      "version": "6224157a615b18507bc0b117a3398c7a324cd3e5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-lutro/commit/6224157a615b18507bc0b117a3398c7a324cd3e5",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-lutro/0001-knulli-integration.patch": "e4966aa51d747730c97e353ba92028acc9237dfa50a65ed417f65d8b2f174328"
+      }
+    },
+    {
+      "package": "libretro-mame",
+      "prefix": "LIBRETRO_MAME",
+      "upstream": "libretro/mame",
+      "previous_version": "lrmame0278",
+      "version": "5f5a07748ce5c239c4118463ce8e6473743d4859",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/mame/commit/5f5a07748ce5c239c4118463ce8e6473743d4859",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-mame2003-plus",
+      "prefix": "LIBRETRO_MAME2003_PLUS",
+      "upstream": "aleksei74/mame2003-plus-dsno-libretro",
+      "previous_version": "488bb0b76ed2f32f8f4021c4710b444294fcdf87",
+      "version": "0efee560395c4f5320b879a7047e53e606bb6ac3",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/aleksei74/mame2003-plus-dsno-libretro/commit/0efee560395c4f5320b879a7047e53e606bb6ac3",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-mame2003-xtreme",
+      "prefix": "LIBRETRO_MAME2003_XTREME",
+      "upstream": "KMFDManic/mame2003-xtreme",
+      "previous_version": "ca7712a5488b27ab7fdec1c51a17a8edf21f9f23",
+      "version": "cbfe109a7e1bd48dac4c5ce609ee0c3b747d4088",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/KMFDManic/mame2003-xtreme/commit/cbfe109a7e1bd48dac4c5ce609ee0c3b747d4088",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mame2010",
+      "prefix": "LIBRETRO_MAME2010",
+      "upstream": "libretro/mame2010-libretro",
+      "previous_version": "5f524dd5fca63ec1dcf5cca63885286109937587",
+      "version": "dff8aadd1c3f38215af3955746d6e19abe0ddcea",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/mame2010-libretro/commit/dff8aadd1c3f38215af3955746d6e19abe0ddcea",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-melonds",
+      "prefix": "LIBRETRO_MELONDS",
+      "upstream": "libretro/melonds",
+      "previous_version": "c6488c88cb4c7583dbcd61609e0eef441572fae8",
+      "version": "66b5d2634cd0a79030562811e6e05f5532f800ba",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/melonDS/commit/66b5d2634cd0a79030562811e6e05f5532f800ba",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-melonds-ds",
+      "prefix": "LIBRETRO_MELONDS_DS",
+      "upstream": "JesseTG/melonds-ds",
+      "previous_version": "v1.1.5",
+      "version": "f394adbacb5722ee97c1b37c8064da9a25818310",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/JesseTG/melonds-ds/commit/f394adbacb5722ee97c1b37c8064da9a25818310",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mesen",
+      "prefix": "LIBRETRO_MESEN",
+      "upstream": "libretro/Mesen",
+      "previous_version": "d6f2f1797694f87e698c737b068f621889e96fa9",
+      "version": "0102910c39ad1a62bc3f784466f3f67ca9eae335",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/Mesen/commit/0102910c39ad1a62bc3f784466f3f67ca9eae335",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mesens",
+      "prefix": "LIBRETRO_MESENS",
+      "upstream": "libretro/Mesen-S",
+      "previous_version": "32a7adfb4edb029324253cb3632dfc6599ad1aa8",
+      "version": "9e4fdeb9b336470bc96beb8765b2e79c86a2da1e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/Mesen-S/commit/9e4fdeb9b336470bc96beb8765b2e79c86a2da1e",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mgba",
+      "prefix": "LIBRETRO_MGBA",
+      "upstream": "mgba-emu/mgba",
+      "previous_version": "3571b112dc821d3612e5073afb8b6be41a35dc55",
+      "version": "143adf5aa2a60c6036810b0cd72445e13d74b0e6",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mgba-emu/mgba/commit/143adf5aa2a60c6036810b0cd72445e13d74b0e6",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-minivmac",
+      "prefix": "LIBRETRO_MINIVMAC",
+      "upstream": "libretro/libretro-minivmac",
+      "previous_version": "7de54a87e2527eb15b9ec2ac589e041c3d051d49",
+      "version": "babdf7b53d361a7225858b68a8a64efe8b06f5e5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-minivmac/commit/babdf7b53d361a7225858b68a8a64efe8b06f5e5",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mrboom",
+      "prefix": "LIBRETRO_MRBOOM",
+      "upstream": "Javanaise/mrboom-libretro",
+      "previous_version": "5.5",
+      "version": "96f89550a3518dffe2e7561c971119a39d90de97",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Javanaise/mrboom-libretro/commit/96f89550a3518dffe2e7561c971119a39d90de97",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-mupen64plus-next",
+      "prefix": "LIBRETRO_MUPEN64PLUS_NEXT",
+      "upstream": "libretro/mupen64plus-libretro-nx",
+      "previous_version": "c7cd8edcd015ddcbd4a2e984573c9c1d1ddd0b6e",
+      "version": "12edd2c74a517ff86dfa8cfc71ad75e4c10486d5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/mupen64plus-libretro-nx/commit/12edd2c74a517ff86dfa8cfc71ad75e4c10486d5",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-neocd",
+      "prefix": "LIBRETRO_NEOCD",
+      "upstream": "libretro/neocd_libretro",
+      "previous_version": "5eca2c8fd567b5261251c65ecafa8cf5b179d1d2",
+      "version": "b1e04c738cb48a1dae0574b8877f6a116d270ca1",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/neocd_libretro/commit/b1e04c738cb48a1dae0574b8877f6a116d270ca1",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-nestopia",
+      "prefix": "LIBRETRO_NESTOPIA",
+      "upstream": "libretro/nestopia",
+      "previous_version": "2cef539e0df9ae5c8e6adf830a37f5d122bf5f05",
+      "version": "135dfa6dfda5e7603d61e751b9ddd0cc42546bc3",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/nestopia/commit/135dfa6dfda5e7603d61e751b9ddd0cc42546bc3",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-nxengine",
+      "prefix": "LIBRETRO_NXENGINE",
+      "upstream": "libretro/nxengine-libretro",
+      "previous_version": "1f371e51c7a19049e00f4364cbe9c68ca08b303a",
+      "version": "fd1c0686f8b4c0aea9b5addbc077e3ad7da23bb7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/nxengine-libretro/commit/fd1c0686f8b4c0aea9b5addbc077e3ad7da23bb7",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-o2em",
+      "prefix": "LIBRETRO_O2EM",
+      "upstream": "libretro/libretro-o2em",
+      "previous_version": "c039e83f2589cb9d21b9aa5dc211954234ab8c97",
+      "version": "679d6fec04963f6e70a7ec217e3d0ebb1fe472fc",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-o2em/commit/679d6fec04963f6e70a7ec217e3d0ebb1fe472fc",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-o2em/0001-knulli-integration.patch": "631a072bad6100c0ecc76af7dadb31ebac316af2dcbe67fc639af68c60cc9a15"
+      }
+    },
+    {
+      "package": "libretro-openlara",
+      "prefix": "LIBRETRO_OPENLARA",
+      "upstream": "libretro/openlara",
+      "previous_version": "96989ac41ae55a42b19916dc8191f74be40e1b07",
+      "version": "e4ce52edec5a9a6ad22b69d08c687bf070e68876",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/OpenLara/commit/e4ce52edec5a9a6ad22b69d08c687bf070e68876",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-opera",
+      "prefix": "LIBRETRO_OPERA",
+      "upstream": "libretro/opera-libretro",
+      "previous_version": "35e16483be900ea8aa20e87d2710b677437f73ce",
+      "version": "5a09dc47c1edc7de599fa7302d4992beacb55349",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/opera-libretro/commit/5a09dc47c1edc7de599fa7302d4992beacb55349",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-panda3ds",
+      "prefix": "LIBRETRO_PANDA3DS",
+      "upstream": "wheremyfoodat/Panda3DS",
+      "previous_version": "v0.9",
+      "version": "92e53d26b898eb89d865f8407460900a88e7c0fa",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/wheremyfoodat/Panda3DS/commit/92e53d26b898eb89d865f8407460900a88e7c0fa",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-panda3ds/0001-knulli-integration.patch": "8f24fd0fb5b6a94de6699f995ffa2dc98dd00f84b798b2e63370a59d34d6bcbd"
+      }
+    },
+    {
+      "package": "libretro-parallel-n64",
+      "prefix": "LIBRETRO_PARALLEL_N64",
+      "upstream": "libretro/parallel-n64",
+      "previous_version": "1b57f9199b1f8a4510f7f89f14afa9cabf9b3bdd",
+      "version": "a8280501a71c1bcd4c85c5b8bfe75cfa62cd6127",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/parallel-n64/commit/a8280501a71c1bcd4c85c5b8bfe75cfa62cd6127",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-parallel-n64/0001-knulli-integration.patch": "3765883087c779dce13a27829c77f34b908ff8896e3cc346f548ad78e7e38151"
+      }
+    },
+    {
+      "package": "libretro-pc88",
+      "prefix": "LIBRETRO_PC88",
+      "upstream": "libretro/quasi88-libretro",
+      "previous_version": "e3d06c4f34c3643d3ea9248a47cdc6cf60c1e0b1",
+      "version": "7884be5277776a5d8c4fdc4e574e9b5b589945c9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/quasi88-libretro/commit/7884be5277776a5d8c4fdc4e574e9b5b589945c9",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-pc98",
+      "prefix": "LIBRETRO_PC98",
+      "upstream": "AZO234/NP2kai",
+      "previous_version": "rev.22",
+      "version": "5939e0c6d5985c4c08fc70f289a83290e5d3e6f7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/AZO234/NP2kai/commit/5939e0c6d5985c4c08fc70f289a83290e5d3e6f7",
+      "patch_status": "modern-recipe-and-patch-check-passed"
+    },
+    {
+      "package": "libretro-pcsx",
+      "prefix": "LIBRETRO_PCSX",
+      "upstream": "libretro/pcsx_rearmed",
+      "previous_version": "9aefd427e47e1cdf94578e1913054bc14a44bab6",
+      "version": "c8816799b50388e61cfe237fe2cdbb7d8175f20a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/pcsx_rearmed/commit/c8816799b50388e61cfe237fe2cdbb7d8175f20a",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-pcsx2",
+      "prefix": "LIBRETRO_PCSX2",
+      "upstream": "libretro/pcsx2",
+      "previous_version": "8fa9f92eee3dc57e8a9f310d6925a7119648f37f",
+      "version": "8fa9f92eee3dc57e8a9f310d6925a7119648f37f",
+      "status": "upstream-unavailable",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "libretro-picodrive",
+      "prefix": "LIBRETRO_PICODRIVE",
+      "upstream": "libretro/picodrive",
+      "previous_version": "ad93670449a28825d4b2cebf2eeff72cf03377a9",
+      "version": "1890c2932234c9d30f4cd3851d02228baae8f09e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/picodrive/commit/1890c2932234c9d30f4cd3851d02228baae8f09e",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-play",
+      "prefix": "LIBRETRO_PLAY",
+      "upstream": "jpd002/Play-",
+      "previous_version": "fbe1d81dfad0ca61a196001569fbba16d0d1ab56",
+      "version": "83700b2c31e593bc94e845b4b31b797be84dda59",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/jpd002/Play-/commit/83700b2c31e593bc94e845b4b31b797be84dda59",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-pocketsnes",
+      "prefix": "LIBRETRO_POCKETSNES",
+      "upstream": "libretro/snes9x2002",
+      "previous_version": "540baad622d9833bba7e0696193cb06f5f02f564",
+      "version": "6ffbf9ef4f0063e1f1b78a40d10c50fc52f2524c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/snes9x2002/commit/6ffbf9ef4f0063e1f1b78a40d10c50fc52f2524c",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-pokemini",
+      "prefix": "LIBRETRO_POKEMINI",
+      "upstream": "libretro/PokeMini",
+      "previous_version": "9bf450887026d9b92d4f9432b5d2a5ed749a35e2",
+      "version": "132111b76343559860532a1ccc094f93f1ed5650",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/PokeMini/commit/132111b76343559860532a1ccc094f93f1ed5650",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-ppsspp",
+      "prefix": "LIBRETRO_PPSSPP",
+      "upstream": "hrydgard/ppsspp",
+      "previous_version": "4c48f85664e59aef408483e41fb084e13238cb73",
+      "version": "dd6bd1a53d38773c1d07985fcb7d2f56fcaa872c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/hrydgard/ppsspp/commit/dd6bd1a53d38773c1d07985fcb7d2f56fcaa872c",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/libretro-ppsspp/0001-knulli-integration.patch": "24c2c288f2a3197173124e0875fe097341e985e4ceb04cb64d965c9fc0990587"
+      }
+    },
+    {
+      "package": "libretro-prboom",
+      "prefix": "LIBRETRO_PRBOOM",
+      "upstream": "libretro/libretro-prboom",
+      "previous_version": "6ec854969fd9dec33bb2cab350f05675d1158969",
+      "version": "c6e0fcb8325fc7969c91387f56c63433de0f1a53",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-prboom/commit/c6e0fcb8325fc7969c91387f56c63433de0f1a53",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-prosystem",
+      "prefix": "LIBRETRO_PROSYSTEM",
+      "upstream": "libretro/prosystem-libretro",
+      "previous_version": "4202ac5bdb2ce1a21f84efc0e26d75bb5aa7e248",
+      "version": "8a88014287c7a01cd568067e5a557d0a2b2a051f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/prosystem-libretro/commit/8a88014287c7a01cd568067e5a557d0a2b2a051f",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-ps2",
+      "prefix": "LIBRETRO_PS2",
+      "upstream": "libretro/ps2",
+      "previous_version": "14e75bd69d0997ea9d51ad9f87d5edfe12f502ef",
+      "version": "3660a1fe8b21ef2a8227a05405d1de0058590f29",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/ps2/commit/3660a1fe8b21ef2a8227a05405d1de0058590f29",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/libretro-ps2/0001-knulli-integration.patch": "e3c619ac97847ec02d554f643b996912b29861d14be6360f47fcb6c38aa46536"
+      }
+    },
+    {
+      "package": "libretro-puae",
+      "prefix": "LIBRETRO_PUAE",
+      "upstream": "libretro/libretro-uae",
+      "previous_version": "5f683ae67b998fcadd69fa8f65f2440fa8ef135f",
+      "version": "7387937066b1b693816c3b4e2b7a0c601d41363d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-uae/commit/7387937066b1b693816c3b4e2b7a0c601d41363d",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/libretro-puae/0001-knulli-integration.patch": "5c986677844ccfc8f78b6d7ee92bbc0d1cfd024139226a207e38861528606ddb"
+      }
+    },
+    {
+      "package": "libretro-puae2021",
+      "prefix": "LIBRETRO_PUAE2021",
+      "upstream": "libretro/libretro-uae",
+      "previous_version": "8cfc07f986b3c68ce1e58b41aaa537c5a9bf6a65",
+      "version": "8cfc07f986b3c68ce1e58b41aaa537c5a9bf6a65",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/libretro/libretro-uae/commit/7387937066b1b693816c3b4e2b7a0c601d41363d",
+      "patch_status": "retained"
+    },
+    {
+      "package": "libretro-px68k",
+      "prefix": "LIBRETRO_PX68K",
+      "upstream": "libretro/px68k-libretro",
+      "previous_version": "4c7542e34df71e3ebab77b5867901747d58dbb38",
+      "version": "0ad84d7058a12b7db4f7f7a906e87fad4e2f26f6",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/px68k-libretro/commit/0ad84d7058a12b7db4f7f7a906e87fad4e2f26f6",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-quicknes",
+      "prefix": "LIBRETRO_QUICKNES",
+      "upstream": "libretro/QuickNES_Core",
+      "previous_version": "058d66516ed3f1260b69e5b71cd454eb7e9234a3",
+      "version": "26bb785c9deddb66a17717b21bb4e328f03ade32",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/QuickNES_Core/commit/26bb785c9deddb66a17717b21bb4e328f03ade32",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-race",
+      "prefix": "LIBRETRO_RACE",
+      "upstream": "libretro/RACE",
+      "previous_version": "f65011e6639ccbbbb44b6ffa63ca50c070475df4",
+      "version": "c7810dd7f172827bfa2004813bc000b13786636b",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/RACE/commit/c7810dd7f172827bfa2004813bc000b13786636b",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-reminiscence",
+      "prefix": "LIBRETRO_REMINISCENCE",
+      "upstream": "libretro/REminiscence",
+      "previous_version": "e21856941dcedee23026da8b2ca94708c14dae7f",
+      "version": "e6c0b0039258004f8bc377ddb88c0e931db131ce",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/REminiscence/commit/e6c0b0039258004f8bc377ddb88c0e931db131ce",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-retro8",
+      "prefix": "LIBRETRO_RETRO8",
+      "upstream": "jakz/retro8",
+      "previous_version": "8d074ac12634b1968f8dc10e874eb5879ad63021",
+      "version": "ecee6594c5b953966ee0515f3edac4032c7ed40f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Jakz/retro8/commit/ecee6594c5b953966ee0515f3edac4032c7ed40f",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-same-cdi",
+      "prefix": "LIBRETRO_SAME_CDI",
+      "upstream": "libretro/same_cdi",
+      "previous_version": "54cf493c2dee4c46666059c452f8aaaa0bd7c8e0",
+      "version": "ff9bb99a50d518aef6d2add1c49b7c44447e3e78",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/same_cdi/commit/ff9bb99a50d518aef6d2add1c49b7c44447e3e78",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-sameduck",
+      "prefix": "LIBRETRO_SAMEDUCK",
+      "upstream": "LIJI32/SameBoy",
+      "previous_version": "5c5cdec7c7d3a489c8414ed04d99ee3c8779639b",
+      "version": "5619abdb01cee6bedb47599cdb5532c318443b52",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/LIJI32/SameBoy/commit/5619abdb01cee6bedb47599cdb5532c318443b52",
+      "patch_status": "no-package-patches",
+      "branch": "SameDuck"
+    },
+    {
+      "package": "libretro-scummvm",
+      "prefix": "LIBRETRO_SCUMMVM",
+      "upstream": "libretro/scummvm",
+      "previous_version": "55fcf4050ac1102638cd7975677f81ae1a2c2070",
+      "version": "fcbce3ae815269dacdc309092bc92ccc6d3e13bb",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/scummvm/commit/fcbce3ae815269dacdc309092bc92ccc6d3e13bb",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-smsplus-gx",
+      "prefix": "LIBRETRO_SMSPLUS_GX",
+      "upstream": "libretro/smsplus-gx",
+      "previous_version": "96fa9bc65aa27a5ab2779f9f2ff0439fec7cf513",
+      "version": "3844b46caa926b6494987b97da63092818c4ddef",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/smsplus-gx/commit/3844b46caa926b6494987b97da63092818c4ddef",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-snes9x",
+      "prefix": "LIBRETRO_SNES9X",
+      "upstream": "libretro/snes9x",
+      "previous_version": "ec4ebfc8f3819a9522fcb8e53eed985090017b1b",
+      "version": "fae2fea08f74180759ef540ee94259213f503480",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/snes9x/commit/fae2fea08f74180759ef540ee94259213f503480",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-snes9x-next",
+      "prefix": "LIBRETRO_SNES9X_NEXT",
+      "upstream": "libretro/snes9x2010",
+      "previous_version": "d8b10c4cd7606ed58f9c562864c986bc960faaaf",
+      "version": "fe690dd321fa5a46b5234a2bde089d2518c62b0e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/snes9x2010/commit/fe690dd321fa5a46b5234a2bde089d2518c62b0e",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-stella",
+      "prefix": "LIBRETRO_STELLA",
+      "upstream": "stella-emu/stella",
+      "previous_version": "4557099e5d7a0c0b02424ea85d2a4b093911e048",
+      "version": "2c3d7023e9136f75c789803b44f119d8749dc104",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/stella-emu/stella/commit/2c3d7023e9136f75c789803b44f119d8749dc104",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-stella2014",
+      "prefix": "LIBRETRO_STELLA2014",
+      "upstream": "libretro/stella2014-libretro",
+      "previous_version": "8ab051edd4816f33a5631d230d54059eeed52c5f",
+      "version": "7d1361e407e63f29e52892655069e5fb4096e691",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/stella2014-libretro/commit/7d1361e407e63f29e52892655069e5fb4096e691",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-supafaust",
+      "prefix": "LIBRETRO_SUPAFAUST",
+      "upstream": "libretro/supafaust",
+      "previous_version": "75c658cce454e58ae04ea252f53a31c60d61548e",
+      "version": "642d1d1b6684aa7e306a02a89885f3f5456a5157",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/supafaust/commit/642d1d1b6684aa7e306a02a89885f3f5456a5157",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-superbroswar",
+      "prefix": "LIBRETRO_SUPERBROSWAR",
+      "upstream": "libretro/superbroswar-libretro",
+      "previous_version": "d8d5d58f3cbc1e08f91a0e218bc990ec47282c08",
+      "version": "7f94e03163e1641ecd2a5703eb9ca7e1312b5e8d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/superbroswar-libretro/commit/7f94e03163e1641ecd2a5703eb9ca7e1312b5e8d",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-superflappybirds",
+      "prefix": "LIBRETRO_SUPERFLAPPYBIRDS",
+      "upstream": "IgniparousTempest/libretro-superflappybirds",
+      "previous_version": "4b798ecc6948017ca79aad1ea20fe57e680228c8",
+      "version": "c7dfa3508b0a33ba574b0b40334f66b9cf8cc478",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/IgniparousTempest/libretro-superflappybirds/commit/c7dfa3508b0a33ba574b0b40334f66b9cf8cc478",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-swanstation",
+      "prefix": "LIBRETRO_SWANSTATION",
+      "upstream": "libretro/swanstation",
+      "previous_version": "77aeeea58a45cccae7a8be37645f8f5a27ff101b",
+      "version": "dd4805619bbbfc6e0d1776372cb16377088b448e",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/swanstation/commit/dd4805619bbbfc6e0d1776372cb16377088b448e",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-tgbdual",
+      "prefix": "LIBRETRO_TGBDUAL",
+      "upstream": "libretro/tgbdual-libretro",
+      "previous_version": "a6f3018e6a23030afc1873845ee54d4b2d8ec9d3",
+      "version": "0392c9c469e653205e471114c7949c07c83bfce9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/tgbdual-libretro/commit/0392c9c469e653205e471114c7949c07c83bfce9",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-theodore",
+      "prefix": "LIBRETRO_THEODORE",
+      "upstream": "Zlika/theodore",
+      "previous_version": "7889613edede5ba89de1dfe7c05cf8397cf178ba",
+      "version": "4d469ce0f71ee046ceb78cdbf8e9f18364aaa918",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Zlika/theodore/commit/4d469ce0f71ee046ceb78cdbf8e9f18364aaa918",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-tic80",
+      "prefix": "LIBRETRO_TIC80",
+      "upstream": "nesbox/TIC-80",
+      "previous_version": "0d82b6596a12526f6ec91fec9d445e55984543f4",
+      "version": "8fa6ca77765cbf58c34f4acf5d2c0d4df20363a9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/nesbox/TIC-80/commit/8fa6ca77765cbf58c34f4acf5d2c0d4df20363a9",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-tyrquake",
+      "prefix": "LIBRETRO_TYRQUAKE",
+      "upstream": "libretro/tyrquake",
+      "previous_version": "1913c4ec36361440b9df6b2a03d6182730f9c9c3",
+      "version": "67db338ff4d27fdbcead61d4e54938d758ae62cb",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/tyrquake/commit/67db338ff4d27fdbcead61d4e54938d758ae62cb",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "libretro-uae4arm",
+      "prefix": "LIBRETRO_UAE4ARM",
+      "upstream": "chips-fr/uae4arm-rpi",
+      "previous_version": "177c2f0e892adf2603ada9b150e31beffe0f76c3",
+      "version": "fc1cb90afd6b5c6d9bb933d111c4c99c90f37688",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Chips-fr/uae4arm-rpi/commit/fc1cb90afd6b5c6d9bb933d111c4c99c90f37688",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-uzem",
+      "prefix": "LIBRETRO_UZEM",
+      "upstream": "libretro/libretro-uzem",
+      "previous_version": "08e39e19167727c89fb995e3fa70dde252e6aab0",
+      "version": "d991ee94547c8294abc1c4cb73d63116aa58b5bc",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-uzem/commit/d991ee94547c8294abc1c4cb73d63116aa58b5bc",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-vba-m",
+      "prefix": "LIBRETRO_VBA_M",
+      "upstream": "visualboyadvance-m/visualboyadvance-m",
+      "previous_version": "2a916613b1ae490e8ae52100f7ac5ab7034c1d55",
+      "version": "dfeacd93d64e63405390761ef5fff558769fd98f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/visualboyadvance-m/visualboyadvance-m/commit/dfeacd93d64e63405390761ef5fff558769fd98f",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-vecx",
+      "prefix": "LIBRETRO_VECX",
+      "upstream": "libretro/libretro-vecx",
+      "previous_version": "56a99fa08a7601b304d752188ca573febf26faeb",
+      "version": "8f671cc9d737f2890c3ce19e177e2984dcae121f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/libretro-vecx/commit/8f671cc9d737f2890c3ce19e177e2984dcae121f",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-vemulator",
+      "prefix": "LIBRETRO_VEMULATOR",
+      "upstream": "libretro/vemulator-libretro",
+      "previous_version": "ff9c39714fe64960b4050c6884c70c24e63de4fd",
+      "version": "27a062f6ae532e5028e4fb54f523cc689e78146a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/vemulator-libretro/commit/27a062f6ae532e5028e4fb54f523cc689e78146a",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-vice",
+      "prefix": "LIBRETRO_VICE",
+      "upstream": "libretro/vice-libretro",
+      "previous_version": "86eca8b0a64aa4ca442e696e75d43de19b9556d3",
+      "version": "f63b56688f3133a2bb17499db9eebb7ab81df5f5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/vice-libretro/commit/f63b56688f3133a2bb17499db9eebb7ab81df5f5",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-vircon32",
+      "prefix": "LIBRETRO_VIRCON32",
+      "upstream": "vircon32/vircon32-libretro",
+      "previous_version": "v1.3",
+      "version": "35a4042b06c30f232edb3f3abb47a10bcd8ec240",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/vircon32/vircon32-libretro/commit/35a4042b06c30f232edb3f3abb47a10bcd8ec240",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-virtualjaguar",
+      "prefix": "LIBRETRO_VIRTUALJAGUAR",
+      "upstream": "libretro/virtualjaguar-libretro",
+      "previous_version": "8126e5c504ac7217a638f38e4cd9190822c8abdd",
+      "version": "dbed6843a22e3fdbbbfada23d4663e8bdee4bc16",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/virtualjaguar-libretro/commit/dbed6843a22e3fdbbbfada23d4663e8bdee4bc16",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-vitaquake2",
+      "prefix": "LIBRETRO_VITAQUAKE2",
+      "upstream": "libretro/vitaquake2",
+      "previous_version": "a74ca613ef71ed910a3cf49e71aa3c5f0294d9bf",
+      "version": "4b333fe18e8816974f04432af01f87654ae16e21",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/vitaquake2/commit/4b333fe18e8816974f04432af01f87654ae16e21",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-vm",
+      "prefix": "LIBRETRO_VM",
+      "upstream": "minkcv/vm",
+      "previous_version": "fb5d6ddabec23298db39ab8536f77623fb3a1bae",
+      "version": "11f63848a592644722ea1240b4b96785db9b009f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/minkcv/vm/commit/11f63848a592644722ea1240b4b96785db9b009f",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-wasm4",
+      "prefix": "LIBRETRO_WASM4",
+      "upstream": "aduros/wasm4",
+      "previous_version": "v2.7.1",
+      "version": "9d6c962785cfe3719d0245fd279ecbe98a4dbb63",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/aduros/wasm4/commit/9d6c962785cfe3719d0245fd279ecbe98a4dbb63",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-watara",
+      "prefix": "LIBRETRO_WATARA",
+      "upstream": "libretro/potator",
+      "previous_version": "aed31f9254cada9826c65ff4528cc8bdda338275",
+      "version": "227c5f6f3ce74d32e9002ce24c1420288559a860",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/potator/commit/227c5f6f3ce74d32e9002ce24c1420288559a860",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-xmil",
+      "prefix": "LIBRETRO_XMIL",
+      "upstream": "libretro/xmil-libretro",
+      "previous_version": "04b3c90af710b66b31df3c9621fa8da13b24e123",
+      "version": "3106aa54ffb244cca4019a6e95dacaa698781bc3",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/xmil-libretro/commit/3106aa54ffb244cca4019a6e95dacaa698781bc3",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "libretro-xrick",
+      "prefix": "LIBRETRO_XRICK",
+      "upstream": "libretro/xrick-libretro",
+      "previous_version": "58e544ee8de08ca8421e97c064d52ef6cdd73bd2",
+      "version": "fcfde3623a04b4e986548e06d46630fcd0bd1e18",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/xrick-libretro/commit/fcfde3623a04b4e986548e06d46630fcd0bd1e18",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "libretro-yabasanshiro",
+      "prefix": "LIBRETRO_YABASANSHIRO",
+      "upstream": "libretro/yabause",
+      "previous_version": "39535a6abcad5abf9f71c8b2a7975f005ee12ed6",
+      "version": "09ed8e5b2e97e7a848ea2514545c34c7b809e399",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/yabause/commit/09ed8e5b2e97e7a848ea2514545c34c7b809e399",
+      "patch_status": "configured-branch-patch-check-passed",
+      "branch": "yabasanshiro"
+    },
+    {
+      "package": "libretro-zc210",
+      "prefix": "LIBRETRO_ZC210",
+      "upstream": "netux79/zc210-libretro",
+      "previous_version": "b6426da40b074245fda097fd345fa7c9cdbf152a",
+      "version": "b6426da40b074245fda097fd345fa7c9cdbf152a",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/netux79/zc210-libretro/commit/b6426da40b074245fda097fd345fa7c9cdbf152a",
+      "patch_status": "retained"
+    },
+    {
+      "package": "lightspark",
+      "prefix": "LIGHTSPARK",
+      "upstream": "lightspark/lightspark",
+      "previous_version": "9092db6dbbdea7763a174e81ceaca3ea9626cd2a",
+      "version": "a72a6fc7d5c00ef0a6a8fd04e38fcb1a5100583d",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/lightspark/lightspark/commit/a72a6fc7d5c00ef0a6a8fd04e38fcb1a5100583d",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "lindbergh-loader",
+      "prefix": "LINDBERGH_LOADER",
+      "upstream": "lindbergh-loader/lindbergh-loader",
+      "previous_version": "v2.0.14",
+      "version": "0af606d845b70339c335785c0eba68b47b78df3c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/lindbergh-loader/lindbergh-loader/commit/0af606d845b70339c335785c0eba68b47b78df3c",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "mame",
+      "prefix": "MAME",
+      "upstream": "antonioginer/GroovyMAME",
+      "previous_version": "gm0277sr221e",
+      "version": "953db38f4aaab1d75faa4ac79e1b45686214f987",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/antonioginer/GroovyMAME/commit/953db38f4aaab1d75faa4ac79e1b45686214f987",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/mame/0001-knulli-integration.patch": "dc8ececaa0028d1b0b36c9a5696d3599f1d76e53b363722c48da3aa4c684cc4d"
+      }
+    },
+    {
+      "package": "melonds",
+      "prefix": "MELONDS",
+      "upstream": "Arisotura/melonDS",
+      "previous_version": "15c3faa26e879bdcff615558ded6dd886681ccae",
+      "version": "906e9ebb27da8c6a715cd7abab4abfe8a8d29427",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/melonDS-emu/melonDS/commit/906e9ebb27da8c6a715cd7abab4abfe8a8d29427",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-audio-sdl",
+      "prefix": "MUPEN64PLUS_AUDIO_SDL",
+      "upstream": "mupen64plus/mupen64plus-audio-sdl",
+      "previous_version": "6c2c3f8ae10b7f0f6dfe06f45ca7ca598a6b659a",
+      "version": "2faed1c7e62c5f292948e7cd2398c184970cf794",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-audio-sdl/commit/2faed1c7e62c5f292948e7cd2398c184970cf794",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "mupen64plus-core",
+      "prefix": "MUPEN64PLUS_CORE",
+      "upstream": "mupen64plus/mupen64plus-core",
+      "previous_version": "312a5befde1b44db8beee7868b929c23d896991f",
+      "version": "ba95bab92a76744753bfe61470823a4937850ab0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-core/commit/ba95bab92a76744753bfe61470823a4937850ab0",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/mupen64plus-core/0001-knulli-integration.patch": "61f3bfe9d2d6c58922b4ed2ca29b1d9669b285559867f2f79ced35320101172f"
+      }
+    },
+    {
+      "package": "mupen64plus-gliden64",
+      "prefix": "MUPEN64PLUS_GLIDEN64",
+      "upstream": "gonetz/GLideN64",
+      "previous_version": "458bb47d0d7eb7a2649ae4195024fc9626af61fb",
+      "version": "a04081ad6a966a9413bea63a55f502e0dc98bb18",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/gonetz/GLideN64/commit/a04081ad6a966a9413bea63a55f502e0dc98bb18",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-input-sdl",
+      "prefix": "MUPEN64PLUS_INPUT_SDL",
+      "upstream": "mupen64plus/mupen64plus-input-sdl",
+      "previous_version": "f2ca3839415d45a547f79d21177dfe15a0ce6d8c",
+      "version": "842c39e89749aa3a8d02202b2afddd20b29cdfdb",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-input-sdl/commit/842c39e89749aa3a8d02202b2afddd20b29cdfdb",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-rsp-hle",
+      "prefix": "MUPEN64PLUS_RSP_HLE",
+      "upstream": "mupen64plus/mupen64plus-rsp-hle",
+      "previous_version": "2798e65d6fc89d89aace0b0d779af6406809b940",
+      "version": "8a7a472a7172eb2c8725b305eae26818ed7b51a2",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-rsp-hle/commit/8a7a472a7172eb2c8725b305eae26818ed7b51a2",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-ui-console",
+      "prefix": "MUPEN64PLUS_UI_CONSOLE",
+      "upstream": "mupen64plus/mupen64plus-ui-console",
+      "previous_version": "beddd15785663f1c3b4e9476998defea36223cf3",
+      "version": "c8ac4862a019d7885b24927d9b4db5dd3e42a528",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-ui-console/commit/c8ac4862a019d7885b24927d9b4db5dd3e42a528",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-video-glide64mk2",
+      "prefix": "MUPEN64PLUS_VIDEO_GLIDE64MK2",
+      "upstream": "mupen64plus/mupen64plus-video-glide64mk2",
+      "previous_version": "39a8c11e8a041e16bcc6d67ebc2281b8632ba5ed",
+      "version": "b07cb0bc8f29d6ee43efdf0a4d5a1b878ba98393",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-video-glide64mk2/commit/b07cb0bc8f29d6ee43efdf0a4d5a1b878ba98393",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "mupen64plus-video-rice",
+      "prefix": "MUPEN64PLUS_VIDEO_RICE",
+      "upstream": "mupen64plus/mupen64plus-video-rice",
+      "previous_version": "fcf00779f08a9503ef30d26422f6b0350684820d",
+      "version": "f0a7b9f391b0e9bc14962b114f7da1ba553060be",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/mupen64plus/mupen64plus-video-rice/commit/f0a7b9f391b0e9bc14962b114f7da1ba553060be",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "noods",
+      "prefix": "NOODS",
+      "upstream": "Hydr8gon/NooDS",
+      "previous_version": "93086be34b9efc3b63b9d4e36a50abe8baeecd55",
+      "version": "4cb1439c330248b26cdf5f8dbcfa4e5ac53dcda0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Hydr8gon/NooDS/commit/4cb1439c330248b26cdf5f8dbcfa4e5ac53dcda0",
+      "patch_status": "host-compile-passed"
+    },
+    {
+      "package": "openbor4432",
+      "prefix": "OPENBOR4432",
+      "upstream": "Darknior/OpenBORv3b4432",
+      "previous_version": "38855f23a4637eda3c9ba7dfa057fd2cf8434de1",
+      "version": "49505541b858d59842e87e75f415dfb4322ead93",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Darknior/OpenBORv3b4432/commit/49505541b858d59842e87e75f415dfb4322ead93",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "openbor6330",
+      "prefix": "OPENBOR6330",
+      "upstream": "DCurrent/openbor",
+      "previous_version": "v6330",
+      "version": "v6330",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/DCurrent/openbor/commit/787b6770409935137579715febf80cf7a529b748",
+      "patch_status": "retained"
+    },
+    {
+      "package": "openbor6412",
+      "prefix": "OPENBOR6412",
+      "upstream": "DCurrent/openbor",
+      "previous_version": "05af203b0e5676034678291bbedc0b9fe4c8f898",
+      "version": "05af203b0e5676034678291bbedc0b9fe4c8f898",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/DCurrent/openbor/commit/787b6770409935137579715febf80cf7a529b748",
+      "patch_status": "retained"
+    },
+    {
+      "package": "openbor6510",
+      "prefix": "OPENBOR6510",
+      "upstream": "DCurrent/openbor",
+      "previous_version": "v6510-dev",
+      "version": "v6510-dev",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/DCurrent/openbor/commit/787b6770409935137579715febf80cf7a529b748",
+      "patch_status": "retained"
+    },
+    {
+      "package": "openbor7142",
+      "prefix": "OPENBOR7142",
+      "upstream": "DCurrent/openbor",
+      "previous_version": "3caaddd5545ea916aaeef329ba43c9f2c4a451cc",
+      "version": "3caaddd5545ea916aaeef329ba43c9f2c4a451cc",
+      "status": "legacy-compatible-pin",
+      "changed": false,
+      "commit_url": "https://github.com/DCurrent/openbor/commit/787b6770409935137579715febf80cf7a529b748",
+      "patch_status": "retained"
+    },
+    {
+      "package": "openbor7530",
+      "prefix": "OPENBOR7530",
+      "upstream": "DCurrent/openbor",
+      "previous_version": "v7533",
+      "version": "787b6770409935137579715febf80cf7a529b748",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/DCurrent/openbor/commit/787b6770409935137579715febf80cf7a529b748",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "openmsx",
+      "prefix": "OPENMSX",
+      "upstream": "openMSX/openMSX",
+      "previous_version": "0c6639b015247fa2dec522d875b27e20af88a71d",
+      "version": "c596782adf9ebe43b1ab8f3756261d4a6c0b7c56",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/openMSX/openMSX/commit/c596782adf9ebe43b1ab8f3756261d4a6c0b7c56",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "panda3ds",
+      "prefix": "PANDA3DS",
+      "upstream": "wheremyfoodat/Panda3DS",
+      "previous_version": "v0.9",
+      "version": "92e53d26b898eb89d865f8407460900a88e7c0fa",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/wheremyfoodat/Panda3DS/commit/92e53d26b898eb89d865f8407460900a88e7c0fa",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/panda3ds/0001-knulli-integration.patch": "8f24fd0fb5b6a94de6699f995ffa2dc98dd00f84b798b2e63370a59d34d6bcbd"
+      }
+    },
+    {
+      "package": "pcsx2",
+      "prefix": "PCSX2",
+      "upstream": "pcsx2/pcsx2",
+      "previous_version": "9fc90907c29294ac9db9aadd2d6c6bdf33403571",
+      "version": "0f71e668b8adc950db7de1b1b15c2f5080c102e9",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/PCSX2/pcsx2/commit/0f71e668b8adc950db7de1b1b15c2f5080c102e9",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/pcsx2/0001-knulli-integration.patch": "1bcd2163a6c44b8e91148d582012493f0ef2334850b1d0cb1e9297babf75c613"
+      }
+    },
+    {
+      "package": "pifba",
+      "prefix": "PIFBA",
+      "upstream": "batocera-linux/pifba",
+      "previous_version": "419faa7c3967560f6fa149f2f78b5aedca5b123a",
+      "version": "419faa7c3967560f6fa149f2f78b5aedca5b123a",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/batocera-linux/pifba/commit/419faa7c3967560f6fa149f2f78b5aedca5b123a",
+      "patch_status": "retained"
+    },
+    {
+      "package": "play",
+      "prefix": "PLAY",
+      "upstream": "jpd002/Play-",
+      "previous_version": "0.70",
+      "version": "83700b2c31e593bc94e845b4b31b797be84dda59",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/jpd002/Play-/commit/83700b2c31e593bc94e845b4b31b797be84dda59",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "ppsspp",
+      "prefix": "PPSSPP",
+      "upstream": "hrydgard/ppsspp",
+      "previous_version": "4c48f85664e59aef408483e41fb084e13238cb73",
+      "version": "dd6bd1a53d38773c1d07985fcb7d2f56fcaa872c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/hrydgard/ppsspp/commit/dd6bd1a53d38773c1d07985fcb7d2f56fcaa872c",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/ppsspp/0001-knulli-integration.patch": "015a1551e1dc5fc7998107cd348fbdfee998ef3f9d3734215c72d91ee1f09e94"
+      }
+    },
+    {
+      "package": "python-pygame2",
+      "prefix": "PYTHON_PYGAME2",
+      "upstream": "pygame/pygame",
+      "previous_version": "2.5.2",
+      "version": "85fda3f719d437cf27106afae8c890e6b88ba5f5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/pygame/pygame/commit/85fda3f719d437cf27106afae8c890e6b88ba5f5",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "python-pyxel",
+      "prefix": "PYTHON_PYXEL",
+      "upstream": "kitao/pyxel",
+      "previous_version": "v2.2.4",
+      "version": "v2.2.4",
+      "status": "upstream-unavailable",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "redream",
+      "prefix": "REDREAM",
+      "upstream": null,
+      "previous_version": "1.5.0-1133-g03c2ae9",
+      "version": "1.5.0-1240-gc41f7f2",
+      "status": "latest-development-binary",
+      "changed": true,
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "retroarch",
+      "prefix": "RETROARCH",
+      "upstream": "libretro/RetroArch",
+      "previous_version": "7f16ec2760ac8cf528aa84c180935a160d947bcf",
+      "version": "f96539d0b7aeed4c8e29a92f01e44f970c78cfa5",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/RetroArch/commit/f96539d0b7aeed4c8e29a92f01e44f970c78cfa5",
+      "patch_status": "rebased-patch-check-passed"
+    },
+    {
+      "package": "retroarch-assets",
+      "prefix": "RETROARCH_ASSETS",
+      "upstream": "libretro/retroarch-assets",
+      "previous_version": "818aca56efd784624a241a12936b5c0864e3ddd8",
+      "version": "d9f969054dc7fbb6fa89519036d2b971e0855b51",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/retroarch-assets/commit/d9f969054dc7fbb6fa89519036d2b971e0855b51",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "rpcs3",
+      "prefix": "RPCS3",
+      "upstream": "RPCS3/rpcs3",
+      "previous_version": "v0.0.37",
+      "version": "2ba2f75bcea7ef6bdd687046c7fcfb790faf9853",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/RPCS3/rpcs3/commit/2ba2f75bcea7ef6bdd687046c7fcfb790faf9853",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "ruffle",
+      "prefix": "RUFFLE",
+      "upstream": "ruffle-rs/ruffle",
+      "previous_version": "bfb540427dbdacb99eac9c0adb66509ba90151d0",
+      "version": "2372a4e148a67d68efd796f4477b3cddd4f880cd",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/ruffle-rs/ruffle/commit/2372a4e148a67d68efd796f4477b3cddd4f880cd",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "ryujinx",
+      "prefix": "RYUJINX",
+      "upstream": "Ryubing/Stable-Releases",
+      "previous_version": "1.2.86",
+      "version": "1.2.86",
+      "status": "upstream-unavailable",
+      "changed": false,
+      "patch_status": "retained"
+    },
+    {
+      "package": "scummvm",
+      "prefix": "SCUMMVM",
+      "upstream": "scummvm/scummvm",
+      "previous_version": "c420cad105727cf4215c77b1c4ca484422bc534a",
+      "version": "32f3e4021cd5122410cc88b0087a25690c458f95",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/scummvm/scummvm/commit/32f3e4021cd5122410cc88b0087a25690c458f95",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "sdl2_drastic",
+      "prefix": "SDL2_DRASTIC",
+      "upstream": "trngaje/SDL_drastic",
+      "previous_version": "eb2e00f8b7459df90e273208f6cc49427c64267f",
+      "version": "eb2e00f8b7459df90e273208f6cc49427c64267f",
+      "status": "support-package",
+      "changed": false,
+      "commit_url": "https://github.com/trngaje/SDL_drastic/commit/9a4d29699db3cf4bb0b0520d2ef78167e5cdb069",
+      "patch_status": "retained"
+    },
+    {
+      "package": "shadps4",
+      "prefix": "SHADPS4",
+      "upstream": "AzaharPlus/shadPS4Plus",
+      "previous_version": "SHADPS4PLUS_0_9_0_A",
+      "version": "SHADPS4PLUS_0_9_0_A",
+      "status": "upstream-project-changed",
+      "changed": false,
+      "commit_url": "https://github.com/AzaharPlus/shadPS4Plus/commit/9d2e76127ce32d13192f9a6ab84a96404677394a",
+      "reason": "Default branch is now a PKG extractor rather than the emulator.",
+      "patch_status": "retained"
+    },
+    {
+      "package": "sharp-shimmerless-shader",
+      "prefix": "SHARP_SHIMMERLESS_SHADER",
+      "upstream": "Woohyun-Kang/Sharp-Shimmerless-Shader",
+      "previous_version": "2a74e7af599335c2ce5e493f823a757925c80db3",
+      "version": "2a74e7af599335c2ce5e493f823a757925c80db3",
+      "status": "latest-development-commit",
+      "changed": false,
+      "commit_url": "https://github.com/Woohyun-Kang/Sharp-Shimmerless-Shader/commit/2a74e7af599335c2ce5e493f823a757925c80db3",
+      "patch_status": "retained"
+    },
+    {
+      "package": "simcoupe",
+      "prefix": "SIMCOUPE",
+      "upstream": "simonowen/simcoupe",
+      "previous_version": "v1.2.13",
+      "version": "1f966036543991c05022ce4f95cfbfbb0014b187",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/simonowen/simcoupe/commit/1f966036543991c05022ce4f95cfbfbb0014b187",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/simcoupe/0001-knulli-integration.patch": "78091899e8c518a8280a4f1d2011d7b8a67235e360e0c30c1db654b1ea27d997"
+      }
+    },
+    {
+      "package": "slang-shaders",
+      "prefix": "SLANG_SHADERS",
+      "upstream": "libretro/slang-shaders",
+      "previous_version": "2a7c1e46ae9573302cf0c060413b33c94a1f9cfa",
+      "version": "e1d75632a205c70f14a4cc947c46d5abb7b3f7f1",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/libretro/slang-shaders/commit/e1d75632a205c70f14a4cc947c46d5abb7b3f7f1",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "snes9x",
+      "prefix": "SNES9X",
+      "upstream": "snes9xgit/snes9x",
+      "previous_version": "663738341a43e15f5e00fd8fd36672da6089a694",
+      "version": "1bcc369e89f08243e0a462882fb1f3e42e51de3a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/snes9xgit/snes9x/commit/1bcc369e89f08243e0a462882fb1f3e42e51de3a",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/snes9x/0001-knulli-integration.patch": "625261e2447a3196d45568a057315970a0e2848211c2d001cf9c47f4de344be3"
+      }
+    },
+    {
+      "package": "solarus-engine",
+      "prefix": "SOLARUS_ENGINE",
+      "upstream": null,
+      "previous_version": "bbecaf31ada06357d4c18726b572fe4b4ebccf56",
+      "version": "a0b5d4c966bf3f4daec2efc879378d4cf1b62ca7",
+      "status": "latest-development-commit",
+      "changed": true,
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "sugarbox",
+      "prefix": "SUGARBOX",
+      "upstream": "Tom1975/SugarboxV2",
+      "previous_version": "d7d1d39111efb9c44fc956beea076ee243774dc1",
+      "version": "4fdb5b71003b684b721f05f68358cfd112b5d8f1",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Tom1975/SugarboxV2/commit/4fdb5b71003b684b721f05f68358cfd112b5d8f1",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "supermodel",
+      "prefix": "SUPERMODEL",
+      "upstream": "trzy/Supermodel",
+      "previous_version": "b23e6bed04f6854fb472ca76982c6924fec1d5b7",
+      "version": "ed608de1c5f0f61dcad957cffe0ff8234cbc8e6c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/trzy/Supermodel/commit/ed608de1c5f0f61dcad957cffe0ff8234cbc8e6c",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "supermodel-es",
+      "prefix": "SUPERMODEL_ES",
+      "upstream": "rtissera/Supermodel",
+      "previous_version": "3b2165a3aad5d4480e9dd8bfba746fea9a4d9e38",
+      "version": "38a95088e8278e8a2b6c50d7f8a7e187819de449",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/rtissera/Supermodel/commit/38a95088e8278e8a2b6c50d7f8a7e187819de449",
+      "patch_status": "rebased-patch-check-passed",
+      "integration_patches": {
+        "package/emulator-patches/supermodel-es/0001-knulli-integration.patch": "de7bb737ac6af1e084e1395a6b56af737f832e605c94dee8164c765dd8f2d16e"
+      }
+    },
+    {
+      "package": "supermodel-legacy",
+      "prefix": "SUPERMODEL_LEGACY",
+      "upstream": "trzy/Supermodel",
+      "previous_version": "b23e6bed04f6854fb472ca76982c6924fec1d5b7",
+      "version": "ed608de1c5f0f61dcad957cffe0ff8234cbc8e6c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/trzy/Supermodel/commit/ed608de1c5f0f61dcad957cffe0ff8234cbc8e6c",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "thextech",
+      "prefix": "THEXTECH",
+      "upstream": "Wohlstand/TheXTech",
+      "previous_version": "d544c11f11bb8d7ca209e6e0abd128ef7b0150b3",
+      "version": "c6a4550a41a3f16db63f90a2e1929410b5c79572",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Wohlstand/TheXTech/commit/c6a4550a41a3f16db63f90a2e1929410b5c79572",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "tsugaru",
+      "prefix": "TSUGARU",
+      "upstream": "captainys/TOWNSEMU",
+      "previous_version": "v20250513",
+      "version": "e27adde120fe06150f3d57a6dc7cba66b5f43a32",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/captainys/TOWNSEMU/commit/e27adde120fe06150f3d57a6dc7cba66b5f43a32",
+      "patch_status": "original-patch-check-passed"
+    },
+    {
+      "package": "vice",
+      "prefix": "VICE",
+      "upstream": null,
+      "previous_version": "3.9",
+      "version": "3.10",
+      "status": "latest-source-release",
+      "changed": true,
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "vita3k",
+      "prefix": "VITA3K",
+      "upstream": "vita3k/vita3k",
+      "previous_version": "46602447c7f84d53790b44e1869ab5105178bf16",
+      "version": "7e152b66e85345f175d3d287fcbd7f8abec7574a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/Vita3K/Vita3K/commit/7e152b66e85345f175d3d287fcbd7f8abec7574a",
+      "patch_status": "integration-review-pending",
+      "integration_patches": {
+        "package/emulator-patches/vita3k/0001-knulli-integration.patch": "25d0f8ba34c81b77949383d621c7259a079adce8c579601b805da2ec521b1e8f"
+      }
+    },
+    {
+      "package": "vpinball",
+      "prefix": "VPINBALL",
+      "upstream": "vpinball/vpinball",
+      "previous_version": "a7171154ecdf9352136dfcf5f3519d78c85ec480",
+      "version": "90d94e9f16d40f593c1d78e0549e6a1148078e81",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/vpinball/vpinball/commit/90d94e9f16d40f593c1d78e0549e6a1148078e81",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "x16emu",
+      "prefix": "X16EMU",
+      "upstream": "X16Community/x16-emulator",
+      "previous_version": "48",
+      "version": "77f2bab332e24c5456f9844a6c7ddd203f6198e6",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/X16Community/x16-emulator/commit/77f2bab332e24c5456f9844a6c7ddd203f6198e6",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "xemu",
+      "prefix": "XEMU",
+      "upstream": "xemu-project/xemu",
+      "previous_version": "478b4f496102379c7eaa7f3ec10e714a703c4300",
+      "version": "36334d95b86f9c3c6ae34efb9af06785273f8e1a",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/xemu-project/xemu/commit/36334d95b86f9c3c6ae34efb9af06785273f8e1a",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "xenia",
+      "prefix": "XENIA",
+      "upstream": "xenia-project/release-builds-windows",
+      "previous_version": "v1.0.2817-master",
+      "version": "v1.0.2844-master",
+      "status": "latest-release-asset",
+      "changed": true,
+      "commit_url": "https://github.com/xenia-project/release-builds-windows/commit/cba4ca0e31b8bed3e0f05f176be42948b80c2671",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "xenia-canary",
+      "prefix": "XENIA_CANARY",
+      "upstream": "xenia-canary/xenia-canary-releases",
+      "previous_version": "1d7973a",
+      "version": "9369464",
+      "status": "latest-release-asset",
+      "changed": true,
+      "commit_url": "https://github.com/xenia-canary/xenia-canary-releases/commit/925ed98d5dce604b651027c36fb522dc1ff0fa55",
+      "patch_status": "no-package-patches"
+    },
+    {
+      "package": "yabasanshiro",
+      "prefix": "YABASANSHIRO",
+      "upstream": "sydarn/yabause",
+      "previous_version": "a40dace1ae0af3ebd45848549fdf396f40e3930f",
+      "version": "350be2ea6cc276153ecd901382805f2d80924a4f",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/sydarn/yabause/commit/350be2ea6cc276153ecd901382805f2d80924a4f",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "ymir",
+      "prefix": "YMIR",
+      "upstream": "StrikerX3/Ymir",
+      "previous_version": "a485f5955408f12b5e57a7eb0273432cc38514e9",
+      "version": "d400f3d20956f824113464689395d12224ca22f0",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/StrikerX3/Ymir/commit/d400f3d20956f824113464689395d12224ca22f0",
+      "patch_status": "integration-review-pending"
+    },
+    {
+      "package": "zesarux",
+      "prefix": "ZESARUX",
+      "upstream": "chernandezba/zesarux",
+      "previous_version": "eae674eb5478af6a8147dd92e6ea394390036521",
+      "version": "0713c08d4eeb76aa8a6cc9d86d304e9e7a50558c",
+      "status": "latest-development-commit",
+      "changed": true,
+      "commit_url": "https://github.com/chernandezba/zesarux/commit/0713c08d4eeb76aa8a6cc9d86d304e9e7a50558c",
+      "patch_status": "integration-review-pending"
+    }
+  ],
+  "validation": {
+    "status": "in-progress",
+    "patch_rebases_checked": 28,
+    "host_compile_passed": [
+      "noods"
+    ],
+    "buildroot_make_variables_checked": true,
+    "full_firmware_build_run": false,
+    "configuration_issue": "H700 now uses the latest PPSSPP libretro core through RetroArch SDL2/Mali-fbdev; standalone PPSSPP (SDL3) is disabled for H700. Recheck remaining graphics-provider warnings."
+  }
+}

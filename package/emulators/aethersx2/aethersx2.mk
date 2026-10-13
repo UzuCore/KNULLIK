@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-AETHERSX2_VERSION = 1.0.0
+AETHERSX2_VERSION = 691f24bceb72228f20d41ddb4a1e76ed76a1b0b8
 AETHERSX2_SITE = https://github.com/ROCKNIX/packages/raw/refs/heads/main
 AETHERSX2_SOURCE = aethersx2.tar.gz
 AETHERSX2_LICENSE = LGPL

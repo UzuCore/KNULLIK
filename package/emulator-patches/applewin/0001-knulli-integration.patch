@@ -1,0 +1,18 @@
+--- a/source/frontends/sdl/CMakeLists.txt
++++ b/source/frontends/sdl/CMakeLists.txt
+@@ -99,9 +99,13 @@
+ 
+   ${NETWORK_LIBRARIES}
+ 
+-  ${GLES2_LIBRARIES}
+-  OpenGL::GL
+   )
++
++if(SA2_OPENGL)
++  target_link_libraries(sa2 PRIVATE OpenGL::GL)
++else()
++  target_link_libraries(sa2 PRIVATE ${GLES2_LIBRARIES})
++endif()
+ 
+ target_link_directories(sa2 PRIVATE
+   ${GLES2_LIBRARY_DIRS}

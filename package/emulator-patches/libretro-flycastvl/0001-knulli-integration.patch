@@ -1,0 +1,130 @@
+--- a/core/libretro/libretro.cpp
++++ b/core/libretro/libretro.cpp
+@@ -113,7 +113,7 @@
+ char eeprom_file[PATH_MAX];
+ char nvmem_file[PATH_MAX];
+ char nvmem_file2[PATH_MAX];		// AtomisWave
+-bool boot_to_bios;
++bool boot_to_bios=true;
+ 
+ static bool devices_need_refresh = false;
+ static int device_type[4] = {-1,-1,-1,-1};
+@@ -2206,8 +2206,8 @@
+    if (!(environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir))
+       dir = game_dir;
+ 
+-   snprintf(game_dir, sizeof(game_dir), "%s%cdc%c", dir, slash, slash);
+-   snprintf(game_dir_no_slash, sizeof(game_dir_no_slash), "%s%cdc", dir, slash);
++   snprintf(game_dir, sizeof(game_dir), "%s", dir);
++   snprintf(game_dir_no_slash, sizeof(game_dir_no_slash), "%s", dir);
+ 
+    // Per-content VMU additions START
+    // > Get save directory
+@@ -2336,7 +2336,7 @@
+    {
+       char data_dir[1024];
+ 
+-      snprintf(data_dir, sizeof(data_dir), "%s%s", game_dir, "data");
++      snprintf(data_dir, sizeof(data_dir), "%s", game_dir);
+ 
+       INFO_LOG(COMMON, "Creating dir: %s", data_dir);
+       struct stat buf;
+--- a/core/nullDC.cpp
++++ b/core/nullDC.cpp
+@@ -560,7 +560,7 @@
+ 	extern void common_libretro_cleanup(void);
+ 	common_libretro_cleanup();
+ 
+-	SaveRomFiles(get_writable_data_path(""));
++	SaveRomFiles(get_writable_data_save(""));
+ 	sh4_cpu.Term();
+ 	naomi_cart_Close();
+ 	plugins_Term();
+--- a/core/stdclass.cpp
++++ b/core/stdclass.cpp
+@@ -16,6 +16,17 @@
+ {
+    extern char game_dir_no_slash[1024];
+    return std::string(game_dir_no_slash + 
++#ifdef _WIN32
++         std::string("\\")
++#else
++         std::string("/")
++#endif
++         + filename);
++}
++
++std::string get_writable_data_save(const std::string& filename)
++{
++   return std::string("/userdata/saves/dreamcast/" +
+ #ifdef _WIN32
+          std::string("\\")
+ #else
+@@ -46,6 +57,6 @@
+    else
+    {
+       sprintf(filename, "vmu_save_%s.bin", logical_port);
+-      return get_writable_data_path(filename);
++      return std::string("/userdata/saves/dreamcast/") + filename;
+    }
+ }
+--- a/core/stdclass.h
++++ b/core/stdclass.h
+@@ -315,6 +315,7 @@
+ 
+ //subpath format: /data/fsca-table.bit
+ std::string get_writable_data_path(const std::string& filename);
++std::string get_writable_data_save(const std::string& filename);
+ std::string get_writable_vmu_path(const char *logical_port);
+ 
+ bool mem_region_lock(void *start, std::size_t len);
+--- a/Makefile
++++ b/Makefile
+@@ -167,8 +167,19 @@
+ 	PLATFORM_EXT := unix
+ 	WITH_DYNAREC=arm
+ 	HAVE_GENERIC_JIT = 0
+-	
+-	ifneq (,$(findstring rpi4,$(platform)))
++
++	ifneq (,$(findstring rpi5,$(platform)))
++		FORCE_GLES = 1
++		ifneq (,$(findstring rpi5_64,$(platform)))
++			# 64-bit userspace
++			ARM_FLOAT_ABI_HARD = 0
++			CPUFLAGS += -DTARGET_LINUX_ARMv8 -frename-registers
++			CFLAGS += -mcpu=cortex-a76 -mtune=cortex-a76 $(CPUFLAGS)
++			CXXFLAGS += -mcpu=cortex-a76 -mtune=cortex-a76 $(CPUFLAGS)
++			ASFLAGS += $(CFLAGS) -c -frename-registers -fno-strict-aliasing -ffast-math -ftree-vectorize
++			WITH_DYNAREC=arm64
++		endif	
++	else ifneq (,$(findstring rpi4,$(platform)))
+ 		FORCE_GLES = 1
+ 		# The Pi4 has mature Vulkan support when using up-to-date MESA.
+ 		HAVE_VULKAN = 1
+@@ -563,6 +574,25 @@
+   WITH_DYNAREC=arm
+   HAVE_GENERIC_JIT = 0
+ 
++# Rockchip RK3326 (64-bit)
++else ifneq (,$(findstring RK3326,$(platform)))
++  EXT ?= so
++  TARGET := $(TARGET_NAME)_libretro.$(EXT)
++  SHARED += -shared -Wl,--version-script=link.T
++  LDFLAGS +=  -Wl,--no-undefined
++  fpic = -fPIC
++  LIBS += -lrt
++  ARM_FLOAT_ABI_HARD = 0
++  FORCE_GLES = 1
++  SINGLE_PREC_FLAGS = 1
++  PLATFORM_EXT := unix
++  WITH_DYNAREC=arm64
++  HAVE_GENERIC_JIT = 0
++  HAVE_LTCG = 0
++  
++  CFLAGS += -mcpu=cortex-a35 -mtune=cortex-a35
++  CXXFLAGS += -mcpu=cortex-a35 -mtune=cortex-a35
++
+ # Rockchip RK3288 e.g. Asus Tinker Board / RK3328 e.g. PINE64 Rock64 / RK3399 e.g. PINE64 RockPro64 - 32-bit userspace
+ else ifneq (,$(findstring RK,$(platform)))
+   EXT ?= so

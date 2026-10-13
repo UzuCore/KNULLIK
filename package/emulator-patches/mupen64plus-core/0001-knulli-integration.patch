@@ -1,0 +1,205 @@
+--- a/src/api/frontend.c
++++ b/src/api/frontend.c
+@@ -183,6 +183,9 @@
+     {
+         case M64CMD_NOP:
+             return M64ERR_SUCCESS;
++        case M64CMD_ROM_FILENAME:
++            strncpy(g_rom_filename, (const unsigned char *) ParamPtr, ParamInt);
++            return M64ERR_SUCCESS;
+         case M64CMD_ROM_OPEN:
+             if (g_EmulatorRunning || l_DiskOpen || l_ROMOpen)
+                 return M64ERR_INVALID_STATE;
+--- a/src/api/m64p_types.h
++++ b/src/api/m64p_types.h
+@@ -170,6 +170,7 @@
+   M64CMD_NETPLAY_CLOSE,
+   M64CMD_PIF_OPEN,
+   M64CMD_ROM_SET_SETTINGS,
++  M64CMD_ROM_FILENAME,
+   M64CMD_DISK_OPEN,
+   M64CMD_DISK_CLOSE
+ } m64p_command;
+--- a/src/main/main.c
++++ b/src/main/main.c
+@@ -114,6 +114,7 @@
+ struct device g_dev;
+ 
+ m64p_media_loader g_media_loader;
++char g_rom_filename[1024] = "";
+ 
+ int g_gs_vi_counter = 0;
+ 
+@@ -168,6 +169,18 @@
+ 
+     if (format == 0) {
+         snprintf(filename, 256, "%s", ROM_PARAMS.headername);
++    } else if(format == 1000) {
++      char *bn;
++      char *tmpbn;
++      tmpbn = strdup(g_rom_filename);
++      if(tmpbn == NULL) {
++	snprintf(filename, 256, "unknown-%.8s", ROM_SETTINGS.MD5);
++      } else {
++	bn = basename(tmpbn);
++	snprintf(filename, 256, "%s", bn);
++	free(tmpbn);
++	return filename; // no sanitize
++      }
+     } else /* if (format == 1) */ {
+         if (strstr(ROM_SETTINGS.goodname, "(unknown rom)") == NULL) {
+             snprintf(filename, 256, "%.32s-%.8s", ROM_SETTINGS.goodname, ROM_SETTINGS.MD5);
+@@ -1964,7 +1977,7 @@
+ #endif
+ 
+     /* Startup message on the OSD */
+-    osd_new_message(OSD_MIDDLE_CENTER, "Mupen64Plus Started...");
++    //osd_new_message(OSD_MIDDLE_CENTER, "Mupen64Plus Started...");
+ 
+     g_EmulatorRunning = 1;
+     StateChanged(M64CORE_EMU_STATE, M64EMU_RUNNING);
+--- a/src/main/main.h
++++ b/src/main/main.h
+@@ -50,6 +50,7 @@
+ extern struct device g_dev;
+ 
+ extern m64p_media_loader g_media_loader;
++extern char g_rom_filename[1024];
+ 
+ extern m64p_frame_callback g_FrameCallback;
+ 
+--- a/src/main/rom.c
++++ b/src/main/rom.c
+@@ -591,7 +591,8 @@
+ 
+     int counter, value, lineno;
+     unsigned char index;
+-    const char *pathname = ConfigGetSharedDataFilepath("mupen64plus.ini");
++    //const char *pathname = ConfigGetSharedDataFilepath("mupen64plus.ini");
++    const char *pathname = "/usr/share/mupen64plus/mupen64plus.ini";
+ 
+     if(g_romdatabase.have_database)
+         return;
+--- a/src/main/savestates.c
++++ b/src/main/savestates.c
+@@ -86,6 +86,12 @@
+     }
+     else /* Use the selected savestate slot */
+     {
++        char* prefix = ROM_SETTINGS.goodname;
++        if(g_rom_filename[0] != '\0') {
++        char *x = strrchr(g_rom_filename, '/');
++        if(x != NULL) prefix = x;
++    }
++
+         char *filepath;
+         size_t size = 0;
+ 
+@@ -93,7 +99,7 @@
+         {
+             case savestates_type_m64p:
+                 /* check if old file path exists, if it does then use that */
+-                filepath = formatstr("%s%s.st%d", get_savestatepath(), ROM_SETTINGS.goodname, slot);
++                filepath = formatstr("%s.st%d", prefix, slot);
+                 if (get_file_size(filepath, &size) != file_ok || size == 0)
+                 {
+                     /* else use new path */
+@@ -101,10 +107,10 @@
+                 }
+                 break;
+             case savestates_type_pj64_zip:
+-                filepath = formatstr("%s%s.pj%d.zip", get_savestatepath(), ROM_PARAMS.headername, slot);
++                filepath = formatstr("%s.pj%d.zip", prefix, slot);
+                 break;
+             case savestates_type_pj64_unc:
+-                filepath = formatstr("%s%s.pj%d", get_savestatepath(), ROM_PARAMS.headername, slot);
++                filepath = formatstr("%s.pj%d", prefix, slot);
+                 break;
+             default:
+                 filepath = NULL;
+@@ -1546,9 +1552,6 @@
+ 
+     save->filepath = strdup(filepath);
+ 
+-    if(autoinc_save_slot)
+-        savestates_inc_slot();
+-
+     save_eventqueue_infos(&dev->r4300.cp0, queue);
+ 
+     // Allocate memory for the save state data
+@@ -2172,6 +2175,7 @@
+     char *filepath;
+     int ret = 0;
+     const struct device* dev = &g_dev;
++    char ScreenshotFileName[256];
+ 
+     /* Can only save PJ64 savestates on VI / COMPARE interrupt.
+        Otherwise try again in a little while. */
+@@ -2185,6 +2189,9 @@
+     else if (fname == NULL) // Always save slots in M64P format
+         type = savestates_type_m64p;
+ 
++    if(autoinc_save_slot)
++      savestates_inc_slot();
++
+     filepath = savestates_generate_path(type);
+     if (filepath != NULL)
+     {
+@@ -2195,6 +2202,8 @@
+             case savestates_type_pj64_unc: ret = savestates_save_pj64_unc(dev, filepath); break;
+             default: ret = 0; StateChanged(M64CORE_STATE_SAVECOMPLETE, ret); break;
+         }
++        strncpy(ScreenshotFileName, filepath, 251);
++        strncat(ScreenshotFileName, ".png", 4);
+         free(filepath);
+     }
+     else
+@@ -2202,6 +2211,8 @@
+         StateChanged(M64CORE_STATE_SAVECOMPLETE, ret);
+     }
+ 
++    TakeScreenshotToFile(ScreenshotFileName, 0);
++    
+     savestates_clear_job();
+     return ret;
+ }
+--- a/src/main/screenshot.c
++++ b/src/main/screenshot.c
+@@ -233,6 +233,12 @@
+         return;
+     }
+ 
++    TakeScreenshotToFile(filename, iFrameNumber);
++    free(filename);
++}
++
++void TakeScreenshotToFile(char* filename, int iFrameNumber)
++{
+     // get the width and height
+     int width = 640;
+     int height = 480;
+@@ -243,7 +249,6 @@
+     if (pucFrame == NULL)
+     {
+         StateChanged(M64CORE_SCREENSHOT_CAPTURED, 0);
+-        free(filename);
+         return;
+     }
+ 
+@@ -254,7 +259,6 @@
+     int rval = SaveRGBBufferToFile(filename, pucFrame, width, height, width * 3);
+     // free the memory
+     free(pucFrame);
+-    free(filename);
+     // print message -- this allows developers to capture frames and use them in the regression test
+     if (rval != 0)
+     {
+--- a/src/main/screenshot.h
++++ b/src/main/screenshot.h
+@@ -24,5 +24,6 @@
+ 
+ void ScreenshotRomOpen(void);
+ void TakeScreenshot(int iFrameNumber);
++void TakeScreenshotToFile(char *filename, int iFrameNumber);
+ 
+ #endif

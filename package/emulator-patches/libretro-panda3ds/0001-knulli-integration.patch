@@ -1,0 +1,41 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -35,7 +35,7 @@
+ endif()
+ 
+ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-interference-size")
++    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-interference-size -fpermissive")
+ endif()
+ 
+ if(ANDROID)
+@@ -564,8 +564,7 @@
+ 
+ if(ENABLE_VULKAN)
+     find_package(
+-        Vulkan REQUIRED
+-        COMPONENTS glslang
++        glslang REQUIRED
+     )
+ 
+     set(RENDERER_VK_INCLUDE_FILES include/renderer_vk/renderer_vk.hpp
+@@ -623,7 +622,7 @@
+ 
+     target_sources(AlberCore PRIVATE ${RENDERER_VK_SOURCE_FILES})
+     target_compile_definitions(AlberCore PUBLIC "PANDA3DS_ENABLE_VULKAN=1")
+-    target_link_libraries(AlberCore PRIVATE Vulkan::Vulkan resources_renderer_vk)
++    target_link_libraries(AlberCore PRIVATE glslang resources_renderer_vk)
+ endif()
+ 
+ if(ENABLE_METAL AND APPLE)
+--- a/third_party/glad/CMakeLists.txt
++++ b/third_party/glad/CMakeLists.txt
+@@ -5,7 +5,7 @@
+ elseif(ANDROID)
+     set(GLAD_FILES ${GLAD_FILES} src/glad_egl.c)
+ elseif(NOT APPLE)
+-    set(GLAD_FILES ${GLAD_FILES} src/glad_egl.c src/glad_glx.c)
++    set(GLAD_FILES ${GLAD_FILES} src/glad_egl.c)
+ endif()
+ 
+ add_library(glad STATIC ${GLAD_FILES})

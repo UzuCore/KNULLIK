@@ -93,6 +93,9 @@ ROCKNIXK_SOURCE_OVERRIDES = \
 	LIBRETRO_MAME2003_PLUS_VERSION=488bb0b76ed2f32f8f4021c4710b444294fcdf87 \
 	TOOLCHAIN_OPTIONAL_LINARO_AARCH64_SITE=https://huggingface.co/csukuangfj/sherpa-ncnn-toolchains/resolve/main
 
+include $(PROJECT_DIR)/package/emulator-versions.mk
+ROCKNIXK_SOURCE_OVERRIDES += $(EMULATOR_SOURCE_OVERRIDES)
+
 rocknixk-overlay:
 	@bash "$(PROJECT_DIR)/scripts/rocknixk-apply-batocera-overlay.sh" "$(PROJECT_DIR)"
 	@mkdir -p "$(PROJECT_DIR)/package/emulationstation/knulli-emulationstation"

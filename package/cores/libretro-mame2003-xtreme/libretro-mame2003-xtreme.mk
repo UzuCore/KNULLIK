@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Feb 21, 2023
-LIBRETRO_MAME2003_XTREME_VERSION = ca7712a5488b27ab7fdec1c51a17a8edf21f9f23
+LIBRETRO_MAME2003_XTREME_VERSION = cbfe109a7e1bd48dac4c5ce609ee0c3b747d4088
 LIBRETRO_MAME2003_XTREME_SITE = $(call github,KMFDManic,mame2003-xtreme,$(LIBRETRO_MAME2003_XTREME_VERSION))
 LIBRETRO_MAME2003_XTREME_LICENSE = MAME
 

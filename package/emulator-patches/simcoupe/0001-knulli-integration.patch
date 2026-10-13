@@ -1,0 +1,132 @@
+--- a/Base/Joystick.cpp
++++ b/Base/Joystick.cpp
+@@ -20,12 +20,16 @@
+ 
+ #include "SimCoupe.h"
+ #include "Joystick.h"
++#include "Options.h"
++#include "SDL.h"
+ 
+ namespace Joystick
+ {
+ 
+ static int anPosition[MAX_JOYSTICKS];
+ static uint32_t adwButtons[MAX_JOYSTICKS];
++static bool HotKeys[MAX_JOYSTICKS];
++static bool StartKeys[MAX_JOYSTICKS];
+ 
+ 
+ void Init(bool /*fFirstInit_*/)
+@@ -83,6 +87,40 @@
+ 
+ void SetButton(int nJoystick_, int nButton_, bool fPressed_)
+ {
++    int hotKey, start;
++    int a, b, x, y;
++
++    if (nJoystick_ == 0)
++    {
++      a = GetOption(joya1);
++      b = GetOption(joya1);
++      x = GetOption(joya1);
++      y = GetOption(joya1);
++      hotKey = GetOption(joyhkey1);
++      start = GetOption(joystart1);
++    }
++    else
++    {
++      a = GetOption(joya2);
++      b = GetOption(joya2);
++      x = GetOption(joya2);
++      y = GetOption(joya2);
++      hotKey = GetOption(joyhkey2);
++      start = GetOption(joystart2);
++    }
++
++    /*
++     * Button # adjustment
++     */
++    if (nButton_ == a) nButton_ = 1;
++    else if (nButton_ == b) nButton_ = 2;
++    else if (nButton_ == x) nButton_ = 3;
++    else if (nButton_ == y) nButton_ = 4;
++
++    /*
++     * Original press/release code
++     */
++
+     if (nJoystick_ < MAX_JOYSTICKS)
+     {
+         uint32_t dwBit = 1 << nButton_;
+@@ -91,6 +129,18 @@
+             adwButtons[nJoystick_] |= dwBit;
+         else
+             adwButtons[nJoystick_] &= ~dwBit;
++    }
++
++    /*
++     * HotKey + Start = Quit!
++     */
++    if (nButton_ == hotKey) HotKeys[nJoystick_] = fPressed_;
++    else if (nButton_ == start) StartKeys[nJoystick_] = fPressed_;
++
++    if (HotKeys[nJoystick_] && StartKeys[nJoystick_])
++    {
++        SDL_Event event = {SDL_QUIT};
++        SDL_PushEvent(&event);
+     }
+ }
+ 
+--- a/Base/Options.cpp
++++ b/Base/Options.cpp
+@@ -147,6 +147,18 @@
+     else if (name == "joytype2") { set_value(g_config.joytype2, str); }
+     else if (name == "deadzone1") { set_value(g_config.deadzone1, str); }
+     else if (name == "deadzone2") { set_value(g_config.deadzone2, str); }
++    else if (name == "joyy2") SetValue(g_config.joyy2, str);
++    else if (name == "joyx2") SetValue(g_config.joyx2, str);
++    else if (name == "joyb2") SetValue(g_config.joyb2, str);
++    else if (name == "joya2") SetValue(g_config.joya2, str);
++    else if (name == "joyy1") SetValue(g_config.joyy1, str);
++    else if (name == "joyx1") SetValue(g_config.joyx1, str);
++    else if (name == "joyb1") SetValue(g_config.joyb1, str);
++    else if (name == "joya1") SetValue(g_config.joya1, str);
++    else if (name == "joystart2") SetValue(g_config.joystart2, str);
++    else if (name == "joystart1") SetValue(g_config.joystart1, str);
++    else if (name == "joyhkey2") SetValue(g_config.joyhkey2, str);
++    else if (name == "joyhkey1") SetValue(g_config.joyhkey1, str);
+     else if (name == "parallel1") { set_value(g_config.parallel1, str); }
+     else if (name == "parallel2") { set_value(g_config.parallel2, str); }
+     else if (name == "printeronline") { set_value(g_config.printeronline, str); }
+--- a/Base/Options.h
++++ b/Base/Options.h
+@@ -103,6 +103,18 @@
+     int joytype2 = 2;                   // Joystick 2 mapping
+     int deadzone1 = 20;                 // Joystick 1 deadzone
+     int deadzone2 = 20;                 // Joystick 2 deadzone
++    int joyhkey1;                       // Joystick 1 Hot-Key Id
++    int joyhkey2;                       // Joystick 2 Hot-Key Id
++    int joystart1;                      // Joystick 1 Start Id
++    int joystart2;                      // Joystick 2 Start Id
++    int joya1;                          // Joystick 1 Button A Id
++    int joyb1;                          // Joystick 1 Button B Id
++    int joyx1;                          // Joystick 1 Button X Id
++    int joyy1;                          // Joystick 1 Button Y Id
++    int joya2;                          // Joystick 2 Button A Id
++    int joyb2;                          // Joystick 2 Button B Id
++    int joyx2;                          // Joystick 2 Button X Id
++    int joyy2;                          // Joystick 2 Button Y Id
+ 
+     int parallel1 = 0;                  // Parallel port 1 function
+     int parallel2 = 0;                  // Parallel port 2 function
+--- a/Base/SimCoupe.h
++++ b/Base/SimCoupe.h
+@@ -28,7 +28,7 @@
+ /* If it's not one of these we'll assume big endian (we have a run-time check to fall back on anyway) */
+ #if (defined(__LITTLE_ENDIAN__) || defined(__i386__) || defined(__ia64__) || defined(__x86_64__) || \
+     (defined(__alpha__) || defined(__alpha)) || (defined(__mips__) && defined(__MIPSEL__)) || \
+-     defined(__arm__) || defined(__SYMBIAN32__) || defined(_WIN32_WCE) || defined(_WIN32)) \
++     defined(__aarch64__) || defined(__arm__) || defined(__SYMBIAN32__) || defined(_WIN32_WCE) || defined(_WIN32)) \
+      && !defined(__BIG_ENDIAN__)
+ #ifndef __LITTLE_ENDIAN__
+ #define __LITTLE_ENDIAN__

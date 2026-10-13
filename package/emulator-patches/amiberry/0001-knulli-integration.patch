@@ -1,0 +1,25 @@
+--- a/src/include/options.h
++++ b/src/include/options.h
+@@ -1432,7 +1432,7 @@
+ 	bool default_auto_crop = false;
+ 	int default_width = 720;
+ 	int default_height = 568;
+-	int default_fullscreen_mode = 0;
++	int default_fullscreen_mode = 1;
+ 	int default_stereo_separation = 7;
+ 	int default_sound_buffer = 3072;
+ 	int default_sound_frequency = 44100;
+--- a/src/osdep/amiberry.cpp
++++ b/src/osdep/amiberry.cpp
+@@ -11485,9 +11485,9 @@
+ 	settings_dir = get_settings_directory(portable_mode);
+ 	if (ensure_settings_root)
+ 		ensure_directory_exists(settings_dir);
+-	amiberry_ini_file = join_path(settings_dir, "amiberry.ini");
++	amiberry_ini_file = "/userdata/system/configs/amiberry/conf/amiberry.ini";
+ 	if (!amiberry_conf_file_overridden_from_cli)
+-		amiberry_conf_file = join_path(settings_dir, "amiberry.conf");
++		amiberry_conf_file = "/userdata/system/configs/amiberry/conf/amiberry.conf";
+ }
+ 
+ static bool ensure_directory_exists_if_missing(const std::string& directory_path)

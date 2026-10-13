@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Jul 29, 2022
-LIBRETRO_CROCODS_VERSION = f1b4b91291ba1e8e7c0be02269cd0d75c7fa71b9 
+LIBRETRO_CROCODS_VERSION = a9c63b29443715ae2add392010fca4eae7f93e67
 LIBRETRO_CROCODS_SITE = $(call github,libretro,libretro-crocods,$(LIBRETRO_CROCODS_VERSION))
 LIBRETRO_CROCODS_LICENSE = GPLv2
 

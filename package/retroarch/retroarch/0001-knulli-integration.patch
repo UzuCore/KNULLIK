@@ -1,0 +1,1432 @@
+diff --git a/Makefile.common b/Makefile.common
+index 4ace824..cf04d33 100644
+--- a/Makefile.common
++++ b/Makefile.common
+@@ -2064,10 +2064,6 @@ else ifeq ($(HAVE_GLSLANG),1)
+ 
+    # The order of these libs are somewhat specific
+    LIBS += $(GLSLANG_LIBS) \
+-           $(GLSLANG_MACHINEINDEPENDENT_LIBS) \
+-           $(GLSLANG_GENERICCODEGEN_LIBS) \
+-           $(GLSLANG_OSDEPENDENT_LIBS) \
+-           $(GLSLANG_OGLCOMPILER_LIBS) \
+            $(GLSLANG_SPIRV_LIBS) \
+            $(GLSLANG_SPIRV_TOOLS_OPT_LIBS) \
+            $(GLSLANG_SPIRV_TOOLS_LIBS)
+diff --git a/audio/audio_driver.c b/audio/audio_driver.c
+index a94c2e8..3afa644 100644
+--- a/audio/audio_driver.c
++++ b/audio/audio_driver.c
+@@ -8437,10 +8437,9 @@ static void audio_driver_load_menu_bgm_callback(retro_task_t *task,
+ void audio_driver_load_system_sounds(void)
+ {
+    char basename_noext[NAME_MAX_LENGTH];
+-   char sounds_path[PATH_MAX_LENGTH];
+-   char sounds_fallback_path[PATH_MAX_LENGTH];
++   const char *sounds_path = "/usr/share/libretro/assets/sounds";
++   const char *sounds_fallback_path = "/userdata/sounds/retroachievements";
+    settings_t *settings                  = config_get_ptr();
+-   const char *dir_assets                = settings->paths.directory_assets;
+    const bool audio_enable_menu          = settings->bools.audio_enable_menu;
+    const bool audio_enable_menu_ok       = audio_enable_menu && settings->bools.audio_enable_menu_ok;
+    const bool audio_enable_menu_cancel   = audio_enable_menu && settings->bools.audio_enable_menu_cancel;
+@@ -8465,19 +8464,6 @@ void audio_driver_load_system_sounds(void)
+    if (!audio_enable_menu && !audio_enable_cheevo_unlock)
+       goto end;
+ 
+-   sounds_path[0] = basename_noext[0] ='\0';
+-
+-   fill_pathname_join_special(
+-         sounds_fallback_path,
+-         dir_assets,
+-         "sounds",
+-         sizeof(sounds_fallback_path));
+-
+-   fill_pathname_application_special(
+-         sounds_path,
+-         sizeof(sounds_path),
+-         APPLICATION_SPECIAL_DIRECTORY_ASSETS_SOUNDS);
+-
+    list          = dir_list_new(sounds_path, MENU_SOUND_FORMATS, false, false, false, false);
+    list_fallback = dir_list_new(sounds_fallback_path, MENU_SOUND_FORMATS, false, false, false, false);
+ 
+@@ -8528,7 +8514,12 @@ void audio_driver_load_system_sounds(void)
+          else if (string_is_equal_noncase(basename_noext, "bgm"))
+             path_bgm = path;
+ #endif
+-         else if (string_is_equal_noncase(basename_noext, "unlock"))
++         else if (!string_is_empty(settings->arrays.cheevos_unlock_sound)
++               && string_is_equal_noncase(basename_noext,
++                  settings->arrays.cheevos_unlock_sound))
++            path_cheevo_unlock = path;
++         else if (string_is_empty(settings->arrays.cheevos_unlock_sound)
++               && string_is_equal_noncase(basename_noext, "unlock"))
+             path_cheevo_unlock = path;
+          else if (string_is_equal_noncase(basename_noext, "up"))
+             path_up = path;
+diff --git a/cheevos/cheevos.c b/cheevos/cheevos.c
+index d614c89..200353a 100644
+--- a/cheevos/cheevos.c
++++ b/cheevos/cheevos.c
+@@ -503,6 +503,13 @@ static void rcheevos_award_achievement(const rc_client_achievement_t* cheevo)
+       }
+    }
+ 
++   const char* cheevos_cmd = settings->arrays.cheevos_cmd;
++   if (cheevos_cmd[0]) {
++     char cmdargs[256];
++     snprintf(cmdargs, sizeof(cmdargs), "%s %u \"%s\" \"%s\" > /dev/null 2>/dev/null", cheevos_cmd, cheevo->id, cheevo->title, cheevo->description);
++     system(cmdargs);
++   }
++
+ #ifdef HAVE_AUDIOMIXER
+    /* Play the unlock sound */
+    if (settings->bools.cheevos_unlock_sound_enable)
+@@ -520,9 +527,10 @@ static void rcheevos_award_achievement(const rc_client_achievement_t* cheevo)
+       if (shotname)
+       {
+          const char *path_directory_screenshot = settings->paths.directory_screenshot;
+-         snprintf(shotname, shotname_len, "%s/%s-cheevo-%u",
++         snprintf(shotname, shotname_len, "%s/%s - %s (%u)",
+             path_directory_screenshot,
+             path_basename(path_get(RARCH_PATH_BASENAME)),
++            cheevo->title,
+             (unsigned)cheevo->id);
+          shotname[shotname_len - 1] = '\0';
+ 
+diff --git a/configuration.c b/configuration.c
+index dfc6add..1f9cc63 100644
+--- a/configuration.c
++++ b/configuration.c
+@@ -1996,6 +1996,8 @@ static struct config_array_setting *populate_settings_array(
+ 
+ #ifdef HAVE_CHEEVOS
+    SETTING_ARRAY("cheevos_custom_host",                   settings->arrays.cheevos_custom_host, false, NULL, true);
++   SETTING_ARRAY("cheevos_unlock_sound",                  settings->arrays.cheevos_unlock_sound, false, NULL, true);
++   SETTING_ARRAY("cheevos_cmd",                           settings->arrays.cheevos_cmd, false, NULL, true);
+    SETTING_ARRAY_SENSITIVE("cheevos_username",            settings->arrays.cheevos_username, false, NULL, true);
+    SETTING_ARRAY_SENSITIVE("cheevos_password",            settings->arrays.cheevos_password, false, NULL, true);
+    SETTING_ARRAY_SENSITIVE("cheevos_token",               settings->arrays.cheevos_token, false, NULL, true);
+@@ -6032,6 +6034,8 @@ void config_set_defaults(settings_t *target)
+ #ifdef HAVE_CHEEVOS
+    *settings->arrays.cheevos_username                 = '\0';
+    *settings->arrays.cheevos_password                 = '\0';
++   *settings->arrays.cheevos_unlock_sound             = '\0';
++   *settings->arrays.cheevos_cmd                      = '\0';
+    *settings->arrays.cheevos_token                    = '\0';
+ #endif
+ 
+@@ -8093,6 +8097,7 @@ bool config_load_remap(const char *directory_input_remapping,
+ {
+    /* final path for core-specific configuration (prefix+suffix) */
+    char core_path[PATH_MAX_LENGTH];
++   char common_path[PATH_MAX_LENGTH];
+    /* final path for game-specific configuration (prefix+suffix) */
+    char game_path[PATH_MAX_LENGTH];
+    /* final path for content-dir-specific configuration (prefix+suffix) */
+@@ -8117,6 +8122,7 @@ bool config_load_remap(const char *directory_input_remapping,
+ 
+    core_path[0]    = '\0';
+    game_path[0]    = '\0';
++   common_path[0]  = '\0';
+    content_path[0] = '\0';
+ 
+    strlcpy(remap_path, core_name, sizeof(remap_path));
+@@ -8191,6 +8197,12 @@ bool config_load_remap(const char *directory_input_remapping,
+          FILE_PATH_REMAP_EXTENSION,
+          sizeof(core_path));
+ 
++   fill_pathname_join_special_ext(common_path,
++         directory_input_remapping, "common",
++         "common",
++         FILE_PATH_REMAP_EXTENSION,
++         sizeof(common_path));
++
+    /* If a core remap file exists, load it. */
+    if ((new_conf = config_file_new_from_path_to_string(core_path)))
+    {
+@@ -8206,6 +8218,19 @@ bool config_load_remap(const char *directory_input_remapping,
+       }
+    }
+ 
++   /* common file */
++   if ((new_conf = config_file_new_from_path_to_string(common_path)))
++   {
++      bool ret = input_remapping_load_file(new_conf, common_path);
++      config_file_free(new_conf);
++      new_conf = NULL;
++      RARCH_LOG("[Remaps]: common remap found at \"%s\".\n", common_path);
++      if (ret)
++      {
++         goto success;
++      }
++   }
++
+    if (new_conf)
+       config_file_free(new_conf);
+    new_conf = NULL;
+@@ -8374,12 +8399,33 @@ static void save_keybind_mbutton(config_file_t *conf,
+       case RETRO_DEVICE_ID_MOUSE_MIDDLE:
+          config_set_uint64(conf, key, 3);
+          break;
+-      case RETRO_DEVICE_ID_MOUSE_BUTTON_4:
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_1:
+          config_set_uint64(conf, key, 4);
+          break;
+-      case RETRO_DEVICE_ID_MOUSE_BUTTON_5:
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_2:
+          config_set_uint64(conf, key, 5);
+          break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_3:
++         config_set_uint64(conf, key, 6);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_4:
++         config_set_uint64(conf, key, 7);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_5:
++         config_set_uint64(conf, key, 8);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_6:
++         config_set_uint64(conf, key, 9);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_7:
++         config_set_uint64(conf, key, 10);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_8:
++         config_set_uint64(conf, key, 11);
++         break;
++      case RETRO_DEVICE_ID_MOUSE_BUTTON_9:
++         config_set_uint64(conf, key, 12);
++         break;
+       case RETRO_DEVICE_ID_MOUSE_WHEELUP:
+          config_set_string(conf, key, "wu");
+          break;
+@@ -10957,11 +11003,32 @@ void input_config_parse_mouse_button(char *s,
+                RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_MIDDLE);
+                break;
+             case 4:
+-               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_4);
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_1);
+                break;
+             case 5:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_2);
++               break;
++            case 6:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_3);
++               break;
++            case 7:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_4);
++               break;
++            case 8:
+                RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_5);
+                break;
++            case 9:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_6);
++               break;
++            case 10:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_7);
++               break;
++            case 11:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_8);
++               break;
++            case 12:
++               RETRO_KEYBIND_SET_MBUTTON(bind, RETRO_DEVICE_ID_MOUSE_BUTTON_9);
++               break;
+          }
+       }
+    }
+diff --git a/configuration.h b/configuration.h
+index 31a6b91..e8bd9a1 100644
+--- a/configuration.h
++++ b/configuration.h
+@@ -1249,8 +1249,10 @@ typedef struct settings
+       char menu_driver[32];
+       char menu_ozone_color_theme[32];
+       char cheevos_username[32];
++      char cheevos_unlock_sound[128];
+       char cheevos_token[32];
+       char cheevos_leaderboards_enable[32];
++      char cheevos_cmd[256];
+       char video_context_driver[32];
+       char audio_driver[32];
+       char audio_resampler[32];
+diff --git a/deps/libgo2/src/display.c b/deps/libgo2/src/display.c
+index b91cf06..4946468 100644
+--- a/deps/libgo2/src/display.c
++++ b/deps/libgo2/src/display.c
+@@ -99,6 +99,7 @@ typedef struct go2_presenter
+ go2_display_t* go2_display_create()
+ {
+     int i;
++    int drmConn = -1;
+ 
+     go2_display_t* result = malloc(sizeof(*result));
+     if (!result)
+@@ -126,17 +127,34 @@ go2_display_t* go2_display_create()
+         goto err_01;
+     }
+ 
++   // batocera
++    {
++     FILE* fdDrmConn;
++     int drmConnRead;
++     if((fdDrmConn = fopen("/var/run/drmConn", "r")) != NULL) {
++       if(fscanf(fdDrmConn, "%i", &drmConnRead) == 1) {
++    if(drmConnRead>=0 && (unsigned)drmConnRead<resources->count_connectors) {
++      drmConn = drmConnRead;
++    }
++       }
++       fclose(fdDrmConn);
++     }
++   }
++   //
+ 
+     // Find connector
+-    drmModeConnector* connector;
++    drmModeConnector* connector = NULL;
+     for (i = 0; i < resources->count_connectors; i++)
+     {
++        if(drmConn >= 0 && i != (unsigned)drmConn) continue;
++
+         connector = drmModeGetConnector(result->fd, resources->connectors[i]);
+-        if (connector->connection == DRM_MODE_CONNECTED) {
++        if (connector && connector->connection == DRM_MODE_CONNECTED) {
+             break;
+         }
+ 
+-        drmModeFreeConnector(connector);
++        if (connector)
++            drmModeFreeConnector(connector);
+         connector = NULL;
+     }
+ 
+@@ -148,13 +166,29 @@ go2_display_t* go2_display_create()
+ 
+     result->connector_id = connector->connector_id;
+ 
++   // batocera - set resolution
++    int drmMode = 0;
++    {
++      FILE* fdDrmMode;
++      int readDrmMode;
++      if((fdDrmMode = fopen("/var/run/drmMode", "r")) != NULL) {
++	if(fscanf(fdDrmMode, "%i", &readDrmMode) == 1) {
++	  if(readDrmMode>=0 && readDrmMode<connector->count_modes) {
++	    drmMode = readDrmMode;
++	  }
++	}
++	fclose(fdDrmMode);
++      }
++    }
++   //
+ 
+     // Find prefered mode
+     drmModeModeInfo* mode;
+     for (i = 0; i < connector->count_modes; i++)
+     {
+         drmModeModeInfo *current_mode = &connector->modes[i];
+-        if (current_mode->type & DRM_MODE_TYPE_PREFERRED)
++        //if (current_mode->type & DRM_MODE_TYPE_PREFERRED)
++	if(i == drmMode)
+         {
+             mode = current_mode;
+             break;
+@@ -175,22 +209,30 @@ go2_display_t* go2_display_create()
+ 
+ 
+     // Find encoder
+-    drmModeEncoder* encoder;
+-    for (i = 0; i < resources->count_encoders; i++)
++    drmModeEncoder* encoder = NULL;
++
++    // First try: Get encoder directly from connector's encoder_id
++    if (connector->encoder_id)
+     {
+-        encoder = drmModeGetEncoder(result->fd, resources->encoders[i]);
+-        if (encoder->encoder_id == connector->encoder_id)
++        encoder = drmModeGetEncoder(result->fd, connector->encoder_id);
++    }
++
++    // Second try: If no encoder bound yet, find a compatible one from connector's possible encoders
++    if (!encoder)
++    {
++        for (i = 0; i < connector->count_encoders; i++)
+         {
++            encoder = drmModeGetEncoder(result->fd, connector->encoders[i]);
++            if (!encoder)
++                continue;
++
++            // Found a compatible encoder, use it
+             break;
+         }
+-
+-        drmModeFreeEncoder(encoder);
+-        encoder = NULL;
+     }
+ 
+     if (!encoder)
+     {
+-
+         printf("could not find encoder!\n");
+         goto err_03;
+     }
+@@ -550,7 +592,7 @@ static uint32_t go2_rkformat_get(uint32_t drm_fourcc)
+ 
+         case DRM_FORMAT_ARGB8888:
+         case DRM_FORMAT_XRGB8888:
+-            return RK_FORMAT_BGRA_8888;
++            return RK_FORMAT_RGBA_8888;
+ 
+         case DRM_FORMAT_RGB565:
+             return RK_FORMAT_RGB_565;
+@@ -586,6 +628,7 @@ void go2_surface_blit(go2_surface_t* srcSurface, int srcX, int srcY, int srcWidt
+     dst.rect.hstride = dstSurface->height;
+     dst.rect.format = go2_rkformat_get(dstSurface->format);
+ 
++
+     rga_info_t src = { 0 };
+     src.fd = go2_surface_prime_fd(srcSurface);
+     src.mmuFlag = 1;
+@@ -1211,7 +1254,7 @@ go2_context_t* go2_context_create(go2_display_t* display, int width, int height,
+     }
+ 
+ 
+-    result->eglSurface = eglCreateWindowSurface(result->eglDisplay, eglConfig, (EGLNativeWindowType)result->gbmSurface, NULL);	
++    result->eglSurface = eglCreateWindowSurface(result->eglDisplay, eglConfig, (EGLNativeWindowType)result->gbmSurface, NULL);
+     if (result->eglSurface == EGL_NO_SURFACE)
+     {
+         printf("eglCreateWindowSurface failed\n");
+diff --git a/docs/retroarch.6 b/docs/retroarch.6
+index add3f75..afe0e31 100644
+--- a/docs/retroarch.6
++++ b/docs/retroarch.6
+@@ -22,7 +22,7 @@ It also features a simple built-in UI.
+ 
+ .TP
+ \fBLoad content, using a specific libretro core and config file.\fR
+-retroarch --config ~/.config/retroarch/retroarch.cfg --libretro /path/to/libretro/core.so /path/to/rom.rom --verbose
++retroarch --config ~/configs/retroarch/retroarch.cfg --libretro /path/to/libretro/core.so /path/to/rom.rom --verbose
+ 
+ .TP
+ \fBNo command line options will start RetroArch in menu mode.\fR
+@@ -96,7 +96,7 @@ Should this not be defined, \fBretroarch\fR will look in platform specific paths
+ /etc/retroarch.cfg should serve as a skeleton config only.
+ 
+ .IP
+-Unix-like systems will look in $XDG_CONFIG_HOME/retroarch/retroarch.cfg first. If $XDG_CONFIG_HOME is not defined, it is assumed to be $HOME/.config as per specification. Then it will try $HOME/.retroarch.cfg. If both paths fail, RetroArch will try to create a new, default config file in $XDG_CONFIG_HOME/retroarch/retroarch.cfg (or the $HOME/.config default for $XDG_CONFIG_HOME).
++Unix-like systems will look in $XDG_CONFIG_HOME/retroarch/retroarch.cfg first. If $XDG_CONFIG_HOME is not defined, it is assumed to be $HOME/configs as per specification. Then it will try $HOME/.retroarch.cfg. If both paths fail, RetroArch will try to create a new, default config file in $XDG_CONFIG_HOME/retroarch/retroarch.cfg (or the $HOME/configs default for $XDG_CONFIG_HOME).
+ If all fails, default settings will be assumed.
+ If RetroArch creates a new default config file, it will attempt to load the skeleton config file /etc/retroarch.cfg and use that as a basis.
+ This allows distributions to set up default paths for libretro cores, and similar things.
+diff --git a/file_path_special.c b/file_path_special.c
+index fbb65ba..f3002fe 100644
+--- a/file_path_special.c
++++ b/file_path_special.c
+@@ -158,7 +158,7 @@ bool fill_pathname_application_data(char *s, size_t len)
+    const char *xdg     = getenv("XDG_CONFIG_HOME");
+    const char *appdata = getenv("HOME");
+ 
+-   /* XDG_CONFIG_HOME falls back to $HOME/.config with most Unix systems */
++   /* XDG_CONFIG_HOME falls back to $HOME/configs with most Unix systems */
+    /* On Haiku, it is set by default to /home/user/config/settings */
+    if (xdg)
+    {
+@@ -174,7 +174,7 @@ bool fill_pathname_application_data(char *s, size_t len)
+             "config/settings/retroarch/", len);
+ #else
+       fill_pathname_join(s, appdata,
+-            ".config/retroarch/", len);
++            "configs/retroarch/", len);
+ #endif
+       return true;
+    }
+diff --git a/frontend/drivers/platform_unix.c b/frontend/drivers/platform_unix.c
+index d323c9e..d017960 100644
+--- a/frontend/drivers/platform_unix.c
++++ b/frontend/drivers/platform_unix.c
+@@ -1824,9 +1824,13 @@ status:
+       buf = NULL;
+    }
+ 
+-   fill_pathname_join_special(path, basenode, "capacity", sizeof(path));
+-   if (filestream_read_file(path, (void**)&buf, &length) != 1)
+-      goto end;
++   if (filestream_read_file("/tmp/battery.percent", (void**)&buf, &length) != 1)
++   {
++      fill_pathname_join_special(path, basenode, "capacity", sizeof(path));
++
++      if (filestream_read_file(path, (void**)&buf, &length) != 1)
++         goto end;
++   }
+ 
+    capacity = atoi(buf);
+ 
+@@ -2951,7 +2955,7 @@ static void frontend_unix_get_env(int *argc,
+    else if (home)
+    {
+       size_t _len = strlcpy(base_path, home, sizeof(base_path));
+-      strlcpy_lit(base_path + _len, "/.config/retroarch", sizeof(base_path) - _len);
++      strlcpy_lit(base_path + _len, "/configs/retroarch", sizeof(base_path) - _len);
+    }
+    else
+       strlcpy_lit(base_path, "retroarch", sizeof(base_path));
+@@ -3688,7 +3692,7 @@ static int frontend_unix_parse_drive_list(void *data, bool load_content)
+    else if (home)
+    {
+       size_t _len = strlcpy(base_path, home, sizeof(base_path));
+-      strlcpy_lit(base_path + _len, "/.config/retroarch", sizeof(base_path) - _len);
++      strlcpy_lit(base_path + _len, "/configs/retroarch", sizeof(base_path) - _len);
+    }
+ #endif
+ 
+diff --git a/gfx/common/drm_common.c b/gfx/common/drm_common.c
+index 10fb388..eb09656 100644
+--- a/gfx/common/drm_common.c
++++ b/gfx/common/drm_common.c
+@@ -68,6 +68,22 @@ bool drm_get_connector(int fd, unsigned monitor_index)
+    unsigned i;
+    unsigned monitor_index_count = 0;
+    unsigned monitor       = MAX(monitor_index, 1);
++   int drmConn = -1;
++
++   // batocera
++   {
++     FILE* fdDrmConn;
++     int drmConnRead;
++     if((fdDrmConn = fopen("/var/run/drmConn", "r")) != NULL) {
++       if(fscanf(fdDrmConn, "%i", &drmConnRead) == 1) {
++    if(g_drm_resources && drmConnRead>=0 && (unsigned)drmConnRead<g_drm_resources->count_connectors) {
++      drmConn = drmConnRead;
++    }
++       }
++       fclose(fdDrmConn);
++     }
++   }
++   //
+ 
+    /* Enumerate all connectors. */
+ 
+@@ -75,7 +91,11 @@ bool drm_get_connector(int fd, unsigned monitor_index)
+ 
+    for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+    {
+-      drmModeConnectorPtr conn = drmModeGetConnector(
++      drmModeConnectorPtr conn;
++
++      if(drmConn >= 0 && i != (unsigned)drmConn) continue;
++
++      conn = drmModeGetConnector(
+             fd, g_drm_resources->connectors[i]);
+ 
+       if (conn)
+@@ -96,6 +116,8 @@ bool drm_get_connector(int fd, unsigned monitor_index)
+ 
+    for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+    {
++      if(drmConn >= 0 && i != (unsigned)drmConn) continue;
++
+       g_drm_connector = drmModeGetConnector(fd,
+             g_drm_resources->connectors[i]);
+ 
+@@ -172,6 +194,22 @@ bool drm_get_encoder(int fd)
+             drm_calc_refresh_rate(&g_drm_connector->modes[i]));
+    }
+ 
++   // batocera - set resolution
++   FILE* fdDrmMode;
++   int drmMode;
++   if((fdDrmMode = fopen("/var/run/drmMode", "r")) != NULL) {
++     if(fscanf(fdDrmMode, "%i", &drmMode) == 1) {
++       if(drmMode>=0 && drmMode<g_drm_connector->count_modes) {
++	 drmModeCrtc *pcrtc = drmModeGetCrtc(fd, g_drm_encoder->crtc_id);
++	 if(pcrtc != NULL) {
++	   drmModeSetCrtc(fd, pcrtc->crtc_id, pcrtc->buffer_id, 0, 0, &g_drm_connector->connector_id, 1, &g_drm_connector->modes[drmMode]);
++	 }
++       }
++     }
++     fclose(fdDrmMode);
++   }
++   //
++
+    return true;
+ }
+ 
+diff --git a/gfx/common/x11_common.c b/gfx/common/x11_common.c
+index d17eafb..fc9ae2a 100644
+--- a/gfx/common/x11_common.c
++++ b/gfx/common/x11_common.c
+@@ -771,22 +771,10 @@ static void x11_handle_key_event(unsigned keycode, XEvent *event,
+          char keybuf[32];
+ 
+          keybuf[0] = '\0';
+-#ifdef X_HAVE_UTF8_STRING
+-         status = 0;
+-         /* XwcLookupString doesn't seem to work. */
+-         num = Xutf8LookupString(ic, &event->xkey, keybuf,
+-               ARRAY_SIZE(keybuf), &keysym, &status);
+-         /* libc functions need UTF-8 locale to work properly,
+-          * which makes mbrtowc a bit impractical.
+-          *
+-          * Use custom UTF8 -> UTF-32 conversion. */
+-         num = utf8_conv_utf32(chars, ARRAY_SIZE(chars), keybuf, num);
+-#else
+          num = XLookupString(&event->xkey, keybuf,
+                sizeof(keybuf), &keysym, NULL); /* ASCII only. */
+          for (i = 0; i < num; i++)
+             chars[i] = keybuf[i] & 0x7f;
+-#endif
+       }
+       else
+          keysym = XLookupKeysym(&event->xkey,
+@@ -1249,9 +1237,7 @@ void x11_update_title(void *data)
+ 
+ bool x11_input_ctx_new(bool true_full)
+ {
+-   if (!x11_create_input_context(g_x11_dpy, g_x11_win,
+-            &g_x11_xim, &g_x11_xic))
+-      return false;
++   x11_init_keyboard_lut();
+ 
+    video_driver_display_type_set(RARCH_DISPLAY_X11);
+    video_driver_display_set((uintptr_t)g_x11_dpy);
+diff --git a/gfx/drivers/drm_gfx.c b/gfx/drivers/drm_gfx.c
+index 30141bc..01132f5 100644
+--- a/gfx/drivers/drm_gfx.c
++++ b/gfx/drivers/drm_gfx.c
+@@ -660,6 +660,7 @@ error_destroy:
+ static bool init_drm(void)
+ {
+    uint i;
++   int drmConn = -1;
+    drmModeConnector *connector = NULL;
+    struct modeset_buf buf;
+ 
+@@ -695,14 +696,29 @@ static bool init_drm(void)
+       return false;
+    }
+ 
++   {
++      FILE *fdDrmConn = fopen("/var/run/drmConn", "r");
++      int drmConnRead;
++      if (fdDrmConn)
++      {
++         if (fscanf(fdDrmConn, "%i", &drmConnRead) == 1
++               && drmConnRead >= 0
++               && (unsigned)drmConnRead < drm.resources->count_connectors)
++            drmConn = drmConnRead;
++         fclose(fdDrmConn);
++      }
++   }
++
+    /* Find a connected connector. */
+    for (i = 0; i < (uint)drm.resources->count_connectors; i++)
+    {
++      if (drmConn >= 0 && i != (uint)drmConn)
++         continue;
+       connector = drmModeGetConnector(drm.fd, drm.resources->connectors[i]);
+-      /* It's connected, let's use it. */
+-      if (connector->connection == DRM_MODE_CONNECTED)
++      if (connector && connector->connection == DRM_MODE_CONNECTED)
+          break;
+-      drmModeFreeConnector(connector);
++      if (connector)
++         drmModeFreeConnector(connector);
+       connector = NULL;
+    }
+ 
+@@ -712,14 +728,18 @@ static bool init_drm(void)
+       return false;
+    }
+ 
+-   /* Find encoder */
+-   for (i = 0; i < (uint)drm.resources->count_encoders; i++)
++   /* Find the active encoder, then fall back to compatible encoders. */
++   drm.encoder = NULL;
++   if (connector->encoder_id)
++      drm.encoder = drmModeGetEncoder(drm.fd, connector->encoder_id);
++   if (!drm.encoder)
+    {
+-      drm.encoder = drmModeGetEncoder(drm.fd, drm.resources->encoders[i]);
+-      if (drm.encoder->encoder_id == connector->encoder_id)
+-         break;
+-      drmModeFreeEncoder(drm.encoder);
+-      drm.encoder = NULL;
++      for (i = 0; i < (uint)connector->count_encoders; i++)
++      {
++         drm.encoder = drmModeGetEncoder(drm.fd, connector->encoders[i]);
++         if (drm.encoder)
++            break;
++      }
+    }
+ 
+    if (!drm.encoder)
+@@ -734,6 +754,11 @@ static bool init_drm(void)
+    /* Backup original crtc and it's mode, so we can restore the original video mode
+     * on exit in case we change it. */
+    drm.orig_crtc = drmModeGetCrtc(drm.fd, drm.encoder->crtc_id);
++   if (!drm.orig_crtc)
++   {
++      RARCH_ERR("[DRM] Could not read the original CRTC.\n");
++      return false;
++   }
+    drm.current_mode = &(drm.orig_crtc->mode);
+    g_drm_mode = drm.current_mode;
+ 
+diff --git a/gfx/drivers/oga_gfx.c b/gfx/drivers/oga_gfx.c
+index 3ce5843..dd36c4a 100644
+--- a/gfx/drivers/oga_gfx.c
++++ b/gfx/drivers/oga_gfx.c
+@@ -24,6 +24,7 @@
+ #include <unistd.h>
+ #include <sys/mman.h>
+ #include <rga/RgaApi.h>
++#include <rga/drmrga.h>
+ #include <xf86drm.h>
+ #include <xf86drmMode.h>
+ #include <drm/drm_fourcc.h>
+@@ -111,10 +112,11 @@ typedef struct oga_video
+ static bool oga_create_display(oga_video_t* vid)
+ {
+    int i;
+-   drmModeConnector *connector;
++   drmModeConnector *connector = NULL;
+    drmModeModeInfo *mode;
+    drmModeEncoder *encoder;
+    drmModeRes *resources;
++   int drmConn = -1;
+ 
+    vid->fd = open("/dev/dri/card0", O_RDWR);
+    if (vid->fd < 0)
+@@ -130,13 +132,31 @@ static bool oga_create_display(oga_video_t* vid)
+       goto err_01;
+    }
+ 
++   // batocera
++   {
++     FILE* fdDrmConn;
++     int drmConnRead;
++     if((fdDrmConn = fopen("/var/run/drmConn", "r")) != NULL) {
++       if(fscanf(fdDrmConn, "%i", &drmConnRead) == 1) {
++    if(drmConnRead>=0 && (unsigned)drmConnRead<resources->count_connectors) {
++      drmConn = drmConnRead;
++    }
++       }
++       fclose(fdDrmConn);
++     }
++   }
++   //
++
+    for (i = 0; i < resources->count_connectors; i++)
+    {
++      if(drmConn >= 0 && i != (unsigned)drmConn) continue;
++
+       connector = drmModeGetConnector(vid->fd, resources->connectors[i]);
+-      if (connector->connection == DRM_MODE_CONNECTED)
++      if (connector && connector->connection == DRM_MODE_CONNECTED)
+          break;
+ 
+-      drmModeFreeConnector(connector);
++      if (connector)
++         drmModeFreeConnector(connector);
+       connector = NULL;
+    }
+ 
+@@ -170,14 +190,26 @@ static bool oga_create_display(oga_video_t* vid)
+    vid->mode   = *mode;
+ 
+    /* Find encoder */
+-   for (i = 0; i < resources->count_encoders; i++)
++   encoder = NULL;
++
++   /* First try: Get encoder directly from connector's encoder_id */
++   if (connector->encoder_id)
+    {
+-      encoder = drmModeGetEncoder(vid->fd, resources->encoders[i]);
+-      if (encoder->encoder_id == connector->encoder_id)
+-         break;
++      encoder = drmModeGetEncoder(vid->fd, connector->encoder_id);
++   }
+ 
+-      drmModeFreeEncoder(encoder);
+-      encoder = NULL;
++   /* Second try: If no encoder bound yet, find a compatible one from connector's possible encoders */
++   if (!encoder)
++   {
++      for (i = 0; i < (unsigned)connector->count_encoders; i++)
++      {
++         encoder = drmModeGetEncoder(vid->fd, connector->encoders[i]);
++         if (!encoder)
++            continue;
++
++         /* Found a compatible encoder, use it */
++         break;
++      }
+    }
+ 
+    if (!encoder)
+diff --git a/gfx/drivers_context/drm_ctx.c b/gfx/drivers_context/drm_ctx.c
+index d3c8f76..544387f 100644
+--- a/gfx/drivers_context/drm_ctx.c
++++ b/gfx/drivers_context/drm_ctx.c
+@@ -1212,6 +1212,8 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+    settings_t *settings            = config_get_ptr();
+    unsigned black_frame_insertion  = settings->uints.video_black_frame_insertion;
+    float video_refresh_rate        = settings->floats.video_refresh_rate;
++   FILE* fdDrmMode;
++   int drmMode;
+ 
+    if (!drm)
+       return false;
+@@ -1250,34 +1252,16 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+       }
+       else
+       {
+-         /* Try to match refresh_rate as closely as possible.
+-          *
+-          * Lower resolutions tend to have multiple supported
+-          * refresh rates as well.
+-          */
+-         drmModeModeInfo *mode     = NULL;
+-         float minimum_fps_diff    = 0.0f;
+-         float mode_vrefresh       = 0.0f;
+-         g_drm_mode                = 0;
+-
+-         /* Find best match. */
+-         for (i = 0; i < g_drm_connector->count_modes; i++)
+-         {
+-            float diff;
+-            mode                   = &g_drm_connector->modes[i];
+-
+-            if (   (width  != mode->hdisplay)
+-                || (height != mode->vdisplay))
+-               continue;
+-
+-            mode_vrefresh          = drm_calc_refresh_rate(mode);
+-            diff                   = fabsf(refresh_mod * mode_vrefresh - video_refresh_rate);
+-
+-            if (!g_drm_mode || diff < minimum_fps_diff)
+-            {
+-               g_drm_mode          = mode;
+-               minimum_fps_diff    = diff;
++         // on batocera, we won't guess a mode ; we want the one set by drmMode
++         g_drm_mode = &g_drm_connector->modes[0];
++         // batocera - set resolution
++         if((fdDrmMode = fopen("/var/run/drmMode", "r")) != NULL) {
++            if(fscanf(fdDrmMode, "%i", &drmMode) == 1) {
++               if(drmMode>=0 && drmMode<g_drm_connector->count_modes) {
++                  g_drm_mode = &g_drm_connector->modes[drmMode];
++               }
+             }
++            fclose(fdDrmMode);
+          }
+       }
+    }
+diff --git a/gfx/drivers_context/drm_go2_ctx.c b/gfx/drivers_context/drm_go2_ctx.c
+index a31e654..ccef8b2 100644
+--- a/gfx/drivers_context/drm_go2_ctx.c
++++ b/gfx/drivers_context/drm_go2_ctx.c
+@@ -125,7 +125,7 @@ static void *gfx_ctx_go2_drm_init(void *video_driver)
+    }
+ 
+    drm->presenter     = go2_presenter_create(drm->display,
+-         DRM_FORMAT_RGB565, 0xff000000, true);
++          DRM_FORMAT_XRGB8888, 0xff000000, true);
+ 
+    return drm;
+ }
+@@ -303,6 +303,44 @@ static void gfx_ctx_go2_drm_check_window(void *data, bool *quit,
+ static bool gfx_ctx_go2_drm_has_focus(void *data) { return true; }
+ static bool gfx_ctx_go2_drm_suppress_screensaver(void *data, bool enable) { return false; }
+ 
++
++/* Helper function to detect rotation angle from system configuration */
++static int drm_get_system_rotation(void)
++{
++   FILE *fp;
++   char buffer[1024];
++   int rotation = 270; /* Default rotation */
++
++   fp = fopen("/proc/cmdline", "r");
++   if (fp)
++   {
++      if (fgets(buffer, sizeof(buffer), fp))
++      {
++         char *rotate_arg = strstr(buffer, "fbcon=rotate:");
++         if (rotate_arg)
++         {
++               int fbcon_rotate = atoi(rotate_arg + strlen("fbcon=rotate:"));
++               /* fbcon rotate values: 0=0°, 1=90°, 2=180°, 3=270° */
++               switch (fbcon_rotate)
++               {
++                  case 0: rotation = 0;   break;
++                  case 1: rotation = 90;  break;
++                  case 2: rotation = 180; break;
++                  case 3: rotation = 270; break;
++               }
++               fclose(fp);
++               RARCH_LOG("[KMS/DRM]: Using fbcon rotation from cmdline: %d°\n", rotation);
++               return rotation;
++         }
++      }
++      fclose(fp);
++   }
++
++   /* Default fallback */
++   RARCH_LOG("[KMS/DRM]: Using default rotation: %d°\n", rotation);
++   return rotation;
++}
++
+ static void gfx_ctx_go2_drm_swap_buffers(void *data)
+ {
+ #ifdef HAVE_EGL
+@@ -312,6 +350,37 @@ static void gfx_ctx_go2_drm_swap_buffers(void *data)
+    gfx_ctx_go2_drm_data_t
+       *drm   = (gfx_ctx_go2_drm_data_t*)data;
+ 
++   /* Static variable to cache rotation detection */
++   static int detected_rotation = -1;
++   static go2_rotation_t go2_rotation = GO2_ROTATION_DEGREES_270;
++
++   /* Detect rotation only once at first swap */
++   if (detected_rotation == -1)
++   {
++       detected_rotation = drm_get_system_rotation();
++
++       /* Map rotation angle to go2_rotation_t */
++       switch (detected_rotation)
++       {
++           case 0:
++               go2_rotation = GO2_ROTATION_DEGREES_0;
++               break;
++           case 90:
++               go2_rotation = GO2_ROTATION_DEGREES_90;
++               break;
++           case 180:
++               go2_rotation = GO2_ROTATION_DEGREES_180;
++               break;
++           case 270:
++           default:
++               go2_rotation = GO2_ROTATION_DEGREES_270;
++               break;
++       }
++
++       RARCH_LOG("[KMS/DRM]: Display rotation configured to %d° (go2_rotation=%d)\n",
++                detected_rotation, go2_rotation);
++   }
++
+    int out_w = drm->native_width;
+    int out_h = drm->native_height;
+    int out_x = 0;
+@@ -338,7 +407,7 @@ static void gfx_ctx_go2_drm_swap_buffers(void *data)
+          surf,
+          src_x, src_y, src_w, src_h,
+          out_y, out_x, out_h, out_w,
+-         GO2_ROTATION_DEGREES_270, 2);
++         go2_rotation, 2);
+    go2_context_surface_unlock(drm->context, surf);
+ #endif
+ }
+diff --git a/gfx/drivers_context/wayland_ctx.c b/gfx/drivers_context/wayland_ctx.c
+index bacf5f3..8e5f972 100644
+--- a/gfx/drivers_context/wayland_ctx.c
++++ b/gfx/drivers_context/wayland_ctx.c
+@@ -445,6 +445,10 @@ static EGLint *egl_fill_attribs(gfx_ctx_wayland_data_t *wl, EGLint *attr)
+ 
+ static void gfx_ctx_wl_destroy(void *data)
+ {
++   *input      = NULL;
++   *input_data = NULL;
++   return;
++
+    gfx_ctx_wayland_data_t *wl = (gfx_ctx_wayland_data_t*)data;
+ 
+    if (!wl)
+diff --git a/input/drivers/udev_input.c b/input/drivers/udev_input.c
+index 49324a9..580ccce 100644
+--- a/input/drivers/udev_input.c
++++ b/input/drivers/udev_input.c
+@@ -235,7 +235,7 @@ typedef struct
+    int32_t x_max, y_max;
+    uint32_t rel;          /* x, y motion: VIDEO_POS_PACK */
+    int32_t abs;
+-   bool l, r, m, b4, b5;
++   bool l, r, m, b1, b2, b3, b4, b5, b6, b7, b8, b9;
+    bool wu, wd, whu, whd;
+    bool pp;
+ } udev_input_mouse_t;
+@@ -888,6 +888,33 @@ static void udev_handle_mouse(void *data,
+             case BTN_EXTRA:
+                mouse->b5 = event->value;
+                break;
++            case BTN_1:
++               mouse->b1 = event->value;
++               break;
++            case BTN_2:
++               mouse->b2 = event->value;
++               break;
++            case BTN_3:
++               mouse->b3 = event->value;
++               break;
++            case BTN_4:
++               mouse->b4 = event->value;
++               break;
++            case BTN_5:
++               mouse->b5 = event->value;
++               break;
++            case BTN_6:
++               mouse->b6 = event->value;
++               break;
++            case BTN_7:
++               mouse->b7 = event->value;
++               break;
++            case BTN_8:
++               mouse->b8 = event->value;
++               break;
++            case BTN_9:
++               mouse->b9 = event->value;
++               break;
+             default:
+                break;
+          }
+@@ -3382,11 +3409,8 @@ static int udev_input_add_device(udev_input_t *udev,
+    {
+       bool mouse = 0;
+       bool touch = 0;
+-      /* gotta have some buttons!  return -1 to skip error logging for this:)  */
+-      if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof (keycaps)), keycaps) == -1)
+-      {
+-         ret = -1;
+-         goto end;
++      if (type == UDEV_INPUT_MOUSE) {
++         mouse = 1; // if it's a mouse, it is a mouse ; otherwise, guessing the mouse index to configure is a hell. (case of configurable keyboard which can have left/right mouse button settable)
+       }
+ 
+       if (ioctl(fd, EVIOCGBIT(EV_REL, sizeof (relcaps)), relcaps) != -1)
+@@ -3827,10 +3851,24 @@ static int16_t udev_mouse_state(udev_input_t *udev,
+             return mouse->r;
+          case RETRO_DEVICE_ID_MOUSE_MIDDLE:
+             return mouse->m;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_1:
++            return mouse->b1;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_2:
++            return mouse->b2;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_3:
++            return mouse->b3;
+          case RETRO_DEVICE_ID_MOUSE_BUTTON_4:
+             return mouse->b4;
+          case RETRO_DEVICE_ID_MOUSE_BUTTON_5:
+             return mouse->b5;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_6:
++            return mouse->b6;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_7:
++            return mouse->b7;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_8:
++            return mouse->b8;
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_9:
++            return mouse->b9;
+          case RETRO_DEVICE_ID_MOUSE_WHEELUP:
+             return mouse->wu;
+          case RETRO_DEVICE_ID_MOUSE_WHEELDOWN:
+@@ -4157,6 +4195,41 @@ static float udev_get_sensor_input(void *data, unsigned port, unsigned id)
+    return 0.0f;
+ }
+ 
++struct event_udev_entry
++{
++   char *devnode;
++   struct udev_list_entry *item;
++};
++
++static bool event_devnode_number(const char *path, unsigned long *number)
++{
++   const char *base = strrchr(path, '/');
++   char *end        = NULL;
++
++   base = base ? base + 1 : path;
++   if (strncmp(base, "event", 5) != 0 || !base[5])
++      return false;
++
++   errno = 0;
++   *number = strtoul(base + 5, &end, 10);
++   return errno != ERANGE && end && *end == '\0';
++}
++
++static int sort_devnodes(const void *a, const void *b)
++{
++   const struct event_udev_entry *aa = (const struct event_udev_entry*)a;
++   const struct event_udev_entry *bb = (const struct event_udev_entry*)b;
++   unsigned long anum = 0;
++   unsigned long bnum = 0;
++   bool a_event = event_devnode_number(aa->devnode, &anum);
++   bool b_event = event_devnode_number(bb->devnode, &bnum);
++
++   if (a_event && b_event && anum != bnum)
++      return anum < bnum ? -1 : 1;
++
++   return strcmp(aa->devnode, bb->devnode);
++}
++
+ /* @denied counts the nodes that exist but rejected the open with
+  * EACCES, so the caller can tell a machine with no such devices apart
+  * from one where the user lacks read access to them. */
+@@ -4169,6 +4242,11 @@ static bool open_devices(udev_input_t *udev,
+    struct udev_list_entry     *devs = NULL;
+    struct udev_list_entry     *item = NULL;
+    struct udev_enumerate *enumerate = udev_enumerate_new(udev->udev);
++   unsigned i;
++   unsigned sorted_count = 0;
++   struct event_udev_entry sorted[1024];
++   const char *name;
++   const char *devnode;
+ 
+    RARCH_DBG("[udev] Adding devices of type %u -> \"%s\".\n", type, type_str);
+    if (!enumerate)
+@@ -4181,15 +4259,39 @@ static bool open_devices(udev_input_t *udev,
+ 
+    for (item = devs; item; item = udev_list_entry_get_next(item))
+    {
+-      const char *devnode;
+-      const char *name = udev_list_entry_get_name(item);
++      name = udev_list_entry_get_name(item);
++      dev = udev_device_new_from_syspath(udev->udev, name);
++      devnode = dev ? udev_device_get_devnode(dev) : NULL;
++
++      if (devnode && sorted_count < 1024)
++      {
++         sorted[sorted_count].devnode = strdup(devnode);
++         if (sorted[sorted_count].devnode)
++         {
++            sorted[sorted_count].item = item;
++            sorted_count++;
++         }
++      }
++
++      if (dev)
++         udev_device_unref(dev);
++   }
++
++   /* Sort the udev entries by devnode name so that they are
++    * created in the proper order */
++   qsort(sorted, sorted_count,
++   sizeof(struct event_udev_entry), sort_devnodes);
++
++   for (i = 0; i < sorted_count; i++)
++   {
++      name = udev_list_entry_get_name(sorted[i].item);
+ 
+       RARCH_DBG("[udev] Adding device (t%u) \"%s\".\n", type, name);
+ 
+       /* Get the filename of the /sys entry for the device
+        * and create a udev_device object (dev) representing it. */
+       dev     = udev_device_new_from_syspath(udev->udev, name);
+-      devnode = udev_device_get_devnode(dev);
++      devnode = dev ? udev_device_get_devnode(dev) : NULL;
+ 
+       if (devnode)
+       {
+@@ -4211,9 +4313,13 @@ static bool open_devices(udev_input_t *udev,
+                   devnode, strerror(errno));
+          }
+       }
+-      udev_device_unref(dev);
++      if (dev)
++         udev_device_unref(dev);
+    }
+ 
++   for (i = 0; i < sorted_count; i++)
++      free(sorted[i].devnode);
++
+    udev_enumerate_unref(enumerate);
+ 
+    return true;
+diff --git a/input/drivers_joypad/udev_joypad.c b/input/drivers_joypad/udev_joypad.c
+index 1ade351..48a9e19 100644
+--- a/input/drivers_joypad/udev_joypad.c
++++ b/input/drivers_joypad/udev_joypad.c
+@@ -61,7 +61,7 @@
+  * Code adapted from SDL 2.0's implementation.
+  */
+ 
+-#define UDEV_NUM_BUTTONS 64
++#define UDEV_NUM_BUTTONS 512
+ #define NUM_AXES 32
+ 
+ #ifndef NUM_HATS
+@@ -963,21 +963,12 @@ static int udev_add_pad(struct udev_device *dev, unsigned p, int fd, const char
+    /* Go through all possible keycodes, check if they are used,
+     * and map them to button/axes/hat indices.
+     */
+-   for (i = KEY_UP; i <= KEY_DOWN && buttons < UDEV_NUM_BUTTONS; i++)
+-      if (test_bit(i, keybit))
+-         pad->button_bind[i] = buttons++;
+-   for (i = BTN_MISC; i < KEY_MAX && buttons < UDEV_NUM_BUTTONS; i++)
++   for (i = 0; i < KEY_MAX && buttons < UDEV_NUM_BUTTONS; i++)
+       if (test_bit(i, keybit))
+          pad->button_bind[i] = buttons++;
+    /* The following two ranges are scanned and added after the above
+     * ranges to maintain compatibility with existing key maps.
+     */
+-   for (i = 0; i < KEY_UP && buttons < UDEV_NUM_BUTTONS; i++)
+-      if (test_bit(i, keybit))
+-         pad->button_bind[i] = buttons++;
+-   for (i = KEY_DOWN + 1; i < BTN_MISC && buttons < UDEV_NUM_BUTTONS; i++)
+-      if (test_bit(i, keybit))
+-         pad->button_bind[i] = buttons++;
+    for (i = 0; i < ABS_MISC && axes < NUM_AXES; i++)
+    {
+       /* Skip hats for now. */
+@@ -1448,6 +1439,60 @@ static void udev_joypad_poll(void)
+    }
+ }
+ 
++int isNumber(const char *s) {
++  int n;
++
++  if(strlen(s) == 0) {
++    return 0;
++  }
++
++  for(n=0; n<strlen(s); n++) {
++    if(!(s[n] == '0' || s[n] == '1' || s[n] == '2' || s[n] == '3' || s[n] == '4' ||
++         s[n] == '5' || s[n] == '6' || s[n] == '7' || s[n] == '8' || s[n] == '9'))
++      return 0;
++  }
++  return 1;
++}
++
++// compare /dev/input/eventX and /dev/input/eventY where X and Y are numbers
++int strcmp_events(const char* x, const char* y) {
++
++  // find a common string
++  int n, common, is_number;
++  int a, b;
++
++  n=0;
++  while(x[n] == y[n] && x[n] != '\0' && y[n] != '\0') {
++    n++;
++  }
++  common = n;
++
++  // check if remaining string is a number
++  is_number = 1;
++  if(isNumber(x+common) == 0) is_number = 0;
++  if(isNumber(y+common) == 0) is_number = 0;
++
++  if(is_number == 1) {
++    a = atoi(x+common);
++    b = atoi(y+common);
++
++    if(a == b) return  0;
++    if(a < b)  return -1;
++    return 1;
++  } else {
++    return strcmp(x, y);
++  }
++}
++
++/* Used for sorting devnodes to appear in the correct order */
++static int sort_devnodes(const void *a, const void *b)
++{
++   const struct joypad_udev_entry *aa = (const struct joypad_udev_entry*)a;
++   const struct joypad_udev_entry *bb = (const struct joypad_udev_entry*)b;
++   return strcmp_events(aa->devnode, bb->devnode);
++}
++
++
+ static void *udev_joypad_init(void *data)
+ {
+    int i;
+@@ -1483,11 +1528,31 @@ static void *udev_joypad_init(void *data)
+    if (!(devs = udev_enumerate_get_list_entry(enumerate)))
+       RARCH_DBG("[udev] Couldn't open any joypads. Are permissions set correctly for /dev/input/event* and /run/udev/?\n");
+ 
+-   udev_list_entry_foreach(item, devs)
+-   {
+-      const char         *name = udev_list_entry_get_name(item);
+-      struct udev_device  *dev = udev_device_new_from_syspath(udev_joypad_fd, name);
+-      const char      *devnode = udev_device_get_devnode(dev);
++   for (item = devs; item; item = udev_list_entry_get_next(item))
++     {
++       const char         *name = udev_list_entry_get_name(item);
++       struct udev_device  *dev = udev_device_new_from_syspath(udev_joypad_fd, name);
++       const char      *devnode = udev_device_get_devnode(dev);
++
++       if (devnode != NULL) {
++	 sorted[sorted_count].devnode = devnode;
++	 sorted[sorted_count].item = item;
++	 sorted_count++;
++       } else {
++	 udev_device_unref(dev);
++       }
++     }
++
++   /* Sort the udev entries by devnode name so that they are
++    * created in the proper order */
++   qsort(sorted, sorted_count,
++         sizeof(struct joypad_udev_entry), sort_devnodes);
++
++   for (i = 0; i < sorted_count; i++)
++     {
++       const char         *name = udev_list_entry_get_name(sorted[i].item);
++       struct udev_device  *dev = udev_device_new_from_syspath(udev_joypad_fd, name);
++       const char      *devnode = udev_device_get_devnode(dev);
+ #if defined(DEBUG)
+       struct udev_list_entry *list_entry = NULL;
+       RARCH_DBG("[udev] udev_joypad_init entry name=%s devnode=%s\n", name, devnode);
+diff --git a/libretro-common/include/libretro.h b/libretro-common/include/libretro.h
+index d4f52ad..f8cdeb8 100644
+--- a/libretro-common/include/libretro.h
++++ b/libretro-common/include/libretro.h
+@@ -404,8 +404,15 @@ extern "C" {
+ #define RETRO_DEVICE_ID_MOUSE_MIDDLE           6
+ #define RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELUP    7
+ #define RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELDOWN  8
+-#define RETRO_DEVICE_ID_MOUSE_BUTTON_4         9
+-#define RETRO_DEVICE_ID_MOUSE_BUTTON_5         10
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_1         9
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_2         10
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_3         11
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_4         12
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_5         13
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_6         14
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_7         15
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_8         16
++#define RETRO_DEVICE_ID_MOUSE_BUTTON_9         17
+ 
+ /* Id values for LIGHTGUN. */
+ #define RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X        13 /*Absolute Position*/
+diff --git a/menu/menu_driver.c b/menu/menu_driver.c
+index 8de2218..9d5e3ff 100644
+--- a/menu/menu_driver.c
++++ b/menu/menu_driver.c
+@@ -1764,8 +1764,15 @@ static bool menu_input_key_bind_poll_find_hold_pad(
+          case RETRO_DEVICE_ID_MOUSE_LEFT:
+          case RETRO_DEVICE_ID_MOUSE_RIGHT:
+          case RETRO_DEVICE_ID_MOUSE_MIDDLE:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_1:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_2:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_3:
+          case RETRO_DEVICE_ID_MOUSE_BUTTON_4:
+          case RETRO_DEVICE_ID_MOUSE_BUTTON_5:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_6:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_7:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_8:
++         case RETRO_DEVICE_ID_MOUSE_BUTTON_9:
+          case RETRO_DEVICE_ID_MOUSE_WHEELUP:
+          case RETRO_DEVICE_ID_MOUSE_WHEELDOWN:
+          case RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELUP:
+diff --git a/pkg/sailfishos/retroarch-sailfishos.spec b/pkg/sailfishos/retroarch-sailfishos.spec
+index bbdc9ac..42992c5 100644
+--- a/pkg/sailfishos/retroarch-sailfishos.spec
++++ b/pkg/sailfishos/retroarch-sailfishos.spec
+@@ -41,8 +41,8 @@ make %{?_smp_mflags}
+ make install DESTDIR=%{buildroot}
+ # Configuration changes
+ sed -i \
+-  's|^# libretro_directory =.*|libretro_directory = "~/.config/retroarch/cores/"|;
+-   s|^# libretro_info_path =.*|libretro_info_path = "~/.config/retroarch/cores/"|;
++  's|^# libretro_directory =.*|libretro_directory = "~/configs/retroarch/cores/"|;
++   s|^# libretro_info_path =.*|libretro_info_path = "~/configs/retroarch/cores/"|;
+    s|^# joypad_autoconfig_dir =.*|joypad_autoconfig_dir = "/etc/retroarch/joypad"|;
+    s|^# video_fullscreen =.*|video_fullscreen = "true"|;
+    s|^# menu_driver =.*|menu_driver = "glui"|;
+diff --git a/qb/config.libs.sh b/qb/config.libs.sh
+index e0455cd..30bf87e 100644
+--- a/qb/config.libs.sh
++++ b/qb/config.libs.sh
+@@ -997,11 +997,6 @@ if [ "$HAVE_GLSLANG" != no ]; then
+       glslang/SPIRV/GlslangToSpv.h
+ 
+    check_lib cxx GLSLANG -lglslang '' '-lSPIRV'
+-   check_lib cxx GLSLANG_OSDEPENDENT -lOSDependent
+-   check_lib cxx GLSLANG_OGLCOMPILER -lOGLCompiler
+-   check_lib cxx GLSLANG_MACHINEINDEPENDENT -lMachineIndependent
+-   check_lib cxx GLSLANG_GENERICCODEGEN -lGenericCodeGen
+-   check_lib cxx GLSLANG_HLSL -lHLSL '' '-lglslang -lSPIRV'
+    check_lib cxx GLSLANG_SPIRV -lSPIRV
+    check_lib cxx GLSLANG_SPIRV_TOOLS_OPT -lSPIRV-Tools-opt
+    check_lib cxx GLSLANG_SPIRV_TOOLS -lSPIRV-Tools
+diff --git a/qb/qb.comp.sh b/qb/qb.comp.sh
+index ef6d500..31b5934 100644
+--- a/qb/qb.comp.sh
++++ b/qb/qb.comp.sh
+@@ -142,8 +142,13 @@ fi
+ 
+ printf %s 'Checking for pkg-config ... '
+ 
+-PKG_CONF_PATH="${PKG_CONF_PATH:-$(exists "${CROSS_COMPILE}pkgconf" ||
+-	exists "${CROSS_COMPILE}pkg-config" || :)}"
++PKG_CONF_PATH="none"
++for p in $(exists "${CROSS_COMPILE}pkg-config") ''; do
++[ -n "$p" ] && {
++	PKG_CONF_PATH=$p;
++   break;
++}
++done
+ 
+ printf %s\\n "${PKG_CONF_PATH:=none}"
+ 
+diff --git a/retroarch.c b/retroarch.c
+index b31cb03..9a5ccd8 100644
+--- a/retroarch.c
++++ b/retroarch.c
+@@ -7628,7 +7628,7 @@ static void retroarch_print_help(const char *arg0)
+          "                                 "
+          "  $XDG_CONFIG_HOME/retroarch/retroarch.cfg,\n"
+          "                                 "
+-         "  $HOME/.config/retroarch/retroarch.cfg, and\n"
++         "  $HOME/configs/retroarch/retroarch.cfg, and\n"
+          "                                 "
+          "  $HOME/.retroarch.cfg.\n"
+          "                                 "
+@@ -8143,6 +8143,36 @@ static bool retroarch_parse_input_and_config(
+       { NULL, 0, NULL, 0 }
+    };
+ 
++   if(argc >= 2) {
++     if(strcmp(argv[1], "-x") == 0) {
++       struct retro_system_info info;
++       bool load_no_content;
++       int x = 0;
++
++       printf("{\n");
++       for(int i=2; i<argc; i++) {
++	 if(libretro_get_system_info(argv[i], &info, &load_no_content)) {
++	   if(strlen(argv[i]) >= 12) {
++	     if(strcmp("_libretro.so", argv[i]+(strlen(argv[i]) - 12)) == 0) {
++	       if(x > 0) {
++		 printf(",\n");
++	       }
++	       argv[i][strlen(argv[i]) - 12] = '\0';
++	       printf("  \"%s\": {\n", path_basename(argv[i]));
++	       printf("    \"name\": \"%s\",\n", info.library_name);
++	       printf("    \"version\": \"%s\",\n", info.library_version);
++	       printf("    \"extensions\": \"%s\"\n", info.valid_extensions);
++	       printf("  }");
++	       x++;
++	     }
++	   }
++	 }
++       }
++       printf("\n}\n");
++       exit(0);
++     }
++   }
++
+    if (first_run)
+    {
+       size_t _len = 0;
+diff --git a/runloop.c b/runloop.c
+index 8f6de06..cc04ff5 100644
+--- a/runloop.c
++++ b/runloop.c
+@@ -10284,7 +10284,8 @@ bool runloop_get_entry_state_path(char *s, size_t len, int slot)
+    if (!name_savestate || !*name_savestate)
+       return false;
+    _len = strlcpy(s, name_savestate, len);
+-   snprintf(s + _len, len - _len, "%d.entry", slot);
++   if (slot > 0)
++      snprintf(s + _len, len - _len, "%d", slot);
+    return true;
+ }
+ 

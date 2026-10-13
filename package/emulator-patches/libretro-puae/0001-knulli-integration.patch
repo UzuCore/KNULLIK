@@ -1,0 +1,91 @@
+--- a/libretro/libretro-core.h
++++ b/libretro/libretro-core.h
+@@ -3,6 +3,7 @@
+ 
+ #include <stdint.h>
+ #include <string.h>
++#undef __USE_ISOC99
+ #include <math.h>
+ #include <stdlib.h>
+ #include <stdio.h>
+--- a/Makefile
++++ b/Makefile
+@@ -51,11 +51,27 @@
+    SHARED := -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--no-undefined
+ 
+ # RPI
+-else ifeq ($(platform), rpi)
++else ifneq (,$(findstring rpi,$(platform)))
+ 	TARGET := $(TARGET_NAME)_libretro.so
+ 	fpic := -fPIC
+ 	LDFLAGS := -lpthread -lm -ldl
+ 	SHARED := -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--as-needed -Wl,--no-undefined
++
++   ifneq (,$(findstring rpi1,$(platform)))
++		CFLAGS += -marm -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard
++	else ifneq (,$(findstring rpi2,$(platform)))
++		CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
++	else ifneq (,$(findstring rpi3,$(platform)))
++		ifneq (,$(findstring rpi3_64,$(platform)))
++            CFLAGS += -mcpu=cortex-a53 -mtune=cortex-a53
++		else
++			CFLAGS += -marm -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
++		endif
++	else ifneq (,$(findstring rpi4,$(platform)))
++         CFLAGS += -mcpu=cortex-a72 -mtune=cortex-a72
++	else ifneq (,$(findstring rpi5,$(platform)))
++         CFLAGS += -mcpu=cortex-a76 -mtune=cortex-a76
++	endif
+ 
+ # Classic Platforms ####################
+ # Platform affix = classic_<ISA>_<µARCH>
+--- a/sources/src/audio.c
++++ b/sources/src/audio.c
+@@ -44,6 +44,7 @@
+ #endif
+ #include "threaddep/thread.h"
+ 
++#undef __USE_ISOC99
+ #include <math.h>
+ 
+ #define DEBUG_AUDIO 0
+--- a/sources/src/caps/caps.c
++++ b/sources/src/caps/caps.c
+@@ -37,7 +37,7 @@
+ #ifdef _WIN32
+ #define CAPSLIB_NAME    "capsimg.dll"
+ #else
+-#define CAPSLIB_NAME    "capsimg.so"
++#define CAPSLIB_NAME    "libcapsimage.so.5"
+ #endif
+ 
+ /*
+@@ -80,7 +80,7 @@
+     if (!path_is_valid(CAPSLIB_PATH))
+         snprintf(CAPSLIB_PATH, RETRO_PATH_MAX, "%s%c%s", "/data/user/0/com.retroarch.ra32/cores", DIR_SEP_CHR, CAPSLIB_NAME);
+ #else
+-    snprintf(CAPSLIB_PATH, RETRO_PATH_MAX, "%s%c%s", retro_system_directory, DIR_SEP_CHR, CAPSLIB_NAME);
++    snprintf(CAPSLIB_PATH, RETRO_PATH_MAX, "%s%c%s", "/usr/lib", DIR_SEP_CHR, CAPSLIB_NAME);
+ #endif
+     if (!path_is_valid(CAPSLIB_PATH))
+         snprintf(CAPSLIB_PATH, RETRO_PATH_MAX, "%s", CAPSLIB_NAME);
+--- a/sources/src/custom.c
++++ b/sources/src/custom.c
+@@ -13,6 +13,7 @@
+ 
+ #include <ctype.h>
+ #include <assert.h>
++#undef __USE_ISOC99
+ #include <math.h>
+ 
+ #include "options.h"
+--- a/sources/src/gfxutil.c
++++ b/sources/src/gfxutil.c
+@@ -15,6 +15,7 @@
+ #include "gfxfilter.h"
+ #include "machdep/maccess.h"
+ 
++#undef __USE_ISOC99
+ #include <math.h>
+ 
+ float getvsyncrate(int monid, float hz, int *mult)

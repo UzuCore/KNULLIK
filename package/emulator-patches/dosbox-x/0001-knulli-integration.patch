@@ -1,0 +1,184 @@
+--- a/acinclude.m4
++++ b/acinclude.m4
+@@ -46,45 +46,11 @@
+ 
+   SDL2_CONFIG=no
+   if test x$enable_sdl2enable = xyes ; then
+-    if test x$sdl2_exec_prefix != x ; then
+-      sdl2_args="$sdl2_args --exec-prefix=$sdl2_exec_prefix"
+-      if test x${SDL2_CONFIG+set} != xset ; then
+-        SDL2_CONFIG=$sdl2_exec_prefix/bin/sdl2-config
+-      fi
+-    fi
+-    if test x$sdl2_prefix != x ; then
+-      sdl2_args="$sdl2_args --prefix=$sdl2_prefix"
+-      if test x${SDL2_CONFIG+set} != xset ; then
+-        SDL2_CONFIG=$sdl2_prefix/bin/sdl2-config
+-      fi
+-    fi
+-
+-    if test -x vs/sdl2/linux-host/bin/sdl2-config ; then
+-      SDL2_CONFIG=vs/sdl2/linux-host/bin/sdl2-config
+-      PATH=vs/sdl2/linux-host/bin:$PATH
+-    fi
+-
+-    manual_sdl2config="$SDL2_CONFIG"
+-
++    SDL2_CONFIG=$sdl2_prefix/bin/sdl2-config
+     AC_PATH_PROG(SDL2_CONFIG, sdl2-config, no)
+-    AC_MSG_CHECKING(for SDL2)
+-
+-    # Prefer pkg-config unless sdl2-config was
+-    # manually specified before we looked for it
+-    if test x$manual_sdl2config = xno && \
+-        pkg-config --exists sdl2 ; then
+-      SDL2_CFLAGS=`pkg-config sdl2 --cflags`
+-      SDL2_LIBS=`pkg-config sdl2 --libs`
+-      AC_DEFINE(C_SDL2,1)
+-      AC_MSG_RESULT(found using pkg-config)
+-    elif test x$SDL2_CONFIG != xno; then
+-      SDL2_CFLAGS=`$SDL2_CONFIG $sdl2conf_args --cflags`
+-      SDL2_LIBS=`$SDL2_CONFIG $sdl2conf_args --libs`
+-      AC_DEFINE(C_SDL2,1)
+-      AC_MSG_RESULT(found using sdl2-config)
+-    else
+-      AC_MSG_RESULT(not found)
+-    fi
++    SDL2_CFLAGS=`$SDL2_CONFIG $sdl2conf_args --cflags`
++    SDL2_LIBS=`$SDL2_CONFIG $sdl2conf_args --libs`
++    AC_DEFINE(C_SDL2,1)
+   fi
+ 
+   AC_SUBST(SDL2_CFLAGS)
+--- a/configure.ac
++++ b/configure.ac
+@@ -786,6 +786,12 @@
+ AH_TEMPLATE(C_TARGETCPU,[The type of cpu this target has])
+ AC_MSG_CHECKING(for target cpu type) 
+ case "$host_cpu" in
++  arm)
++    AC_DEFINE(C_TARGETCPU,ARMV7LE)
++    AC_MSG_RESULT(ARMv7 Little Endian)
++    c_targetcpu="arm"
++    c_unalignedmemory=yes
++    ;;
+   x86_64 | amd64)
+     AC_DEFINE(C_TARGETCPU,X86_64)
+     AC_MSG_RESULT(x86-64 bit compatible)
+@@ -1084,6 +1090,10 @@
+       AC_DEFINE(C_MT32,1)
+       ;;
+     loongarch64)
++      AC_MSG_RESULT(yes)
++      AC_DEFINE(C_MT32,1)
++      ;;
++    aarch64)
+       AC_MSG_RESULT(yes)
+       AC_DEFINE(C_MT32,1)
+       ;;
+--- a/src/gui/sdl_mapper.cpp
++++ b/src/gui/sdl_mapper.cpp
+@@ -94,6 +94,7 @@
+ #define MAX_VJOY_HATS           16
+ #define MAX_VJOY_AXES           8
+ 
++#define MOUSE_OFFSET            8
+ 
+ class CEvent;
+ class CKeyEvent;
+@@ -3078,6 +3079,21 @@
+ 	uint8_t button;
+ };
+ 
++class CMouseMoveEvent : public CContinuousEvent {
++public:
++   CMouseMoveEvent(char const * const _entry,float _xrel, float _yrel) : CContinuousEvent(_entry) {
++       xrel=_xrel;
++       yrel=_yrel;
++        }
++   void Active(bool /*moved*/) {
++       Mouse_CursorMoved((float)xrel*MOUSE_OFFSET*GetValue()/32767.0,
++           (float)yrel*MOUSE_OFFSET*GetValue()/32767.0,
++           0, 0, true);
++
++   }
++   float xrel, yrel;
++};
++
+ //! \brief Joystick axis event handling for the mapper
+ class CJAxisEvent : public CContinuousEvent {
+ public:
+@@ -3952,6 +3968,16 @@
+ 	return event;
+ }
+ 
++static CMouseMoveEvent * AddMouseMoveEvent(Bitu x,Bitu y,Bitu dx,Bitu dy,char const * const title,char const * const entry,float xrel,float yrel) {
++   char buf[64];
++   strcpy(buf,"maxis_");
++   strcat(buf,entry);
++   CMouseMoveEvent * event=new CMouseMoveEvent(buf,xrel,yrel);
++   new CEventButton(x,y,dx,dy,title,event);
++   return event;
++}
++
++ 
+ static CJAxisEvent * AddJAxisButton(Bitu x,Bitu y,Bitu dx,Bitu dy,char const * const title,Bitu stick,Bitu axis,bool positive,CJAxisEvent * opposite_axis) {
+     char buf[64];
+     sprintf(buf,"jaxis_%d_%d%s",(int)stick,(int)axis,positive ? "+" : "-");
+@@ -4078,6 +4104,16 @@
+         AddKeyButtonEvent(PX(XO + (i > 0 ? i + 1 : i)), PY(YO), BU(width), BV(1), block[i].title, block[i].entry, block[i].key);
+     }
+ 
++#undef XO
++#undef YO
++#define XO 6
++#define YO 8
++   /* Mouse Buttons and Axis */
++   new CTextButton(PX(XO+0),PY(YO-1),2*BW,20,"Mouse axis");
++   AddMouseMoveEvent(PX(XO+1),PY(YO),BW,BH,"Y-","y-",0,-1);
++   AddMouseMoveEvent(PX(XO+0),PY(YO+1),BW,BH,"X-","x-",-1,0);
++   AddMouseMoveEvent(PX(XO+1),PY(YO+1),BW,BH,"Y+","y+",0,1);
++   AddMouseMoveEvent(PX(XO+2),PY(YO+1),BW,BH,"X+","x+",1,0);
+ #undef XO
+ #undef YO
+ #define XO 0
+--- a/src/gui/sdlmain.cpp
++++ b/src/gui/sdlmain.cpp
+@@ -1005,7 +1005,7 @@
+ #elif defined(HAIKU)
+ #define DEFAULT_CONFIG_FILE             "~/config/settings/dosbox-x/dosbox-x.conf"
+ #else /*linux freebsd*/
+-# define DEFAULT_CONFIG_FILE            "/.dosboxrc"
++# define DEFAULT_CONFIG_FILE            "/dosboxx.conf"
+ #endif
+ 
+ #if C_SET_PRIORITY
+--- a/src/misc/cross.cpp
++++ b/src/misc/cross.cpp
+@@ -219,7 +219,7 @@
+         ? xdg_conf_home
+         : "~/.config";
+ 
+-    dir = conf_home + "/dosbox-x";
++    dir = conf_home + "/dosbox";
+     ResolveHomedir(dir);
+ #endif
+ 
+@@ -241,7 +241,7 @@
+ #elif defined(OS2) && defined(C_SDL2)
+ #define DEFAULT_CONFIG_FILE "dosbox-x-" PACKAGE_VERSION ".conf"
+ #else /* linux, freebsd */
+-#define DEFAULT_CONFIG_FILE "dosbox-x-" VERSION ".conf"
++#define DEFAULT_CONFIG_FILE "dosboxx.conf"
+ #endif
+ 
+     name = DEFAULT_CONFIG_FILE;
+@@ -275,7 +275,7 @@
+     const char* xdg_conf_home = getenv("XDG_CONFIG_HOME");
+     const std::string conf_home =
+         (xdg_conf_home && xdg_conf_home[0] == '/') ? xdg_conf_home : "~/.config";
+-    path = conf_home + "/dosbox-x";
++    path = conf_home + "/dosbox";
+     ResolveHomedir(path);
+     mkdir(path.c_str(), 0700);
+ #endif
