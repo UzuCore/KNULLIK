@@ -82,7 +82,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
         with:
@@ -131,7 +131,7 @@ jobs:
 
       - name: Validate downloads absent from the mirror
         shell: bash
-        timeout-minutes: 40
+        timeout-minutes: 120
         run: |
           [ -s missing-sources.tsv ] || exit 0
           PKGS=$(cut -f1 missing-sources.tsv | LC_ALL=C sort -u | sed 's/$/-source/' | tr '\n' ' ')
