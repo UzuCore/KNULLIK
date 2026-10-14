@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Jun 10, 2023
-LIBRETRO_VM_VERSION = 11f63848a592644722ea1240b4b96785db9b009f
+LIBRETRO_VM_VERSION = fb5d6ddabec23298db39ab8536f77623fb3a1bae
 LIBRETRO_VM_SITE = $(call github,minkcv,vm,$(LIBRETRO_VM_VERSION))
 LIBRETRO_VM_LICENSE = GPLv2
 

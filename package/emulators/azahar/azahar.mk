@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-AZAHAR_VERSION = 9dd12da328c753806cbd4f2b0e048fced97ae97d
+AZAHAR_VERSION = c8d39853c1ebacc5657e51d601713a09404ca8a7
 AZAHAR_SITE = https://github.com/johndoe6345789/azahar_libretro.git
 AZAHAR_SITE_METHOD = git
 AZAHAR_GIT_SUBMODULES = YES

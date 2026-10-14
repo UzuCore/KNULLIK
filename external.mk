@@ -6,7 +6,7 @@ KNULLI_OVERRIDE_PACKAGES = libretro-flycastvl es-background-musics retroarch-ass
 							common-shaders glsl-shaders slang-shaders batocera-shaders \
 							batocera-triggerhappy azahar zramswap syncthing \
 							libretro-gpsp libretro-melonds-ds dolphin-emu vita3k gzdoom \
-							ppsspp libretro-hatari libretro-pc98
+							ppsspp
 
 # Knulli packages
 include $(sort $(wildcard $(BR2_EXTERNAL_KNULLI_PATH)/package/audio/*/*.mk \
@@ -36,5 +36,3 @@ $(wildcard $(BR2_EXTERNAL_KNULLI_PATH)/batocera/package/batocera/*/*.mk \
 $(BR2_EXTERNAL_KNULLI_PATH)/batocera/package/batocera/*/*/*.mk \
 $(BR2_EXTERNAL_KNULLI_PATH)/batocera/package/batocera/*/*/*/*.mk \
 $(BR2_EXTERNAL_KNULLI_PATH)/batocera/package/batocera/*/*/*/*/*.mk )))
-
-include $(BR2_EXTERNAL_KNULLI_PATH)/package/emulator-patches.mk

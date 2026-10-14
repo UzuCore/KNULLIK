@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Apr 21, 2023
-LIBRETRO_SUPAFAUST_VERSION = 642d1d1b6684aa7e306a02a89885f3f5456a5157
+LIBRETRO_SUPAFAUST_VERSION = 75c658cce454e58ae04ea252f53a31c60d61548e
 LIBRETRO_SUPAFAUST_SITE = $(call github,libretro,supafaust,$(LIBRETRO_SUPAFAUST_VERSION))
 LIBRETRO_SUPAFAUST_LICENSE = Non-commercial
 

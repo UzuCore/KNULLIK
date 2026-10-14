@@ -4,8 +4,8 @@
 #
 ################################################################################
 
-GZDOOM_VERSION = c26ce2e6ca2a0c770f140cb25dde0d30073ca8f7
-GZDOOM_HASH = $(shell echo $(GZDOOM_VERSION) | cut -c1-7)
+GZDOOM_VERSION = g4.14.2
+GZDOOM_HASH = 99aa489 # get from the tag
 GZDOOM_SITE = https://github.com/ZDoom/gzdoom.git
 GZDOOM_SITE_METHOD = git
 GZDOOM_GIT_SUBMODULES = YES

@@ -5,12 +5,12 @@
 ################################################################################
 # Version: Commits on Mar 3, 2025
 #VITA3K_VERSION = 8de2d49c12b45da670906b0d13f3c5f90ed280fb
-VITA3K_VERSION = 7e152b66e85345f175d3d287fcbd7f8abec7574a
+VITA3K_VERSION = ba5c2029c96a08db63cfe04736156af481d9c137
 VITA3K_SITE = https://github.com/vita3k/vita3k
 VITA3K_SITE_METHOD=git
 VITA3K_GIT_SUBMODULES=YES
 VITA3K_LICENSE = GPLv3
-VITA3K_DEPENDENCIES = sdl3 sdl3_image sdl3_ttf zlib libogg libvorbis python-ruamel-yaml boost libgtk3
+VITA3K_DEPENDENCIES = sdl2 sdl2_image sdl2_ttf zlib libogg libvorbis python-ruamel-yaml boost libgtk3
 VITA3K_EXTRACT_DEPENDENCIES = host-libcurl
 
 VITA3K_SUPPORTS_IN_SOURCE_BUILD = NO

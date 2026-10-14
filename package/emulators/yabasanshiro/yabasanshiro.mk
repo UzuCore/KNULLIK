@@ -3,7 +3,7 @@
 # yabasanshiro
 #
 ################################################################################
-YABASANSHIRO_VERSION = 350be2ea6cc276153ecd901382805f2d80924a4f
+YABASANSHIRO_VERSION = pi4-update
 YABASANSHIRO_SITE = https://github.com/sydarn/yabause.git
 YABASANSHIRO_SITE_METHOD = git
 YABASANSHIRO_GIT_SUBMODULES = YES

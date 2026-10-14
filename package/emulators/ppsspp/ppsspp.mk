@@ -4,12 +4,12 @@
 #
 ################################################################################
 
-PPSSPP_VERSION = dd6bd1a53d38773c1d07985fcb7d2f56fcaa872c
+PPSSPP_VERSION = v1.19.3
 PPSSPP_SITE = https://github.com/hrydgard/ppsspp.git
 PPSSPP_SITE_METHOD=git
 PPSSPP_GIT_SUBMODULES=YES
 PPSSPP_LICENSE = GPLv2
-PPSSPP_DEPENDENCIES = sdl3 sdl3_ttf libzip
+PPSSPP_DEPENDENCIES = sdl2 sdl2_ttf libzip
 
 PPSSPP_CMAKE_BACKEND = ninja
 

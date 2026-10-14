@@ -1,0 +1,21 @@
+diff --git a/frontend/drivers/platform_unix.c b/frontend/drivers/platform_unix.c
+index e1db1da..1255140 100644
+--- a/frontend/drivers/platform_unix.c
++++ b/frontend/drivers/platform_unix.c
+@@ -836,9 +836,13 @@ status:
+       buf = NULL;
+    }
+ 
+-   fill_pathname_join_special(path, basenode, "capacity", sizeof(path));
+-   if (filestream_read_file(path, (void**)&buf, &length) != 1)
+-      goto end;
++   if (filestream_read_file("/tmp/battery.percent", (void**)&buf, &length) != 1)
++   {
++      fill_pathname_join_special(path, basenode, "capacity", sizeof(path));
++
++      if (filestream_read_file(path, (void**)&buf, &length) != 1)
++         goto end;
++   }
+ 
+    capacity = atoi(buf);
+ 

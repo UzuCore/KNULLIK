@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/src/console/main_handheld.cpp
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,256 @@
 +/*
 +    Simple SDL2+GLES frontend for handheld devices
 +    Based on NooDS Switch/Vita implementations
@@ -29,13 +29,10 @@
 +
 +// Default key mappings for SDL2
 +uint32_t ConsoleUI::defaultKeys[] = {
-+    BIT(0), BIT(1), BIT(2), BIT(3), BIT(4), BIT(5), BIT(6), BIT(7),
-+    BIT(8), BIT(9), BIT(10), BIT(11), BIT(12), BIT(13), BIT(14), BIT(15)
-+};
-+static const SDL_Keycode inputKeys[] = {
-+    SDLK_x, SDLK_z, SDLK_BACKSPACE, SDLK_RETURN, SDLK_RIGHT, SDLK_LEFT,
-+    SDLK_UP, SDLK_DOWN, SDLK_s, SDLK_a, SDLK_d, SDLK_c, SDLK_ESCAPE,
-+    SDLK_TAB, SDLK_f, SDLK_SPACE
++    SDLK_x, SDLK_z, SDLK_BACKSPACE, SDLK_RETURN,
++    SDLK_RIGHT, SDLK_LEFT, SDLK_UP, SDLK_DOWN,
++    SDLK_s, SDLK_a, SDLK_d, SDLK_c,
++    SDLK_ESCAPE
 +};
 +
 +const char *ConsoleUI::keyNames[] = {
@@ -51,7 +48,7 @@
 +varying vec3 vtxColor;
 +
 +void main() {
-+    gl_Position = vec4(-1.0 + 2.0 * inPos.x / 640.0, 1.0 - 2.0 * inPos.y / 480.0, 0.0, 1.0);
++    gl_Position = vec4(-1.0 + inPos.x / 640.0, 1.0 - inPos.y / 480.0, 0.0, 1.0);
 +    vtxTexCoord = inTexCoord;
 +    vtxColor = inColor;
 +}
@@ -80,13 +77,6 @@
 +void ConsoleUI::endFrame() {
 +    glFinish();
 +    SDL_GL_SwapWindow(window);
-+    SDL_Event event;
-+    while (SDL_PollEvent(&event)) {
-+        if (event.type == SDL_QUIT) {
-+            running = false;
-+            ConsoleUI::running = false;
-+        }
-+    }
 +}
 +
 +void *ConsoleUI::createTexture(uint32_t *data, int width, int height) {
@@ -112,9 +102,9 @@
 +    Texture *texture = (Texture*)tex;
 +    glBindTexture(GL_TEXTURE_2D, texture->tex);
 +    
-+    float r = float(color & 0xFF);
-+    float g = float((color >> 8) & 0xFF);
-+    float b = float((color >> 16) & 0xFF);
++    float r = (color & 0xFF) / 255.0f;
++    float g = ((color >> 8) & 0xFF) / 255.0f;
++    float b = ((color >> 16) & 0xFF) / 255.0f;
 +    
 +    float vertices[] = {
 +        x, y, tx / texture->width, ty / texture->height, r, g, b,
@@ -132,22 +122,20 @@
 +    const uint8_t *state = SDL_GetKeyboardState(NULL);
 +    uint32_t pressed = 0;
 +    
-+    for (int i = 0; i < INPUT_MAX; i++) {
-+        if (state[SDL_GetScancodeFromKey(inputKeys[i])])
++    for (int i = 0; i < 13; i++) {
++        if (state[SDL_GetScancodeFromKey(defaultKeys[i])])
 +            pressed |= BIT(i);
 +    }
 +    
 +    return pressed;
 +}
 +
-+MenuTouch ConsoleUI::getInputTouch() {
++uint32_t ConsoleUI::getInputTouch() {
 +    int x, y;
-+    const bool pressed = SDL_GetMouseState(&x, &y) & SDL_BUTTON(SDL_BUTTON_LEFT);
-+    return MenuTouch(pressed, float(x), float(y));
-+}
-+
-+static void outputAudio(void *, uint8_t *stream, int length) {
-+    ConsoleUI::fillAudioBuffer(reinterpret_cast<uint32_t *>(stream), length / 4, 48000);
++    uint32_t buttons = SDL_GetMouseState(&x, &y);
++    if (buttons & SDL_BUTTON(SDL_BUTTON_LEFT))
++        return (x & 0xFFF) | ((y & 0xFFF) << 16) | BIT(31);
++    return 0;
 +}
 +
 +static GLuint compileShader(GLenum type, const char *source) {
@@ -163,6 +151,17 @@
 +        printf("Shader compilation failed: %s\n", log);
 +    }
 +    return shader;
++}
++
++MenuTouch ndsTouch() {
++    uint32_t touch = ConsoleUI::getInputTouch();
++    if (!(touch & BIT(31))) return MenuTouch();
++    
++    int x = touch & 0xFFF;
++    int y = (touch >> 16) & 0xFFF;
++    
++    // Map to NDS screen coordinates
++    return MenuTouch(x * 256 / 640, y * 192 / 480);
 +}
 +
 +int main(int argc, char **argv) {
@@ -220,23 +219,32 @@
 +    glEnable(GL_BLEND);
 +    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 +    
-+    SDL_AudioSpec audio = {};
-+    audio.freq = 48000;
-+    audio.format = AUDIO_S16SYS;
-+    audio.channels = 2;
-+    audio.samples = 1024;
-+    audio.callback = outputAudio;
-+    SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(nullptr, 0, &audio, nullptr, 0);
-+
-+    ConsoleUI::initialize(640, 480, "/userdata/roms/nds/", "/userdata/system/configs/noods/");
-+    if (argc < 2 || ConsoleUI::setPath(argv[1]) < 2)
-+        ConsoleUI::fileBrowser();
-+    if (audioDevice)
-+        SDL_PauseAudioDevice(audioDevice, 0);
-+    ConsoleUI::mainLoop();
-+    if (audioDevice)
-+        SDL_CloseAudioDevice(audioDevice);
-+
++    // Initialize console UI
++    ConsoleUI::initialize(640, 480, "", "");
++    std::string ndsPath = ConsoleUI::fileBrowser();
++    
++    if (ndsPath.empty()) {
++        SDL_GL_DeleteContext(glContext);
++        SDL_DestroyWindow(window);
++        SDL_Quit();
++        return 0;
++    }
++    
++    // Main loop
++    ScreenLayout layout;
++    SDL_Event event;
++    
++    while (running) {
++        while (SDL_PollEvent(&event)) {
++            if (event.type == SDL_QUIT)
++                running = false;
++            else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
++                ConsoleUI::pauseMenu();
++        }
++        
++        ConsoleUI::mainLoop(ndsTouch, &layout);
++    }
++    
 +    // Cleanup
 +    glDeleteBuffers(1, &vbo);
 +    glDeleteProgram(program);
@@ -248,3 +256,4 @@
 +}
 +
 +#endif
+

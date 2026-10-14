@@ -1,0 +1,94 @@
+--- a/gfx/drivers_context/drm_go2_ctx.c	2025-10-06 15:08:54.187422461 +0000
++++ b/gfx/drivers_context/drm_go2_ctx.c	2025-10-06 15:04:01.799986545 +0000
+@@ -311,6 +311,44 @@
+ static bool gfx_ctx_go2_drm_has_focus(void *data) { return true; }
+ static bool gfx_ctx_go2_drm_suppress_screensaver(void *data, bool enable) { return false; }
+ 
++
++/* Helper function to detect rotation angle from system configuration */
++static int drm_get_system_rotation(void)
++{
++   FILE *fp;
++   char buffer[1024];
++   int rotation = 270; /* Default rotation */
++   
++   fp = fopen("/proc/cmdline", "r");
++   if (fp)
++   {
++      if (fgets(buffer, sizeof(buffer), fp))
++      {
++         char *rotate_arg = strstr(buffer, "fbcon=rotate:");
++         if (rotate_arg)
++         {
++               int fbcon_rotate = atoi(rotate_arg + strlen("fbcon=rotate:"));
++               /* fbcon rotate values: 0=0°, 1=90°, 2=180°, 3=270° */
++               switch (fbcon_rotate)
++               {
++                  case 0: rotation = 0;   break;
++                  case 1: rotation = 90;  break;
++                  case 2: rotation = 180; break;
++                  case 3: rotation = 270; break;
++               }
++               fclose(fp);
++               RARCH_LOG("[KMS/DRM]: Using fbcon rotation from cmdline: %d°\n", rotation);
++               return rotation;
++         }
++      }
++      fclose(fp);
++   }
++      
++   /* Default fallback */
++   RARCH_LOG("[KMS/DRM]: Using default rotation: %d°\n", rotation);
++   return rotation;
++}
++
+ static void gfx_ctx_go2_drm_swap_buffers(void *data)
+ {
+ #ifdef HAVE_EGL
+@@ -320,6 +358,37 @@
+    gfx_ctx_go2_drm_data_t 
+       *drm   = (gfx_ctx_go2_drm_data_t*)data;
+ 
++   /* Static variable to cache rotation detection */
++   static int detected_rotation = -1;
++   static go2_rotation_t go2_rotation = GO2_ROTATION_DEGREES_270;
++   
++   /* Detect rotation only once at first swap */
++   if (detected_rotation == -1)
++   {
++       detected_rotation = drm_get_system_rotation();
++       
++       /* Map rotation angle to go2_rotation_t */
++       switch (detected_rotation)
++       {
++           case 0:
++               go2_rotation = GO2_ROTATION_DEGREES_0;
++               break;
++           case 90:
++               go2_rotation = GO2_ROTATION_DEGREES_90;
++               break;
++           case 180:
++               go2_rotation = GO2_ROTATION_DEGREES_180;
++               break;
++           case 270:
++           default:
++               go2_rotation = GO2_ROTATION_DEGREES_270;
++               break;
++       }
++       
++       RARCH_LOG("[KMS/DRM]: Display rotation configured to %d° (go2_rotation=%d)\n", 
++                detected_rotation, go2_rotation);
++   }
++
+    int out_w = drm->native_width;
+    int out_h = drm->native_height;
+    int out_x = 0;
+@@ -346,7 +415,7 @@
+          surf,
+          src_x, src_y, src_w, src_h,
+          out_y, out_x, out_h, out_w,
+-         GO2_ROTATION_DEGREES_270, 2);
++         go2_rotation, 2);
+    go2_context_surface_unlock(drm->context, surf);
+ #endif
+ }

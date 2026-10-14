@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Jul 26, 2022
-LIBRETRO_BK_VERSION = 92042a753289cedf05e7e6bd8e75849f83e48966
+LIBRETRO_BK_VERSION = cf70ce503ddb65051a58f3c4f61d1e258fc4c84b
 LIBRETRO_BK_SITE = $(call github,libretro,bk-emulator,$(LIBRETRO_BK_VERSION))
 LIBRETRO_BK_LICENSE = GPLv2
 

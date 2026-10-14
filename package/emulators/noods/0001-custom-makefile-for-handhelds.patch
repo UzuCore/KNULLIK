@@ -1,18 +1,16 @@
 --- /dev/null
 +++ b/Makefile.handheld
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,32 @@
 +NAME     := noods
-+SOURCES  := src/core src/core/arm src/core/gpu src/core/hle src/core/io src/core/memory src/ui src/ui/console src/console
-+override CXXFLAGS += -std=c++11 -O3 -flto $(shell $(PKG_CONFIG) --cflags sdl2) -pthread -Isrc -D__HANDHELD__ -DGLES
-+override LDFLAGS  += $(shell $(PKG_CONFIG) --libs sdl2) -lGLESv2 -pthread
++SOURCES  := src src/common src/console
++CXXFLAGS := -std=c++11 -O3 -flto $(shell $(PKG_CONFIG) --cflags sdl2) -Isrc -D__HANDHELD__ -DGLES
++LDFLAGS  := $(shell $(PKG_CONFIG) --libs sdl2) -lGLESv2
 +
 +CXXFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
 +HFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.h))
-+OBJS     := $(patsubst %.cpp,%.o,$(CXXFILES))
++OBJS     := $(patsubst %.cpp,%.o,$(notdir $(CXXFILES)))
 +BUILD    := build
 +FILES    := $(addprefix $(BUILD)/,$(OBJS))
-+IMAGES   := $(wildcard src/ui/console/images/*.bmp)
-+FILES    += $(patsubst %.bmp,$(BUILD)/%.bmp.o,$(IMAGES))
 +
 +VPATH := $(SOURCES)
 +
@@ -20,10 +18,6 @@
 +
 +$(NAME): $(FILES)
 +	$(CXX) -o $@ $(FILES) $(LDFLAGS)
-+
-+$(BUILD)/%.bmp.o: %.bmp
-+	@mkdir -p $(dir $@)
-+	$(LD) -r -b binary -o $@ $<
 +
 +$(BUILD)/%.o: %.cpp $(HFILES)
 +	@mkdir -p $(dir $@)

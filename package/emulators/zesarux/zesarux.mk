@@ -3,7 +3,8 @@
 # zesarux
 #
 ################################################################################
-ZESARUX_VERSION = 0713c08d4eeb76aa8a6cc9d86d304e9e7a50558c
+
+ZESARUX_VERSION = ZEsarUX-12.1
 ZESARUX_SITE = $(call github,chernandezba,zesarux,$(ZESARUX_VERSION))
 ZESARUX_LICENSE = GPL-3.0
 ZESARUX_LICENSE_FILES = src/COPYING

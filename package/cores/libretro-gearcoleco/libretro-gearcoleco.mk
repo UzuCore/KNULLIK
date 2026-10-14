@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Version: Commits on Mar 12, 2023
-LIBRETRO_GEARCOLECO_VERSION = 23743bcdd76b79e0c70801ce2ce170ac5edc9a12
+LIBRETRO_GEARCOLECO_VERSION = ab65f20d2d2e55ccd78a6baf8b98d5aa4eab25cc
 LIBRETRO_GEARCOLECO_SITE = $(call github,drhelius,Gearcoleco,$(LIBRETRO_GEARCOLECO_VERSION))
 LIBRETRO_GEARCOLECO_LICENSE = GPLv3
 

@@ -4,7 +4,7 @@
 #
 ################################################################################
 # version.: Commits on Jan 17, 2025
-LIBRETRO_FLYCAST_XTREME_VERSION = 4c293f306bc16a265c2d768af5d0cea138426054
+LIBRETRO_FLYCAST_XTREME_VERSION = 603814c9f73b773c455d9a497f389d2f93a257fd
 LIBRETRO_FLYCAST_XTREME_SITE = $(call github,metallic77,flycast,$(LIBRETRO_FLYCAST_XTREME_VERSION))
 LIBRETRO_FLYCAST_XTREME_LICENSE = GPLv2
 
