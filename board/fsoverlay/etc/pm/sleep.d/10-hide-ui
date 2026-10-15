@@ -8,6 +8,17 @@ case "$1" in
         knulli-audio setSystemVolume mute
         ;;
     resume|thaw)
+        # Dark resume (lid-capable boards): 99-postresume-sp runs before us
+        # and leaves this flag when the lid is closed, meaning the wake was
+        # not caused by opening the lid. Keep the display off so a
+        # close-while-suspended or power-press-while-closed never flashes
+        # the screen; the abort path restores it if the lid opens. The flag
+        # only ever exists on lid boards, other boards are unaffected.
+        if [ -e "/var/run/lid-closed-resume" ]; then
+            rm -f "/var/run/lid-closed-resume"
+            printf '%s hide-ui dark-skip\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+            exit 0
+        fi
         # Mirrored from knulli-suspend so we know if on resume it's within the auto shutdown window
         if [ -e "$WAKE_TIME" ]; then
             read -r recorded < "$WAKE_TIME" 2>/dev/null || recorded=""

@@ -6,11 +6,38 @@ if ! knulli-board-capability "lid"; then
 fi
 
 HALLKEY_NODE="/sys/class/power_supply/axp2202-battery/hallkey"
+DARK_RESUME_FLAG="/var/run/lid-closed-resume"
+
+# Read the lid state only once it is stable: right after resume the hall
+# driver workqueue may not have processed the wake edge yet, so a single
+# read can return the pre-wake value (e.g. still "open" after a close edge
+# woke us) and cause a screen flash. Two identical consecutive samples win.
+stable_hallkey() {
+    prev=""; n=0
+    while [ "$n" -lt 10 ]; do
+        read -r H < "$HALLKEY_NODE" 2>/dev/null || H=""
+        if [ -n "$H" ] && [ "$H" = "$prev" ]; then
+            printf '%s' "$H"
+            return 0
+        fi
+        prev="$H"
+        sleep 0.1
+        n=$(( n + 1 ))
+    done
+    printf '%s' "$prev"
+}
 
 case "$1" in
     thaw|resume)
-        read -r HALLKEY < "$HALLKEY_NODE"
+        HALLKEY="$(stable_hallkey)"
         if [ "$HALLKEY" = "0" ]; then
+            # Dark resume: the wake was NOT caused by opening the lid (close
+            # edge, power button, rtc...). 10-hide-ui runs after us on resume
+            # and skips turning the display back on while this flag exists,
+            # so a close-while-suspended or power-press-while-closed never
+            # flashes the screen.
+            : > "$DARK_RESUME_FLAG" 2>/dev/null || true
+            printf '%s postresume-sp dark hall=%s\n' "$(date '+%F %T')" "$HALLKEY" >> /userdata/lid-control.log 2>/dev/null || true
             # Require the lid to stay CONTINUOUSLY closed for the whole
             # window. A single open sample aborts: otherwise an open landing
             # just after the grace would be followed by a suspend with the
@@ -20,6 +47,11 @@ case "$1" in
                   read -r H < "$HALLKEY_NODE" 2>/dev/null || H="0"
                   if [ "$H" != "0" ]; then
                       printf '%s postresume-sp abort-open\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+                      # 10-hide-ui skipped the display restore because of the
+                      # dark flag; do it here instead (mirrors its resume).
+                      knulli-brightness dispon
+                      knulli-audio setSystemVolume unmute
+                      rm -f "$DARK_RESUME_FLAG"
                       exit 0
                   fi
                   sleep 0.5
