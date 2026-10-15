@@ -22,6 +22,9 @@
 #define MAX_MOTD_LINES 14
 // A Unicode full-block MOTD can require three bytes per printed cell.
 #define MAX_MOTD_LINE 512
+// PNGs are converted into uncompressed 24-bit BMP by the rootfs helper so
+// that the initramfs renderer does not need to link PNG/zlib libraries.
+#define MAX_SPLASH_BMP_BYTES (12U * 1024U * 1024U)
 
 struct fbctx {
     int fd;
@@ -580,15 +583,90 @@ static int readable_nonempty(const char *path) {
     return path && stat(path, &st) == 0 && st.st_size > 0;
 }
 
+static uint16_t splash_u16(const uint8_t *p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static uint32_t splash_u32(const uint8_t *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+// Decode an uncompressed 24-bit BMP prepared from the user's PNG. Validate
+// everything before touching the framebuffer so a broken/missing image leaves
+// the previous screen unchanged and the boot caller can use MOTD instead.
+static int draw_boot_bmp(struct fbctx *fb, const char *path) {
+    if (!path || !*path) return -1;
+    int fd = open(path, O_RDONLY | O_NOFOLLOW);
+    if (fd < 0) return -1;
+    struct stat st;
+    uint8_t header[54];
+    uint8_t *image = NULL;
+    int result = -1;
+
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+        st.st_size < (off_t)sizeof(header) || st.st_size > MAX_SPLASH_BMP_BYTES) goto done;
+    if (read(fd, header, sizeof(header)) != (ssize_t)sizeof(header)) goto done;
+    if (header[0] != 'B' || header[1] != 'M' || splash_u32(header + 14) < 40) goto done;
+
+    uint32_t offset = splash_u32(header + 10);
+    int32_t width = (int32_t)splash_u32(header + 18);
+    int32_t height = (int32_t)splash_u32(header + 22);
+    uint16_t bits = splash_u16(header + 28);
+    if (splash_u16(header + 26) != 1 || bits != 24 || splash_u32(header + 30) != 0 ||
+        width <= 0 || width > 4096 || height == 0 || height == INT32_MIN ||
+        height > 4096 || height < -4096 || offset < 54) goto done;
+
+    int source_height = height < 0 ? -height : height;
+    size_t row_bytes = ((size_t)width * 3 + 3) & ~(size_t)3;
+    size_t pixel_bytes = row_bytes * (size_t)source_height;
+    if (pixel_bytes > MAX_SPLASH_BMP_BYTES ||
+        (uint64_t)offset + pixel_bytes > (uint64_t)st.st_size) goto done;
+    image = malloc(pixel_bytes);
+    if (!image || lseek(fd, (off_t)offset, SEEK_SET) < 0) goto done;
+    size_t received = 0;
+    while (received < pixel_bytes) {
+        ssize_t n = read(fd, image + received, pixel_bytes - received);
+        if (n <= 0) goto done;
+        received += (size_t)n;
+    }
+
+    // Letterbox without cropping; use nearest-neighbor scaling for pixel art.
+    int dw = fb->xres, dh = fb->yres;
+    if ((int64_t)dw * source_height > (int64_t)dh * width)
+        dw = (int)((int64_t)dh * width / source_height);
+    else
+        dh = (int)((int64_t)dw * source_height / width);
+    if (dw <= 0 || dh <= 0) goto done;
+    int left = (fb->xres - dw) / 2, top = (fb->yres - dh) / 2;
+    clear_screen(fb, make_color(fb, 0, 0, 0));
+    for (int y = 0; y < dh; y++) {
+        int sy = (int)((int64_t)y * source_height / dh);
+        if (height > 0) sy = source_height - 1 - sy; // BMP: bottom-up rows
+        const uint8_t *src = image + (size_t)sy * row_bytes;
+        for (int x = 0; x < dw; x++) {
+            int sx = (int)((int64_t)x * width / dw);
+            const uint8_t *pixel = src + (size_t)sx * 3;
+            put_pixel(fb, left + x, top + y,
+                      make_color(fb, pixel[2], pixel[1], pixel[0]));
+        }
+    }
+    result = 0;
+done:
+    free(image);
+    close(fd);
+    return result;
+}
+
 static void usage(void) {
-    fprintf(stderr, "usage: knulli-fbboot reset [TITLE] | msg TEXT... | file /path/to/motd | clear-status\n");
+    fprintf(stderr, "usage: knulli-fbboot reset [TITLE] | msg TEXT... | file /path/to/motd | bmp /path/to/cached.bmp | clear-status\n");
 }
 
 int main(int argc, char **argv) {
     if (argc < 2) { usage(); return 1; }
 
     struct fbctx fb;
-    if (fb_open(&fb) < 0) return 0; // never break boot
+    if (fb_open(&fb) < 0) return strcmp(argv[1], "bmp") == 0 ? 1 : 0; // never break normal boot
 
     if (strcmp(argv[1], "reset") == 0) {
         if (readable_nonempty(DEFAULT_MOTD_PATH)) {
@@ -608,6 +686,11 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[1], "file") == 0) {
         const char *path = (argc >= 3) ? argv[2] : "/tmp/knulli-fbboot.motd";
         draw_motd_file(&fb, path);
+    } else if (strcmp(argv[1], "bmp") == 0) {
+        if (argc < 3 || draw_boot_bmp(&fb, argv[2]) != 0) {
+            fb_close(&fb);
+            return 1; // caller falls back to MOTD with the display intact
+        }
     } else if (strcmp(argv[1], "clear-status") == 0 || strcmp(argv[1], "done") == 0) {
         clear_status_area(&fb);
     } else {

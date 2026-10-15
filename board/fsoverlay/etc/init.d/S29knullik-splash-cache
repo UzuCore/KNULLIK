@@ -1,0 +1,11 @@
+#!/bin/sh
+# Refresh the next boot's cached custom PNG after /userdata is mounted.
+# No video playback, no boot image writes and no action in default MOTD mode.
+case "$1" in
+    start)
+        [ -x /usr/bin/knulli-boot-splash ] || exit 0
+        [ "$(knulli-settings-get splash.screen.mode 2>/dev/null)" = custom ] || exit 0
+        /usr/bin/knulli-boot-splash sync >/tmp/knullik-splash-sync.log 2>&1 &
+        ;;
+esac
+exit 0

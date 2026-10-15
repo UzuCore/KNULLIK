@@ -17,6 +17,15 @@ LOCK=/tmp/knulli-console-motd-real-rendered
 
 [ -x "$FBBOOT" ] || exit 0
 
+# Prefer prepared PNG cache; invalid cache keeps MOTD working.
+if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
+   [ -s /boot/boot/knullik-splash.bmp ]; then
+    if "$FBBOOT" bmp /boot/boot/knullik-splash.bmp >/dev/null 2>&1; then
+        : > "$LOCK"
+        exit 0
+    fi
+fi
+
 strip_ansi() {
     sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g'
 }

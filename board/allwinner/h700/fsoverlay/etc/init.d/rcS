@@ -24,8 +24,11 @@ else
     /usr/bin/charger
 fi
 
-# Start the progress bar
-/usr/bin/progressbar &
+# Do not draw the SDL loading bar over a custom PNG.
+if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" != custom ] ||
+   [ ! -s /boot/boot/knullik-splash.bmp ]; then
+    /usr/bin/progressbar &
+fi
 
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.

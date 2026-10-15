@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Preserve the full-screen custom image instead of overlaying status text.
+if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
+   [ -s /boot/boot/knullik-splash.bmp ]; then
+    exit 0
+fi
+
 # Lightweight fb0 boot status helper.
 # Usage:
 #   knulli-boot-status "Starting EmulationStation"

@@ -1,0 +1,27 @@
+diff --git a/es-app/src/guis/GuiMenu.cpp b/es-app/src/guis/GuiMenu.cpp
+--- a/es-app/src/guis/GuiMenu.cpp
++++ b/es-app/src/guis/GuiMenu.cpp
+@@ -1872,0 +1873,23 @@
++
++#ifdef KNULLI
++#ifdef H700
++	// KNULLIK: two boot choices; missing settings always mean MOTD.
++	auto bootSplashMode = std::make_shared<OptionListComponent<std::string>>(mWindow, _("BOOT SPLASH"), false);
++	std::string currentBootSplash = SystemConf::getInstance()->get("splash.screen.mode");
++	if (currentBootSplash != "custom") currentBootSplash = "motd";
++	bootSplashMode->add("MOTD", "motd", currentBootSplash == "motd");
++	bootSplashMode->add(_("CUSTOM IMAGE"), "custom", currentBootSplash == "custom");
++	s->addWithDescription(_("BOOT SPLASH"),
++		_("Copy boot.png to SHARE/splash/boot.png before choosing Custom Image."), bootSplashMode);
++	s->addSaveFunc([bootSplashMode, s]()
++	{
++		if (!bootSplashMode->changed()) return;
++		SystemConf::getInstance()->set("splash.screen.mode", bootSplashMode->getSelected());
++		SystemConf::getInstance()->saveSystemConf();
++		// Synchronize the boot-partition image cache for the next reboot.
++		// The boot scripts fall back to MOTD if there is no valid PNG.
++		system("/usr/bin/knulli-boot-splash sync >/tmp/knullik-splash-sync.log 2>&1");
++		s->setVariable("reboot", true);
++	});
++#endif
++#endif
