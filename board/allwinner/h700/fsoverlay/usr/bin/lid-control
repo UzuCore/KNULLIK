@@ -6,6 +6,46 @@ if ! knulli-board-capability "lid"; then
 fi
 
 LOCK_FILE="/var/run/lid-control.lock"
+STAMP_FILE="/var/run/lid-control.stamp"
+HALLKEY_NODE="/sys/class/power_supply/axp2202-battery/hallkey"
+LOG_FILE="/userdata/lid-control.log"
+LID_SUSPEND_REQ="/var/run/lid-close-suspend"
+
+# Trailing-edge debounce: wait until no new lid edge arrived for this long,
+# then act on the CURRENT hall state instead of the edge that woke us.
+# Suspend entry takes ~1s, so 2s covers a full transition.
+SETTLE_S=2
+MAX_ROUNDS=3
+
+log() {
+    # Best effort only; logging must never break the handler.
+    printf '%s lid-control %s hall=%s\n' "$(date '+%F %T')" "$1" "$2" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+read_hallkey() {
+    local v=""
+    read -r v < "$HALLKEY_NODE" 2>/dev/null || v=""
+    printf '%s' "$v"
+}
+
+wait_for_settle() {
+    while ! settled; do
+        sleep 0.5
+    done
+}
+
+# True when no lid edge arrived for SETTLE_S seconds.
+settled() {
+    local last now
+    last="$(cat "$STAMP_FILE" 2>/dev/null || echo 0)"
+    [[ "$last" =~ ^[0-9]+$ ]] || last=0
+    now="$(date +%s)"
+    [ $(( now - last )) -ge "$SETTLE_S" ]
+}
+
+# Record this edge BEFORE trying the lock, so an invocation that loses the
+# race still extends the settle window observed by the lock holder.
+date +%s > "$STAMP_FILE" 2>/dev/null || true
 
 exec 200>"${LOCK_FILE}"
 if ! flock -n 200; then
@@ -57,6 +97,11 @@ do_close() {
             if [ "$MODE" == "shutdown" ]; then
                 shutdown_system
             elif [ "$MODE" == "suspend" ]; then
+                # Mark this suspend as lid-requested so knulli-suspend can
+                # re-verify the lid state at the last moment before calling
+                # pm-suspend. Stale flags are never left behind: the consumer
+                # always removes it, and it is cleared below on every entry.
+                date +%s > "$LID_SUSPEND_REQ" 2>/dev/null || true
                 suspend_system
             elif [ "$MODE" == "dispoff" ]; then
                 display_off
@@ -69,18 +114,32 @@ do_close() {
     fi
 }
 
+# A suspend requested earlier may have been skipped or superseded; never let
+# a stale request survive into a new decision.
+rm -f "$LID_SUSPEND_REQ" 2>/dev/null || true
+
 sleep 0.5 # Waits for battery-saver because hall is a detected input (if inactive and screen is dimmed or suspend while lid sclose)
 
 case "$1" in
-    open)
-        do_open
-        ;;
-    close)
-        do_close
-        ;;
-    *)
-        exit 0
-        ;;
+    open|close) ;;
+    *) exit 0 ;;
 esac
+
+round=1
+while [ "$round" -le "$MAX_ROUNDS" ]; do
+    wait_for_settle
+    HALL="$(read_hallkey)"
+    log "round$round edge=$1 mode=$MODE" "$HALL"
+    if [ "$HALL" = "0" ]; then
+        do_close
+    else
+        do_open
+    fi
+    # A new edge may have arrived while we were acting (e.g. during mem
+    # suspend, where userspace is frozen). Loop back and reconcile so the
+    # final physical state always wins over a dropped edge.
+    settled && break
+    round=$(( round + 1 ))
+done
 
 exit 0

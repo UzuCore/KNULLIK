@@ -9,9 +9,20 @@ LONG_PRESS_THRESHOLD=2
 
 rm -f "$POWER_BUTTON_STATE"
 
+# If this press woke the system from suspend, swallow it: acting on the
+# waker would immediately re-suspend (short press) or shut down (long
+# press). The flag carries the suspend epoch; only a fresh flag means this
+# press is the waker. A stale flag (e.g. lid/alarm wake with no power-key
+# event) is discarded and the press is handled normally.
 if [ -e "$RESUME_FLAG" ]; then
+    recorded="$(cat "$RESUME_FLAG" 2>/dev/null || echo 0)"
+    now="$(date +%s 2>/dev/null || echo 0)"
+    case "$recorded" in ''|*[!0-9]*) recorded=0 ;; esac
+    case "$now" in ''|*[!0-9]*) now=0 ;; esac
     rm -f "$RESUME_FLAG"
-    exit 0
+    if [ "$(( now - recorded ))" -le 15 ]; then
+        exit 0
+    fi
 fi
 
 exec 200>"${LOCK_FILE}"

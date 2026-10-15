@@ -1,0 +1,15 @@
+#!/bin/sh
+# RG34XX-SP: enable lid-open wake at boot by arming the AXP os_sleep node.
+# Writing 0 calls device_init_wakeup(true); the stored value defaults to 0
+# but the wakeup is not armed until explicitly written (checked 2026-10-15).
+case "${1:-start}" in
+    start)
+        [ "$(cat /boot/boot/knulli.board 2>/dev/null)" = rg34xx-sp ] || exit 0
+        NODE=/sys/class/power_supply/axp2202-battery/os_sleep
+        [ -w "$NODE" ] || { echo 'RG34XXSP lid wake node unavailable' >&2; exit 1; }
+        printf '0\n' > "$NODE"
+        ;;
+    stop) exit 0 ;;
+    restart|reload) "$0" start ;;
+    *) echo "Usage: $0 {start|stop|restart|reload}" >&2; exit 1 ;;
+esac

@@ -7,11 +7,14 @@ RESUME_FLAG="/var/run/power-button.wake"
 
 case "$1" in
     suspend)
-        rm -f "$RESUME_FLAG"
-        touch "$RESUME_FLAG"
+        # Record when we went to sleep. The power-button script consumes
+        # this if the press that woke us arrives shortly after resume, so a
+        # wake press never turns into suspend/shutdown. Do NOT clear it on
+        # resume: a lid/rtc/alarm wake leaves no power-key event behind, and
+        # clearing here would disarm the guard before the waker is consumed.
+        date +%s > "$RESUME_FLAG" 2>/dev/null || rm -f "$RESUME_FLAG"
         ;;
     resume|thaw)
-        rm -f "$RESUME_FLAG"
         ;;
 esac
 

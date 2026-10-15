@@ -7,6 +7,8 @@ LOCK_FILE="/var/run/knulli-suspend.lock"
 
 FAKE_FLAG="/var/run/knulli-suspend-fake.active"
 SUSPEND_MODE="$(/usr/bin/knulli-settings-get-master system.suspendmode)"
+LID_SUSPEND_REQ="/var/run/lid-close-suspend"
+HALLKEY_NODE="/sys/class/power_supply/axp2202-battery/hallkey"
 
 exec 9>"${LOCK_FILE}"
 if ! flock -n 9; then
@@ -121,6 +123,19 @@ do_fake_suspend() {
 }
 
 do_suspend(){
+  # Last-moment verification for lid-requested suspends: the lid may have
+  # been opened after the caller's debounce settled but before pm-suspend
+  # froze userspace. Suspending with the lid open inverts the perceived
+  # suspend/wake parity, so skip instead. Other callers (power button, idle)
+  # never create the request file and are unaffected.
+  if [ -f "$LID_SUSPEND_REQ" ]; then
+    rm -f "$LID_SUSPEND_REQ"
+    HALL="$(cat "$HALLKEY_NODE" 2>/dev/null)"
+    if [ -n "$HALL" ] && [ "$HALL" != "0" ]; then
+      printf '%s knulli-suspend lid-open-abort\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+      return 0
+    fi
+  fi
   pm-is-supported --suspend >/dev/null 2>&1 && pm-suspend
 }
 

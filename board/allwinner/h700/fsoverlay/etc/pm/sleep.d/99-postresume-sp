@@ -5,11 +5,28 @@ if ! knulli-board-capability "lid"; then
     exit 1
 fi
 
+HALLKEY_NODE="/sys/class/power_supply/axp2202-battery/hallkey"
+
 case "$1" in
     thaw|resume)
-        read -r HALLKEY < /sys/class/power_supply/axp2202-battery/hallkey
+        read -r HALLKEY < "$HALLKEY_NODE"
         if [ "$HALLKEY" = "0" ]; then
-            ( sleep 1 && knulli-suspend ) &
+            # Require the lid to stay CONTINUOUSLY closed for the whole
+            # window. A single open sample aborts: otherwise an open landing
+            # just after the grace would be followed by a suspend with the
+            # lid open (inverted suspend/wake parity).
+            ( tries=0
+              while [ "$tries" -lt 8 ]; do
+                  read -r H < "$HALLKEY_NODE" 2>/dev/null || H="0"
+                  if [ "$H" != "0" ]; then
+                      printf '%s postresume-sp abort-open\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+                      exit 0
+                  fi
+                  sleep 0.5
+                  tries=$(( tries + 1 ))
+              done
+              printf '%s postresume-sp still-closed-suspend\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+              knulli-suspend ) &
         fi
         ;;
 esac

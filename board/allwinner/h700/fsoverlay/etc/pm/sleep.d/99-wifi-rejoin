@@ -1,0 +1,41 @@
+#!/bin/sh
+# Rejoin Wi-Fi after resume if the link did not come back by itself.
+# The RTW driver occasionally reports a DMA error on resume after a suspend
+# storm; connman then stays disconnected (NO-CARRIER) or stuck "In progress".
+# Escalation: scan -> explicit connect -> radio power-cycle -> connect.
+
+wifi_connected() {
+    TECH="$(connmanctl technologies 2>/dev/null | awk '/Type = wifi/{f=1} f{print} f && /^$/{exit}')"
+    case "$TECH" in
+        *'Powered = True'*'Connected = True'*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+case "$1" in
+    thaw|resume)
+        command -v connmanctl >/dev/null 2>&1 || exit 0
+        ( sleep 5
+          wifi_connected && exit 0
+          # Autoconnect favorite: first field carries flags (*A...), the
+          # service id is the last field.
+          SVC="$(connmanctl services 2>/dev/null | awk '$1 ~ /^\*.*A/{print $NF; exit}')"
+          [ -n "$SVC" ] || exit 0
+          printf '%s wifi-rejoin %s\n' "$(date '+%F %T')" "$SVC" >> /userdata/lid-control.log 2>/dev/null || true
+          connmanctl scan wifi >/dev/null 2>&1 || true
+          sleep 3
+          wifi_connected && exit 0
+          connmanctl connect "$SVC" >/dev/null 2>&1 || true
+          sleep 8
+          wifi_connected && exit 0
+          # connman stuck ("In progress") or driver wedged: power-cycle radio.
+          printf '%s wifi-rejoin radio-reset\n' "$(date '+%F %T')" >> /userdata/lid-control.log 2>/dev/null || true
+          connmanctl disable wifi >/dev/null 2>&1 || true
+          sleep 3
+          connmanctl enable wifi >/dev/null 2>&1 || true
+          sleep 8
+          connmanctl connect "$SVC" >/dev/null 2>&1 || true ) &
+        ;;
+esac
+
+exit 0
