@@ -6,31 +6,47 @@ command -v knulli-brightness >/dev/null || exit 0
 case $1 in
     start)
         # Retrieve the current brightness setting
-        BRI=$(knulli-settings-get display.brightness)
+        BRI=$(knulli-settings-get display.brightness 2>/dev/null)
+        case "$BRI" in
+            ''|*[!0-9]*) BRI=50 ;; # Missing or malformed: retain 50% default.
+            *) [ "$BRI" -lt 1 ] && BRI=1 ;;
+        esac
 
-        # Check if the command was successful and handle accordingly
-        if [ $? -eq 0 ]; then
-            # If brightness is less than 1, set it to 1 // 1 is the new min brightness
-            if [ "$BRI" -lt 1 ]; then
-                BRI=1
-            fi
-        else
-            # If no value is found, set brightness to 50%
-            BRI=50
-        fi
-
-        knulli-brightness "$BRI"
+        # Boot restoration is not a manual brightness change.
+        KNULLI_BRIGHTNESS_BOOT_RESTORE=1 knulli-brightness "$BRI"
         ;;
     stop)
+        SAVED_BRI=$(knulli-settings-get display.brightness 2>/dev/null)
+
         # Get brightness values
-        # Determine current brightness from file or fallback to knulli-brightness
-        if [ -f "/var/run/knulli-brightness" ]; then
+        # User-initiated adjustments have priority over temporary PM dimming.
+        if [ -s "/var/run/knulli-brightness-user-value" ]; then
+            read -r CURRENT_BRI < /var/run/knulli-brightness-user-value
+        elif [ -f "/var/run/knulli-brightness" ]; then
             read -r CURRENT_BRI < /var/run/knulli-brightness
         else
             CURRENT_BRI=$(knulli-brightness)
+            # Last-second display off/idle dim can read as 0-1%, but is not
+            # the user's saved preference. Preserve >1% unless deliberately
+            # set to 1% via the explicit adjustment marker above.
+            case "$CURRENT_BRI" in
+                ''|*[!0-9]*) ;;
+                *)
+                    case "$SAVED_BRI" in
+                        ''|*[!0-9]*) ;;
+                        *)
+                            if [ "$CURRENT_BRI" -le 1 ] && [ "$SAVED_BRI" -gt 1 ]; then
+                                CURRENT_BRI="$SAVED_BRI"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
         fi
 
-        SAVED_BRI=$(knulli-settings-get display.brightness)
+        case "$CURRENT_BRI" in
+            ''|*[!0-9]*) exit 0 ;;
+        esac
 
         # Update saved brightness setting if it's different from the current brightness
         if [ "$SAVED_BRI" != "$CURRENT_BRI" ]; then

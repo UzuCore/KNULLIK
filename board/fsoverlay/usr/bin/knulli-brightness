@@ -3,6 +3,7 @@
 CYCLESTEP=20 # % additional brightness at each step
 VALPATH=/var/run/$(basename "$0") # Stored brightness value when the display is turned off
 LOCK=/var/run/$(basename "$0").lock # Mainly needed because of the dim animation
+USER_VALUE_PATH=/var/run/knulli-brightness-user-value # Explicit adjustments only, not temporary PM brightness
 
 exec 9>"$LOCK"
 flock 9
@@ -120,6 +121,12 @@ percent_to_abs() {
     fi
 }
 
+remember_user_brightness() {
+    # Startup restoration must not masquerade as a new user adjustment.
+    [ "${KNULLI_BRIGHTNESS_BOOT_RESTORE:-0}" = "1" ] && return 0
+    get_percent "$1" > "$USER_VALUE_PATH"
+}
+
 setValue() {
     NEWVAL=$1
 
@@ -139,6 +146,7 @@ cycle() {
     echo "Brightness cycling to ${NEWVAL}%"
     NEWVAL=$(percent_to_abs "$NEWVAL")
     setValue "$NEWVAL"
+    remember_user_brightness "$NEWVAL"
     exit 0
 }
 
@@ -234,6 +242,7 @@ then
     else
         NEWVAL=$(percent_to_abs "$1")
         setValue "${NEWVAL}"
+        remember_user_brightness "$NEWVAL"
         exit 0
     fi
 fi
@@ -279,6 +288,7 @@ then
 
     [ "$NEWVAL" -eq "$X" ] && exit 0
     setValue "${NEWVAL}"
+    remember_user_brightness "$NEWVAL"
     exit 0
 fi
 
