@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Generate fbboot fallback MOTD from Knulli's shell welcome script.
+"""Generate both boot MOTD variants from KNULLIK's shell welcome script.
 
 This keeps a single human-edited source of truth:
   board/fsoverlay/etc/profile.d/30-welcome.sh
 
-The generated file is intentionally simple because it is used inside initramfs,
-where runtime helpers such as knulli-info may not be available yet.
+The UTF-8 logo is identical for the framebuffer and Linux VT backends. The
+framebuffer renderer understands the full-block glyph used by 30-welcome.sh.
+Runtime helpers such as knulli-info are not needed in initramfs.
 """
 from __future__ import annotations
 
@@ -15,15 +16,12 @@ import re
 import shlex
 from pathlib import Path
 
-DEFAULT_LOGO = [
-    r" _  ___   _ _   _ _     _     ___",
-    r"| |/ / \ | | | | | |   | |   |_ _|",
-    r"| ' /|  \| | | | | |   | |    | |",
-    r"| . \| |\  | |_| | |___| |___ | |",
-    r"|_|\_\_| \_|\___/|_____|_____|___|",
-]
-
 ASCII_HINT = re.compile(r"[_|\\/]{2,}|___|\bKNULLI\b", re.I)
+
+
+def is_logo_line(line: str) -> bool:
+    """Recognize both the original block art and older ASCII MOTD logos."""
+    return "█" in line or bool(ASCII_HINT.search(line))
 
 
 def _read(path: Path) -> str:
@@ -81,7 +79,7 @@ def extract_echo_logo(text: str) -> list[str]:
             value = " ".join(parts)
         except Exception:
             value = rest.strip('"\'')
-        if ASCII_HINT.search(value):
+        if is_logo_line(value):
             out.append(value)
         elif out:
             break
@@ -92,13 +90,13 @@ def extract_logo(text: str, max_lines: int) -> list[str]:
     candidates: list[list[str]] = []
     for block in extract_heredoc_blocks(text):
         compact = [ln.rstrip("\n") for ln in block]
-        if any(ASCII_HINT.search(ln) for ln in compact):
+        if any(is_logo_line(ln) for ln in compact):
             candidates.append(compact)
     echo_logo = extract_echo_logo(text)
     if echo_logo:
         candidates.append(echo_logo)
     if not candidates:
-        return DEFAULT_LOGO[:max_lines]
+        raise ValueError("No recognizable logo in 30-welcome.sh; refusing to generate an unrelated fallback")
 
     # Prefer the first plausible compact ASCII logo block, but drop leading/trailing blanks.
     logo = candidates[0]
@@ -106,21 +104,29 @@ def extract_logo(text: str, max_lines: int) -> list[str]:
         logo.pop(0)
     while logo and not logo[-1].strip():
         logo.pop()
-    return logo[:max_lines] if logo else DEFAULT_LOGO[:max_lines]
+    if not logo:
+        raise ValueError("Empty MOTD logo in 30-welcome.sh")
+    return logo[:max_lines]
+
+
+def extract_console_logo(text: str, max_lines: int) -> list[str]:
+    """Maintain the old API without maintaining a second logo parser."""
+    return extract_logo(text, max_lines)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--welcome", required=True, help="Path to 30-welcome.sh")
     ap.add_argument("--output", required=True, help="Output MOTD path")
+    ap.add_argument("--console-output", help="Optional UTF-8 MOTD for the Linux text console")
     ap.add_argument("--max-logo-lines", type=int, default=9)
-    ap.add_argument("--model", default=os.environ.get("KNULLI_BOOT_MOTD_MODEL", "KNULLI"))
+    ap.add_argument("--model", default=os.environ.get("KNULLI_BOOT_MOTD_MODEL", "KNULLIK"))
     ap.add_argument("--build", default=os.environ.get("KNULLI_BOOT_MOTD_BUILD", "INITIALIZING"))
     args = ap.parse_args()
 
     text = _read(Path(args.welcome))
     logo = extract_logo(text, args.max_logo_lines)
-    model = (args.model or "KNULLI").strip()
+    model = (args.model or "KNULLIK").strip()
     build = (args.build or "INITIALIZING").strip()
 
     out = Path(args.output)
@@ -128,6 +134,11 @@ def main() -> int:
     content = "\n".join(logo) + "\n\n" + f"MODEL: {model}\nBUILD: {build}\n"
     out.write_text(content, encoding="utf-8")
     print(f"Generated boot MOTD from {args.welcome} -> {args.output}")
+    if args.console_output:
+        console_out = Path(args.console_output)
+        console_out.parent.mkdir(parents=True, exist_ok=True)
+        console_out.write_text(content, encoding="utf-8")
+        print(f"Generated console MOTD -> {args.console_output}")
     return 0
 
 

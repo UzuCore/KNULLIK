@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Render a compact ROCKNIX-style boot MOTD on /dev/fb0.
+# Render the canonical KNULLIK MOTD on fb0 from 30-welcome.sh.
 # Single source of truth after rootfs starts:
 #   /etc/profile.d/30-welcome.sh
 #
@@ -43,24 +43,24 @@ make_compact_motd() {
         : > /tmp/knulli-fbboot.plain-motd
     fi
 
-    # Keep the real KNULLI ASCII logo from the actual MOTD.  Stop before the
-    # system information block starts.  This avoids the previous hardcoded
-    # single-word "KNULLI" title while still keeping the boot screen compact.
+    # Prefer the literal Unicode block art from 30-welcome.sh. The fb0 renderer
+    # supports U+2588, so initramfs and rootfs use the SAME logo pixels.
     awk '
-        BEGIN { started=0; count=0 }
-        /^[[:space:]]*[Mm]odel[[:space:]]*:/ { exit }
-        {
-            line=$0
-            if (line ~ /[_|\\\/]/ || started) {
-                if (line != "") {
-                    print line
-                    started=1
-                    count++
-                    if (count >= 9) exit
-                }
-            }
-        }
+        index($0, "█") { print; count++; if (count >= 9) exit }
     ' /tmp/knulli-fbboot.plain-motd > /tmp/knulli-fbboot.logo-motd
+
+    # In case the shell MOTD is unavailable, use the generated build-time
+    # output, never an independently maintained ASCII fallback logo.
+    if [ ! -s /tmp/knulli-fbboot.logo-motd ]; then
+        for FALLBACK in "$MOTD_FALLBACK"; do
+            [ -s "$FALLBACK" ] || continue
+            awk '
+                /^[[:space:]]*([Mm][Oo][Dd][Ee][Ll]|[Bb][Uu][Ii][Ll][Dd]|[Oo][Ss][[:space:]]+[Vv][Ee][Rr][Ss][Ii][Oo][Nn])[[:space:]]*:/ { exit }
+                NF { print; count++; if (count >= 9) exit }
+            ' "$FALLBACK" > /tmp/knulli-fbboot.logo-motd
+            [ -s /tmp/knulli-fbboot.logo-motd ] && break
+        done
+    fi
 
     MODEL=$(awk -F: '
         tolower($1) ~ /^[[:space:]]*model[[:space:]]*$/ {
@@ -72,7 +72,7 @@ make_compact_motd() {
         if [ -n "$BOARD" ]; then
             MODEL="ANBERNIC_$(printf '%s' "$BOARD" | tr '[:lower:]-' '[:upper:]_')"
         else
-            MODEL="KNULLI"
+            MODEL="KNULLIK"
         fi
     fi
 
@@ -90,20 +90,6 @@ make_compact_motd() {
         if [ -s /tmp/knulli-fbboot.logo-motd ]; then
             cat /tmp/knulli-fbboot.logo-motd
             printf '\n'
-        elif [ -s "$MOTD_FALLBACK" ]; then
-            # Use only the logo portion of the generated fallback.  The fallback
-            # also contains build-time MODEL/BUILD lines; appending the real
-            # rootfs values after those made fbboot stop at the stale first pair.
-            awk '
-                BEGIN { count=0 }
-                /^[[:space:]]*([Mm][Oo][Dd][Ee][Ll]|[Bb][Uu][Ii][Ll][Dd]|[Oo][Ss][[:space:]]+[Vv][Ee][Rr][Ss][Ii][Oo][Nn])[[:space:]]*:/ { exit }
-                NF {
-                    print
-                    count++
-                    if (count >= 9) exit
-                }
-            ' "$MOTD_FALLBACK"
-            printf '\n'
         fi
         printf '\033[36mMODEL:\033[0m %s\n' "$MODEL"
         printf '\033[36mBUILD:\033[0m %s\n' "$BUILD"
@@ -117,7 +103,7 @@ render_compact_motd() {
     elif [ -s "$MOTD_FALLBACK" ]; then
         "$FBBOOT" file "$MOTD_FALLBACK" >/dev/null 2>&1 || true
     else
-        "$FBBOOT" reset "KNULLI" >/dev/null 2>&1 || true
+        "$FBBOOT" reset "KNULLIK" >/dev/null 2>&1 || true
     fi
 }
 

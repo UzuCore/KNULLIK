@@ -20,7 +20,8 @@
 #define STATE_PATH "/tmp/knulli-fbboot-state"
 #define DEFAULT_MOTD_PATH "/etc/knulli-boot-motd"
 #define MAX_MOTD_LINES 14
-#define MAX_MOTD_LINE 96
+// A Unicode full-block MOTD can require three bytes per printed cell.
+#define MAX_MOTD_LINE 512
 
 struct fbctx {
     int fd;
@@ -367,18 +368,24 @@ static int read_motd_file(const char *path, char lines[MAX_MOTD_LINES][MAX_MOTD_
     FILE *f = fopen(path, "r");
     if (!f) return 0;
     int n = 0;
-    char buf[512];
+    char buf[1024];
     while (fgets(buf, sizeof(buf), f) && n < MAX_MOTD_LINES) {
         char *e = buf + strlen(buf);
         while (e > buf && (e[-1] == '\n' || e[-1] == '\r')) { *--e = 0; }
         // Skip empty lines. The boot screen intentionally keeps only compact info.
-        char plain[512];
+        char plain[1024];
         strncpy(plain, buf, sizeof(plain)-1);
         plain[sizeof(plain)-1] = 0;
         strip_to_plain(plain);
-        if (!plain[0]) continue;
-        strncpy(lines[n], buf, MAX_MOTD_LINE - 1);
-        lines[n][MAX_MOTD_LINE - 1] = 0;
+        // strip_to_plain removes non-ASCII bytes; a line containing only
+        // U+2588 blocks still carries visible logo pixels and must be kept.
+        if (!plain[0] && !strstr(buf, "\xE2\x96\x88")) continue;
+        size_t bytes = strlen(buf);
+        if (bytes >= MAX_MOTD_LINE) bytes = MAX_MOTD_LINE - 1;
+        // Never keep a partial UTF-8 glyph if a future MOTD exceeds the cap.
+        while (bytes > 0 && ((unsigned char)buf[bytes] & 0xc0) == 0x80) bytes--;
+        memcpy(lines[n], buf, bytes);
+        lines[n][bytes] = 0;
         n++;
     }
     fclose(f);
@@ -451,12 +458,20 @@ static void draw_ascii_art_cell(struct fbctx *fb, char c, int x, int y, int cw, 
 
 static void draw_ascii_art_line(struct fbctx *fb, const char *s, int x, int y, int cw, int ch, int stroke, uint32_t color, int max_width) {
     int cx = x;
-    for (const char *p = s; *p; p++) {
+    for (const char *p = s; *p; ) {
         unsigned char c = (unsigned char)*p;
-        if (c == '\r' || c == '\n' || c == '\t') c = ' ';
-        if (c < 32 || c > 126) c = ' ';
         if (max_width > 0 && cx + cw > x + max_width) break;
-        draw_ascii_art_cell(fb, (char)c, cx, y, cw, ch, stroke, color);
+        if (c == 0xE2 && (unsigned char)p[1] == 0x96 &&
+            (unsigned char)p[2] == 0x88) {
+            // UTF-8 U+2588 (█): render one full terminal block cell.
+            // The same glyph is used by the canonical 30-welcome.sh MOTD.
+            rect(fb, cx, y, cw, ch, color);
+            p += 3;
+        } else {
+            if (c == '\r' || c == '\n' || c == '\t' || c < 32 || c > 126) c = ' ';
+            draw_ascii_art_cell(fb, (char)c, cx, y, cw, ch, stroke, color);
+            p++;
+        }
         cx += cw;
         if (cx > fb->xres - 2) break;
     }
@@ -516,7 +531,7 @@ static void draw_compact_screen(struct fbctx *fb, char lines[MAX_MOTD_LINES][MAX
                                 fb->xres - margin * 2);
         }
     } else {
-        draw_text_ansi(fb, "KNULLI", margin, logo_y, title_scale_fallback, white, fb->xres - margin * 2);
+        draw_text_ansi(fb, "KNULLIK", margin, logo_y, title_scale_fallback, white, fb->xres - margin * 2);
     }
 
     for (int i = 0; i < info_lines; i++) {
@@ -542,8 +557,8 @@ static void draw_shell(struct fbctx *fb, const char *title, const char *status, 
 
     if (clear) {
         clear_screen(fb, black);
-        draw_text_ansi(fb, title && title[0] ? title : "KNULLI", margin, y, title_scale, white, fb->xres - margin * 2);
-        draw_text_ansi(fb, "\033[36mMODEL:\033[0m KNULLI", margin + 1, y + title_h + 8, info_scale, white, fb->xres - margin * 2);
+        draw_text_ansi(fb, title && title[0] ? title : "KNULLIK", margin, y, title_scale, white, fb->xres - margin * 2);
+        draw_text_ansi(fb, "\033[36mMODEL:\033[0m KNULLIK", margin + 1, y + title_h + 8, info_scale, white, fb->xres - margin * 2);
         draw_text_ansi(fb, "\033[36mBUILD:\033[0m BOOTING", margin + 1, y + title_h + 8 + cell_px(7, info_scale) + 5, info_scale, white, fb->xres - margin * 2);
     }
     draw_status(fb, status, !clear);
@@ -554,7 +569,7 @@ static void draw_motd_file(struct fbctx *fb, const char *path) {
     memset(lines, 0, sizeof(lines));
     int n = read_motd_file(path, lines);
     if (n <= 0) {
-        draw_shell(fb, "KNULLI", "Loading, please wait...", 1);
+        draw_shell(fb, "KNULLIK", "Loading, please wait...", 1);
         return;
     }
     draw_compact_screen(fb, lines, n);
@@ -579,7 +594,7 @@ int main(int argc, char **argv) {
         if (readable_nonempty(DEFAULT_MOTD_PATH)) {
             draw_motd_file(&fb, DEFAULT_MOTD_PATH);
         } else {
-            const char *title = (argc >= 3) ? argv[2] : "KNULLI";
+            const char *title = (argc >= 3) ? argv[2] : "KNULLIK";
             draw_shell(&fb, title, "Loading, please wait...", 1);
         }
     } else if (strcmp(argv[1], "msg") == 0) {
