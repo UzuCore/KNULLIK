@@ -246,8 +246,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Load the background image
-    SDL_Surface* bgSurface = SDL_LoadBMP("/boot/bootlogo.bmp");
+    // The bundled KNULLIK logo is shared across all screen sizes. Prefer a
+    // user's cached boot.png in CUSTOM mode; explicit MOTD keeps legacy art.
+    bool useKnulLikLogo = true;
+    char modeValue[32] = "";
+    FILE* splashMode = fopen("/boot/boot/knullik-splash.mode", "r");
+    if (splashMode) {
+        if (fgets(modeValue, sizeof(modeValue), splashMode) && strncmp(modeValue, "motd", 4) == 0)
+            useKnulLikLogo = false;
+        fclose(splashMode);
+    }
+    SDL_Surface* bgSurface = NULL;
+    if (useKnulLikLogo) {
+        if (strncmp(modeValue, "custom", 6) == 0)
+            bgSurface = SDL_LoadBMP("/boot/boot/knullik-splash.bmp");
+        if (!bgSurface)
+            bgSurface = SDL_LoadBMP("/usr/share/knulli/splash/knullik-default-splash.bmp");
+    }
+    bool dynamicLogo = bgSurface != NULL;
+    if (!bgSurface)
+        bgSurface = SDL_LoadBMP("/boot/bootlogo.bmp");
     if (bgSurface == NULL) {
         fprintf(stderr, "Could not load background image: %s\n", SDL_GetError());
         SDL_DestroyRenderer(renderer);
@@ -261,7 +279,26 @@ int main(int argc, char *argv[]) {
     // rotozoomSurface may produce a surface slightly larger than the target due
     // to rotation padding, so we blit it centered into a clean surface of the
     // exact target dimensions to avoid any border artifacts.
-    if (vinfo.xres < vinfo.yres) {
+    if (dynamicLogo) {
+        // SDL's output is already in logical landscape coordinates. Fit the
+        // artwork in the window without stretching or cropping the wordmark.
+        SDL_Surface* fitted = SDL_CreateRGBSurfaceWithFormat(0, screenWidth,
+                                                              screenHeight, 32,
+                                                              SDL_PIXELFORMAT_ARGB8888);
+        if (fitted) {
+            SDL_FillRect(fitted, NULL, SDL_MapRGB(fitted->format, 0, 0, 0));
+            SDL_Rect target = {0, 0, screenWidth, screenHeight};
+            if ((int64_t)screenWidth * bgSurface->h > (int64_t)screenHeight * bgSurface->w)
+                target.w = (int)((int64_t)screenHeight * bgSurface->w / bgSurface->h);
+            else
+                target.h = (int)((int64_t)screenWidth * bgSurface->h / bgSurface->w);
+            target.x = (screenWidth - target.w) / 2;
+            target.y = (screenHeight - target.h) / 2;
+            SDL_BlitScaled(bgSurface, NULL, fitted, &target);
+            SDL_FreeSurface(bgSurface);
+            bgSurface = fitted;
+        }
+    } else if (vinfo.xres < vinfo.yres) {
         SDL_Surface* rotatedSurface = rotozoomSurface(bgSurface, -90, 1.0, 0);
         SDL_FreeSurface(bgSurface);
         bgSurface = NULL;

@@ -74,12 +74,31 @@ do_root() {
         done
     done
 
-    # Choose image after FAT boot root becomes accessible; avoids MOTD flash.
+    # Select a boot image only after /dev/fb0 and boot root are accessible.
+    # A bundled BMP is always available on newly built KNULLIK images; users
+    # can replace it with SHARE/splash/boot.png through the cached boot BMP.
+    # An explicit MOTD mode file takes precedence, including after upgrades.
     KNULLIK_SPLASH_MODE_KNOWN=1
-    if [ "$(cat /boot_root/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
-       [ -s /boot_root/boot/knullik-splash.bmp ]; then
-        if /bin/knulli-fbboot bmp /boot_root/boot/knullik-splash.bmp >/dev/null 2>&1; then
+    KNULLIK_SPLASH_ROTATION=$(/bin/knulli-splash-orientation /boot_root/boot 2>/dev/null || echo auto)
+    KNULLIK_SPLASH_MODE=$(cat /boot_root/boot/knullik-splash.mode 2>/dev/null || true)
+    if [ "$KNULLIK_SPLASH_MODE" != motd ]; then
+        KNULLIK_SPLASH_BMP=/etc/knullik-default-splash.bmp
+        if [ "$KNULLIK_SPLASH_MODE" = custom ] &&
+           [ -s /boot_root/boot/knullik-splash.bmp ]; then
+            KNULLIK_SPLASH_BMP=/boot_root/boot/knullik-splash.bmp
+        fi
+        KNULLIK_SPLASH_RENDERED=0
+        if /bin/knulli-fbboot bmp "$KNULLIK_SPLASH_BMP" "$KNULLIK_SPLASH_ROTATION" >/dev/null 2>&1; then
+            KNULLIK_SPLASH_RENDERED=1
+        elif [ "$KNULLIK_SPLASH_BMP" != /etc/knullik-default-splash.bmp ] &&
+             /bin/knulli-fbboot bmp /etc/knullik-default-splash.bmp "$KNULLIK_SPLASH_ROTATION" >/dev/null 2>&1; then
+            KNULLIK_SPLASH_RENDERED=1
+        fi
+        if [ "$KNULLIK_SPLASH_RENDERED" = 1 ]; then
             KNULLIK_CUSTOM_SPLASH_ACTIVE=1
+            # /dev is moved into the rootfs, so this marker survives
+            # switch_root and prevents old SDL loading bars overwriting PNG.
+            : > /dev/.knullik-splash-active
         fi
     fi
     if [ "${KNULLIK_CUSTOM_SPLASH_ACTIVE:-0}" != "1" ]; then

@@ -24,9 +24,9 @@ else
     /usr/bin/charger
 fi
 
-# Do not draw the SDL loading bar over a custom PNG.
-if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" != custom ] ||
-   [ ! -s /boot/boot/knullik-splash.bmp ]; then
+# Only suppress the SDL loading bar after a framebuffer logo was actually
+# drawn. This also supports the default bundled logo on the first boot.
+if [ ! -e /dev/.knullik-splash-active ]; then
     /usr/bin/progressbar &
 fi
 

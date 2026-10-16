@@ -13,6 +13,18 @@ echo "HOST_DIR = $HOST_DIR"
 echo "BINARIES_DIR = $BINARIES_DIR"
 echo "TARGET_DIR = $TARGET_DIR"
 
+# The same 720x480 KNULLIK PNG is the source of truth on all build targets.
+# Install an RGB24 BMP into every rootfs, even for devices without the custom
+# initramfs or KNULLI_SPLASH package. Display rotation/resizing is done by the
+# renderer at runtime; SHARE/splash/boot.png remains user-overridable.
+mkdir -p "${TARGET_DIR}/usr/share/knulli/splash" || exit 1
+mkdir -p "${TARGET_DIR}/usr/share/knulli/datainit/splash" || exit 1
+cp "${BR2_EXTERNAL_KNULLI_PATH}/package/system/knulli-datainit/datainit/splash/readme.txt" \
+    "${TARGET_DIR}/usr/share/knulli/datainit/splash/readme.txt" || exit 1
+python3 "${BR2_EXTERNAL_KNULLI_PATH}/scripts/knullik-boot-png-to-bmp.py" \
+    --input "${BR2_EXTERNAL_KNULLI_PATH}/board/fsoverlay/usr/share/knulli/datainit/splash/boot.png" \
+    --output "${TARGET_DIR}/usr/share/knulli/splash/knullik-default-splash.bmp" || exit 1
+
 KNULLI_TARGET=$(grep -E "^BR2_PACKAGE_BATOCERA_TARGET_[A-Z_0-9]*=y$" "${BR2_CONFIG}" | grep -vE "_(GLES|GLES2|GLES3|VULKAN|OPENGL)=y$" | sed -e s+'^BR2_PACKAGE_BATOCERA_TARGET_\([A-Z_0-9]*\)=y$'+'\1'+)
 echo "KNULLI_TARGET = $KNULLI_TARGET"
 

@@ -24,8 +24,10 @@ else
     /usr/bin/charger
 fi
 
-# Start the progress bar
-/usr/bin/progressbar &
+# Leave an already rendered KNULLIK boot image on screen.
+if [ ! -e /dev/.knullik-splash-active ]; then
+    /usr/bin/progressbar &
+fi
 
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.

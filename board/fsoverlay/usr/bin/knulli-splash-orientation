@@ -1,0 +1,33 @@
+#!/bin/sh
+# Select the rotation for KNULLIK's single landscape source image.
+# Called both from initramfs (/boot_root/boot) and rootfs (/boot/boot).
+# A manual boot-partition value overrides native-panel auto detection.
+BOOT_DIR=${1:-/boot/boot}
+setting=$(cat "$BOOT_DIR/knullik-splash.rotate" 2>/dev/null || true)
+case "$setting" in
+    0|90|180|270|auto)
+        printf '%s\n' "$setting"
+        exit 0
+        ;;
+esac
+
+model_file=${KNULLIK_SPLASH_MODEL_FILE:-/sys/firmware/devicetree/base/model}
+model=
+if [ -r "$model_file" ]; then
+    model=$(tr -d '\000' < "$model_file" 2>/dev/null || true)
+fi
+case "$model" in
+    # These machines have counterclockwise native panel scan-out; existing
+    # KNULLIK Ssystem-splash uses its pre-rotated '*-left.png' variants.
+    *"RG ARC-S"*|*"MagicX Mini M"*|*"Loki Zero"*|*"Loki_Zero"*|\
+    *"Retroid Pocket 5"*|*"Retroid Pocket Flip2"*|*"RG VITA"*)
+        echo 270
+        ;;
+    # MIYOO Flip uses a normal horizontal logo in the legacy splash.
+    *"MIYOO Flip"*)
+        echo 0
+        ;;
+    *)
+        echo auto
+        ;;
+esac

@@ -267,7 +267,25 @@ static bool wait_for_framebuffer(struct fb_var_screeninfo *vinfo) {
 // Load the boot logo: try /boot/bootlogo.bmp first (back-compat), then fall back
 // to the dynamic /boot/logo_<W>x<H>.bmp built from the PHYSICAL framebuffer
 // resolution (e.g. logo_640x480.bmp).
-static SDL_Surface* load_boot_logo(int fbWidth, int fbHeight) {
+static SDL_Surface* load_boot_logo(int fbWidth, int fbHeight, bool *dynamicLogo) {
+    *dynamicLogo = false;
+    char selected[32] = "";
+    FILE *mode = fopen("/boot/boot/knullik-splash.mode", "r");
+    if (mode) {
+        fgets(selected, sizeof(selected), mode);
+        fclose(mode);
+    }
+    if (strncmp(selected, "motd", 4) != 0) {
+        SDL_Surface *custom = NULL;
+        if (strncmp(selected, "custom", 6) == 0)
+            custom = SDL_LoadBMP("/boot/boot/knullik-splash.bmp");
+        if (!custom)
+            custom = SDL_LoadBMP("/usr/share/knulli/splash/knullik-default-splash.bmp");
+        if (custom) {
+            *dynamicLogo = true;
+            return custom;
+        }
+    }
     SDL_Surface* s = SDL_LoadBMP("/boot/bootlogo.bmp");
     if (s)
         return s;
@@ -379,10 +397,14 @@ int main(int argc, char *argv[]) {
     // Build the background logo, pre-scaled to the logical dimensions.
     SDL_Surface *logo = NULL;
     {
-        SDL_Surface *raw = load_boot_logo(vinfo.xres, vinfo.yres);
+        bool dynamicLogo = false;
+        SDL_Surface *raw = load_boot_logo(vinfo.xres, vinfo.yres, &dynamicLogo);
         if (raw) {
             SDL_Surface *oriented = raw;
-            if (logo_rot != 0) {
+            // Old files are already authored for physical panel coordinates.
+            // Our new bundled BMP is a logical landscape image: rotate the
+            // final frame, not the source (pre-rotation would cancel it).
+            if (!dynamicLogo && logo_rot != 0) {
                 SDL_Surface *r = rotozoomSurface(raw, logo_rot, 1.0, 0);
                 if (r) oriented = r;
             }
@@ -390,7 +412,18 @@ int main(int argc, char *argv[]) {
                                                   SDL_PIXELFORMAT_ARGB8888);
             if (logo) {
                 SDL_FillRect(logo, NULL, SDL_MapRGB(logo->format, 0, 0, 0));
-                SDL_BlitScaled(oriented, NULL, logo, NULL);
+                if (dynamicLogo) {
+                    SDL_Rect target = {0, 0, screenWidth, screenHeight};
+                    if ((int64_t)screenWidth * oriented->h > (int64_t)screenHeight * oriented->w)
+                        target.w = (int)((int64_t)screenHeight * oriented->w / oriented->h);
+                    else
+                        target.h = (int)((int64_t)screenWidth * oriented->h / oriented->w);
+                    target.x = (screenWidth - target.w) / 2;
+                    target.y = (screenHeight - target.h) / 2;
+                    SDL_BlitScaled(oriented, NULL, logo, &target);
+                } else {
+                    SDL_BlitScaled(oriented, NULL, logo, NULL);
+                }
             }
             if (oriented != raw) SDL_FreeSurface(oriented);
             SDL_FreeSurface(raw);

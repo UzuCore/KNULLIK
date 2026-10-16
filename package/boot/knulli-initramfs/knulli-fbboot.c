@@ -592,10 +592,29 @@ static uint32_t splash_u32(const uint8_t *p) {
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+// Resolve a logical bitmap rotation for fb0's native raster orientation.
+// For panels exposing portrait scan-out but used landscape, auto rotates
+// landscape artwork to fill the native display; an optional explicit setting
+// overrides this (some physically portrait devices should keep 0 degrees).
+static int splash_rotation(const char *request, int fb_width, int fb_height,
+                           int bmp_width, int bmp_height) {
+    if (!request || !*request || strcmp(request, "auto") == 0) {
+        int fb_portrait = fb_width < fb_height;
+        int bmp_portrait = bmp_width < bmp_height;
+        return fb_portrait != bmp_portrait && fb_width != fb_height &&
+               bmp_width != bmp_height ? 90 : 0;
+    }
+    if (strcmp(request, "0") == 0) return 0;
+    if (strcmp(request, "90") == 0) return 90;
+    if (strcmp(request, "180") == 0) return 180;
+    if (strcmp(request, "270") == 0) return 270;
+    return -1;
+}
+
 // Decode an uncompressed 24-bit BMP prepared from the user's PNG. Validate
 // everything before touching the framebuffer so a broken/missing image leaves
 // the previous screen unchanged and the boot caller can use MOTD instead.
-static int draw_boot_bmp(struct fbctx *fb, const char *path) {
+static int draw_boot_bmp(struct fbctx *fb, const char *path, const char *rotation) {
     if (!path || !*path) return -1;
     int fd = open(path, O_RDONLY | O_NOFOLLOW);
     if (fd < 0) return -1;
@@ -631,21 +650,33 @@ static int draw_boot_bmp(struct fbctx *fb, const char *path) {
         received += (size_t)n;
     }
 
-    // Letterbox without cropping; use nearest-neighbor scaling for pixel art.
+    // First rotate logical source dimensions, then letterbox without cropping.
+    // Nearest-neighbor interpolation keeps fine pixel-art details crisp.
+    int degrees = splash_rotation(rotation, fb->xres, fb->yres, width, source_height);
+    if (degrees < 0) goto done;
+    int rw = degrees == 90 || degrees == 270 ? source_height : width;
+    int rh = degrees == 90 || degrees == 270 ? width : source_height;
     int dw = fb->xres, dh = fb->yres;
-    if ((int64_t)dw * source_height > (int64_t)dh * width)
-        dw = (int)((int64_t)dh * width / source_height);
+    if ((int64_t)dw * rh > (int64_t)dh * rw)
+        dw = (int)((int64_t)dh * rw / rh);
     else
-        dh = (int)((int64_t)dw * source_height / width);
+        dh = (int)((int64_t)dw * rh / rw);
     if (dw <= 0 || dh <= 0) goto done;
     int left = (fb->xres - dw) / 2, top = (fb->yres - dh) / 2;
     clear_screen(fb, make_color(fb, 0, 0, 0));
     for (int y = 0; y < dh; y++) {
-        int sy = (int)((int64_t)y * source_height / dh);
-        if (height > 0) sy = source_height - 1 - sy; // BMP: bottom-up rows
-        const uint8_t *src = image + (size_t)sy * row_bytes;
+        int ry = (int)((int64_t)y * rh / dh);
         for (int x = 0; x < dw; x++) {
-            int sx = (int)((int64_t)x * width / dw);
+            int rx = (int)((int64_t)x * rw / dw);
+            int sx, sy;
+            switch (degrees) {
+                case 90:  sx = ry;             sy = source_height - 1 - rx; break;
+                case 180: sx = width - 1 - rx; sy = source_height - 1 - ry; break;
+                case 270: sx = width - 1 - ry; sy = rx;                     break;
+                default:  sx = rx;             sy = ry;                     break;
+            }
+            if (height > 0) sy = source_height - 1 - sy; // BMP bottom-up storage
+            const uint8_t *src = image + (size_t)sy * row_bytes;
             const uint8_t *pixel = src + (size_t)sx * 3;
             put_pixel(fb, left + x, top + y,
                       make_color(fb, pixel[2], pixel[1], pixel[0]));
@@ -659,7 +690,7 @@ done:
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: knulli-fbboot reset [TITLE] | msg TEXT... | file /path/to/motd | bmp /path/to/cached.bmp | clear-status\n");
+    fprintf(stderr, "usage: knulli-fbboot reset [TITLE] | msg TEXT... | file /path/to/motd | bmp /path/to/cached.bmp [auto|0|90|180|270] | clear-status\n");
 }
 
 int main(int argc, char **argv) {
@@ -687,7 +718,7 @@ int main(int argc, char **argv) {
         const char *path = (argc >= 3) ? argv[2] : "/tmp/knulli-fbboot.motd";
         draw_motd_file(&fb, path);
     } else if (strcmp(argv[1], "bmp") == 0) {
-        if (argc < 3 || draw_boot_bmp(&fb, argv[2]) != 0) {
+        if (argc < 3 || draw_boot_bmp(&fb, argv[2], argc >= 4 ? argv[3] : "auto") != 0) {
             fb_close(&fb);
             return 1; // caller falls back to MOTD with the display intact
         }

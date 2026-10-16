@@ -18037,8 +18037,8 @@ msgstr "사용 가능한 옵션은 현재 오디오 출력에 따라 변경될 �
 msgid "BOOT SPLASH"
 msgstr "부팅 화면"
 
-msgid "Copy boot.png to SHARE/splash/boot.png before choosing Custom Image."
-msgstr "SHARE/splash/boot.png에 PNG 파일을 넣은 뒤 커스텀 이미지를 선택하세요."
+msgid "Built-in boot logo; replace SHARE/splash/boot.png to customize."
+msgstr "기본 부팅 로고가 포함되어 있습니다. SHARE/splash/boot.png를 교체하면 사용자 이미지가 적용됩니다."
 
 msgid "DEFAULT VIDEO/USER SET SPLASH"
 msgstr "기본 비디오/사용자 설정 스플래시"

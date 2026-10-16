@@ -44,7 +44,9 @@ PB_RK_ARGS=""
 case "$NEW_BOARD" in
     rg-arc-s) PB_RK_ARGS="--rotate 180" ;;
 esac
-/usr/bin/progressbar_rk $PB_RK_ARGS &
+if [ ! -e /dev/.knullik-splash-active ]; then
+    /usr/bin/progressbar_rk $PB_RK_ARGS &
+fi
 
 for i in /etc/init.d/S??* ; do
 

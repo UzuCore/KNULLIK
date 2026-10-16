@@ -66,6 +66,11 @@ endef
 
 define KNULLI_SPLASH_INSTALL_BOOT_LOGO
     mkdir -p $(TARGET_DIR)/usr/share/knulli/splash
+	# Universal KNULLIK logo used by the rootfs framebuffer fallback. This is
+	# also installed on boards that do not include the custom initramfs package.
+	python3 $(BR2_EXTERNAL_KNULLI_PATH)/scripts/knullik-boot-png-to-bmp.py \
+	    --input $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/usr/share/knulli/datainit/splash/boot.png \
+	    --output $(TARGET_DIR)/usr/share/knulli/splash/knullik-default-splash.bmp
     cp "$(BR2_EXTERNAL_KNULLI_PATH)/package/system/knulli-splash/images/logo.png"               "${TARGET_DIR}/usr/share/knulli/splash/boot-logo.png"
     cp "$(BR2_EXTERNAL_KNULLI_PATH)/package/system/knulli-splash/images/logo-240.png"           "${TARGET_DIR}/usr/share/knulli/splash/boot-logo-320x240.png"
     cp "$(BR2_EXTERNAL_KNULLI_PATH)/package/system/knulli-splash/images/logo-480p.png"          "${TARGET_DIR}/usr/share/knulli/splash/boot-logo-640x480.png"

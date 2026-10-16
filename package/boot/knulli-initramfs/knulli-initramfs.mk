@@ -17,6 +17,9 @@ KNULLI_INITRAMFS_FBBOOT_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli
 KNULLI_INITRAMFS_BOOT_MOTD_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/etc/profile.d/30-welcome.sh
 KNULLI_INITRAMFS_BOOT_MOTD_GEN = $(BR2_EXTERNAL_KNULLI_PATH)/scripts/rocknixk-generate-boot-motd-from-welcome.py
 KNULLI_INITRAMFS_BOOT_MOTD_GENERATED = $(BUILD_DIR)/knulli-boot-motd/default-motd.txt
+KNULLI_INITRAMFS_DEFAULT_PNG = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/usr/share/knulli/datainit/splash/boot.png
+KNULLI_INITRAMFS_PNG_TO_BMP = $(BR2_EXTERNAL_KNULLI_PATH)/scripts/knullik-boot-png-to-bmp.py
+KNULLI_INITRAMFS_ROTATION_HELPER = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/usr/bin/knulli-splash-orientation
 
 KNULLI_INITRAMFS_KCONFIG_FILE = \
     $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/busybox.config
@@ -74,6 +77,16 @@ define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS
         mkdir -p $(INITRAMFS_DIR)/bin $(TARGET_DIR)/usr/bin
         cp $(@D)/knulli-fbboot $(INITRAMFS_DIR)/bin/knulli-fbboot
         cp $(@D)/knulli-fbboot $(TARGET_DIR)/usr/bin/knulli-fbboot
+	install -m 0755 $(KNULLI_INITRAMFS_ROTATION_HELPER) $(INITRAMFS_DIR)/bin/knulli-splash-orientation
+	# Keep a universal, framebuffer-safe graphic inside every KNULLIK initrd.
+	# No target FFmpeg, GUI or userdata mount is needed during early boot.
+	mkdir -p $(INITRAMFS_DIR)/etc
+	python3 $(KNULLI_INITRAMFS_PNG_TO_BMP) \
+	    --input $(KNULLI_INITRAMFS_DEFAULT_PNG) \
+	    --output $(INITRAMFS_DIR)/etc/knullik-default-splash.bmp
+	mkdir -p $(TARGET_DIR)/usr/share/knulli/splash
+	cp $(INITRAMFS_DIR)/etc/knullik-default-splash.bmp \
+	    $(TARGET_DIR)/usr/share/knulli/splash/knullik-default-splash.bmp
 	# KNULLI-KR generated boot MOTD install hook BEGIN
 	@mkdir -p $(INITRAMFS_DIR)/etc $(TARGET_DIR)/usr/share/knulli $(dir $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED))
 	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE); then 		BUILD_TEXT="$$(cat $(TARGET_DIR)/usr/share/knulli/knulli.version 2>/dev/null || true)"; 		KNULLI_BOOT_MOTD_MODEL="KNULLIK" KNULLI_BOOT_MOTD_BUILD="$${BUILD_TEXT:-INITIALIZING}" 			python3 $(KNULLI_INITRAMFS_BOOT_MOTD_GEN) 			--welcome $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) 			--output $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) 			--max-logo-lines 9; 	else 		echo "WARNING: $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) not found; using compiled fallback"; 	fi

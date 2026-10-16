@@ -1,17 +1,25 @@
-Place your splashscreens files here
-They will be copied to /boot/splash automatically
+KNULLIK SHARE/splash folder
 
-Attention! Every data will be copied! There is no difference
-between pictures, movies, music and gamesdata
+KNULLIK boot image (all supported build targets):
+The firmware supplies a default KNULLIK 720x480 boot.png in this folder.
+Boot splash defaults to CUSTOM IMAGE on clean installations.
+In EmulationStation: SYSTEM SETTINGS > BOOT SPLASH > MOTD / CUSTOM IMAGE.
+Replace SHARE/splash/boot.png to select your own PNG; firmware updates will
+not overwrite your personal file. The original PNG is never modified.
+When the graphics renderer cannot display a picture, the previous boot
+display remains the safe fallback.
 
-If you delete some data it will be removed from /boot/splash, too
-Remember if your board does not support video splashes then they won't be played!
+The renderer detects the active framebuffer geometry (320x480, 640x480,
+720x480, 1280x720 and other sizes), scales without cropping, centers the
+artwork, and adds black letterboxing where the aspect ratio differs. If the
+framebuffer scan-out is portrait while the image is landscape, it can rotate
+the artwork 90 degrees; known devices with opposite native panel direction
+use a 270-degree or unrotated preset instead.
 
-KNULLIK H700 custom boot image:
-Copy one PNG named boot.png to this folder (SHARE/splash/boot.png).
-In EmulationStation: SYSTEM SETTINGS > BOOT SPLASH > CUSTOM IMAGE.
-The default is MOTD. Missing or invalid PNG files fall back to MOTD.
-The PNG is converted to a temporary display cache; the original is unchanged.
+If a specific panel needs a different orientation, put a single line in
+the boot partition's boot/knullik-splash.rotate file: auto, 0, 90, 180, or
+270 (degrees clockwise). This overrides the device preset. The PNG stays
+identical regardless of screen orientation or size.
 
 Automatic logo replacement (H700):
 While KNULLIK is running and CUSTOM IMAGE is selected, simply overwrite

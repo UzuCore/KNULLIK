@@ -4,6 +4,11 @@
 # It shows the unique BATOCERA logo in early boot stage
 
 do_start () {
+    # An initramfs-rendered KNULLIK image survives switch_root on /dev.
+    # Do not repaint it with the legacy per-resolution logo.
+    [ -e /dev/.knullik-splash-active ] && return 0
+    [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null || true)" = motd ] && return 0
+
     # on some sytems, fb0 is not immediatly loaded, so, keep a chance by waiting a bit
     # are we sure all boards have fb0 ?!
     N=0
@@ -11,6 +16,27 @@ do_start () {
         sleep 0.25
         N=$((N+1))
     done
+
+    # The framebuffer may appear only after rootfs kernel modules load.
+    # Prefer the same dynamically rotated, aspect-preserving BMP renderer
+    # used by the initramfs. Older fbv assets remain a safe fallback.
+    KNULLIK_BMP=/usr/share/knulli/splash/knullik-default-splash.bmp
+    if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null || true)" = custom ] &&
+       [ -s /boot/boot/knullik-splash.bmp ]; then
+        KNULLIK_BMP=/boot/boot/knullik-splash.bmp
+    fi
+    if [ -e /dev/fb0 ] && [ -x /usr/bin/knulli-fbboot ] && [ -s "$KNULLIK_BMP" ]; then
+        KNULLIK_ROTATION=$(/usr/bin/knulli-splash-orientation /boot/boot 2>/dev/null || echo auto)
+        if /usr/bin/knulli-fbboot bmp "$KNULLIK_BMP" "$KNULLIK_ROTATION" >/dev/null 2>&1; then
+            : > /dev/.knullik-splash-active
+            return 0
+        fi
+        if [ "$KNULLIK_BMP" != /usr/share/knulli/splash/knullik-default-splash.bmp ] &&
+           /usr/bin/knulli-fbboot bmp /usr/share/knulli/splash/knullik-default-splash.bmp "$KNULLIK_ROTATION" >/dev/null 2>&1; then
+            : > /dev/.knullik-splash-active
+            return 0
+        fi
+    fi
 
     # V_BOARD_MODEL detection from knulli-info
     V_BOARD_MODEL=$(cat /sys/firmware/devicetree/base/model 2>/dev/null | tr -d '\0' | sed -e s+"[^A-Za-z0-9]"+"_"+g)
