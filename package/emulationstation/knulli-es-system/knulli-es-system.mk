@@ -45,6 +45,11 @@ define KNULLI_ES_SYSTEM_INSTALL_TARGET_CMDS
 	$(INSTALL) -m 0644 -D $(@D)/es_features.cfg $(TARGET_DIR)/usr/share/emulationstation/es_features.cfg
 	mkdir -p $(@D)/roms # in case there is no rom
 	cp -pr $(@D)/roms $(TARGET_DIR)/usr/share/knulli/datainit/
+	# Rootfs-owned backend: firmware updates may refresh the SDL BIOS tool
+	# without modifying existing user BIOS data or customized ROM shortcuts.
+	mkdir -p $(TARGET_DIR)/usr/share/knulli/bios-downloader
+	install -m 0644 $(BR2_EXTERNAL_KNULLI_PATH)/package/emulationstation/knulli-es-system/bios-downloader/*.py \
+		$(TARGET_DIR)/usr/share/knulli/bios-downloader/
 endef
 
 $(eval $(generic-package))

@@ -57,6 +57,31 @@ do
     fi
 done
 
+# Migrate the shipped BIOS tool shortcut when updating an existing SHARE.
+# roms/tools is normally copied only on first boot; user-modified launchers
+# and custom gamelists must never be overwritten. Only replace files that
+# byte-for-byte match the two official pre-SDL defaults.
+upgrade_bios_tool_if_stock() {
+    name=$1
+    old_sha=$2
+    source_file="$IN/roms/tools/$name"
+    target_file="$OUT/roms/tools/$name"
+    [ -f "$source_file" ] && [ -f "$target_file" ] || return 0
+    [ ! -L "$target_file" ] || return 0
+    current_sha=$(sha256sum "$target_file" 2>/dev/null | cut -d ' ' -f 1)
+    [ "$current_sha" = "$old_sha" ] || return 0
+    temp_file="$target_file.knullik-new.$$"
+    if cp -p "$source_file" "$temp_file"; then
+        if ! mv -f "$temp_file" "$target_file"; then
+            rm -f "$temp_file"
+        fi
+    else
+        rm -f "$temp_file"
+    fi
+}
+upgrade_bios_tool_if_stock download_bios.sh b0df3d78dbe78584d1066b06d6a6bd9c72d91f52842f06dba9252b7d1cb70f24
+upgrade_bios_tool_if_stock gamelist.xml 74e6ac0b71f907da178dd90ef489f3fb02fa8fff5406ff7e2830a41fbabad253
+
 # sometimes we update _info.txt files.
 # add a loop to update newer files if necessary
 if test "${DOUPDATE}" = 1

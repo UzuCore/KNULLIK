@@ -13,11 +13,11 @@
     <game>
         <path>./download_bios.sh</path>
         <name>바이오스 다운로더</name>
-        <desc>사용자가 설정한 합법적 BIOS ZIP URL에서 BIOS 파일을 다운로드해 /userdata/bios에 설치합니다.</desc>
-        <developer>UzuCore</developer>
+        <desc>KNULLIK 시안 테마 BIOS 다운로더입니다. 다운로드·진행률·버전 확인·취소·재시도 및 안전한 파일 설치를 지원하며, BIOS를 /userdata/bios에 보관합니다.</desc>
+        <developer>UzuCore / ROCKNIXK</developer>
         <publisher>UzuCore</publisher>
-        <rating>1.0</rating>
+        <rating>5.0</rating>
         <releasedate>2026</releasedate>
-        <genre>Script</genre>
+        <genre>System Utility</genre>
     </game>
 </gameList>

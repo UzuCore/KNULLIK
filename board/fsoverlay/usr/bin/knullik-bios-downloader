@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# ROCKNIXK's BIOS downloader ported to KNULLIK with a cyan UI.
+# Do not fall back to the old unchecked shell/unzip installer on GUI errors.
+if [ -r /etc/profile ]; then
+    . /etc/profile
+fi
+export PYTHONDONTWRITEBYTECODE=1
+export SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1
+
+APP=/usr/share/knulli/bios-downloader/main.py
+if ! command -v python3 >/dev/null 2>&1 || [ ! -r "$APP" ]; then
+    echo 'KNULLIK BIOS Downloader: Python3 or application is unavailable' >&2
+    if command -v text_viewer >/dev/null 2>&1; then
+        text_viewer -t 'KNULLIK BIOS Downloader' -m 'The graphical BIOS downloader is unavailable on this build.'
+    fi
+    exit 1
+fi
+
+/usr/bin/python3 "$APP" --destination /userdata/bios "$@"
+result=$?
+if [ "$result" -ne 0 ] && command -v text_viewer >/dev/null 2>&1; then
+    text_viewer -t 'KNULLIK BIOS Downloader' -m 'Cannot launch the BIOS downloader. Check Python3, SDL2, SDL2_ttf and installed fonts.'
+fi
+exit "$result"
