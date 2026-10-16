@@ -111,6 +111,17 @@ KNULLI_EMULATIONSTATION_KOREAN_ES2_PO = $(firstword $(wildcard \
 
 ifneq ($(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO),)
 define KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_OVERLAY
+	# Validate the canonical Korean catalog before distributing it to locale
+	# directories. A translated-but-invalid placeholder must fail the build.
+	$(HOST_DIR)/bin/msgfmt --check --check-format \
+		$(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) -o /dev/null || exit 1
+	# The upstream POT can be generated after configure on a clean checkout.
+	# When present, additionally catch new untranslated EmulationStation keys.
+	if test -s $(@D)/locale/emulationstation2.pot; then \
+		$(HOST_DIR)/bin/msgcmp \
+			$(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
+			$(@D)/locale/emulationstation2.pot || exit 1; \
+	fi
 	for lang in ko ko_KR; do \
 		mkdir -p $(@D)/locale/lang/$$lang/LC_MESSAGES; \
 		cp -f $(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
@@ -122,7 +133,7 @@ endef
 define KNULLI_EMULATIONSTATION_KOREAN_ES2_PO_INSTALL
 	for lang in ko ko_KR; do \
 		mkdir -p $(TARGET_DIR)/usr/share/locale/$$lang/LC_MESSAGES; \
-		$(HOST_DIR)/bin/msgfmt $(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
+		$(HOST_DIR)/bin/msgfmt --check --check-format $(KNULLI_EMULATIONSTATION_KOREAN_ES2_PO) \
 			-o $(TARGET_DIR)/usr/share/locale/$$lang/LC_MESSAGES/emulationstation2.mo; \
 		echo "Installed Korean emulationstation2.mo for $$lang"; \
 	done
