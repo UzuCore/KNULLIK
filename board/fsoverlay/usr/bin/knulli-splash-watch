@@ -1,0 +1,48 @@
+#!/bin/sh
+# Watch completed PNG copies and atomic renames; do not poll the SD card.
+set -u
+
+WATCH_DIR=/userdata/splash
+PNG="$WATCH_DIR/boot.png"
+HELPER=/usr/bin/knulli-boot-splash
+LOG=/tmp/knullik-splash-watch.log
+
+command -v inotifywait >/dev/null 2>&1 || exit 0
+[ -x "$HELPER" ] || exit 0
+mkdir -p "$WATCH_DIR" || exit 1
+
+WORK=$(mktemp -d /tmp/knullik-splash-watch.XXXXXX) || exit 1
+FIFO="$WORK/events"
+mkfifo "$FIFO" || { rmdir "$WORK"; exit 1; }
+child=
+cleanup() {
+    trap - EXIT HUP INT TERM
+    [ -n "$child" ] && kill "$child" 2>/dev/null || true
+    [ -n "$child" ] && wait "$child" 2>/dev/null || true
+    rm -f "$FIFO"
+    rmdir "$WORK" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
+# CLOSE_WRITE catches in-place copies, MOVED_TO catches atomic upload renames.
+# Ignore deletion/moved-from to avoid disabling CUSTOM during replacement.
+inotifywait --monitor --quiet --event close_write --event moved_to \
+    --format '%f' "$WATCH_DIR" >"$FIFO" 2>>"$LOG" &
+child=$!
+
+while IFS= read -r changed; do
+    [ "$changed" = boot.png ] || continue
+    [ "$(knulli-settings-get splash.screen.mode 2>/dev/null)" = custom ] || continue
+
+    sleep 1
+    [ -f "$PNG" ] && [ ! -L "$PNG" ] || continue
+    before=$(sha256sum "$PNG" 2>/dev/null | cut -d ' ' -f 1)
+    [ -n "$before" ] || continue
+    sleep 1
+    after=$(sha256sum "$PNG" 2>/dev/null | cut -d ' ' -f 1)
+    [ "$before" = "$after" ] || continue
+
+    # A transient/broken copy must not disable the existing CUSTOM setting.
+    "$HELPER" refresh >>"$LOG" 2>&1 || true
+done <"$FIFO"

@@ -4,6 +4,11 @@
 # and mode flag in /boot/boot. This never modifies the boot partition/kernel.
 set -eu
 
+# 'refresh' is called while an uploaded PNG may still be in flight.
+# Keep the old image/selection rather than dropping back to MOTD.
+REJECT_FALLBACK=1
+tmp=
+
 PNG=/userdata/splash/boot.png
 BOOT=/boot/boot
 MODE_FILE="$BOOT/knullik-splash.mode"
@@ -12,7 +17,7 @@ HASH_FILE="$BOOT/knullik-splash.sha256"
 LOCK=/var/run/knulli-boot-splash.lock
 
 usage() {
-    echo 'Usage: knulli-boot-splash sync | set motd | set custom | status' >&2
+    echo 'Usage: knulli-boot-splash sync | refresh | set motd | set custom | status' >&2
     exit 2
 }
 
@@ -41,6 +46,10 @@ reject_custom() {
     # If a previously selected custom PNG is removed/corrupt, deactivate the
     # early boot cache as well; never get stuck showing an obsolete image.
     echo "$1 (boot will use MOTD)" >&2
+    [ -z "$tmp" ] || rm -f "$tmp"
+    # A watcher-triggered refresh is non-destructive. An explicit set/sync
+    # retains the original invalid/missing PNG -> MOTD fallback behavior.
+    [ "$REJECT_FALLBACK" = 1 ] || return 1
     # Keep the EmulationStation preference consistent with the safe boot flag.
     # In particular, selecting Custom Image before copying boot.png must not
     # leave the menu stuck on Custom after the next reboot.
@@ -103,6 +112,13 @@ sync_cache() {
         return 1
     }
 
+    # Refuse to bind a stale digest to a BMP made from a changing PNG.
+    [ "$(sha256sum "$PNG" 2>/dev/null | cut -d ' ' -f 1)" = "$digest" ] || {
+        echo "boot.png changed while rendering; retry on the next close event" >&2
+        rm -f "$tmp"
+        return 1
+    }
+
     mount -o remount,rw /boot || return 1
     trap 'rm -f "$tmp"; rm -f "$BMP_FILE.tmp.$$" "$HASH_FILE.tmp.$$" "$MODE_FILE.tmp.$$"; restore_boot_readonly' EXIT HUP INT TERM
     cp "$tmp" "$BMP_FILE.tmp.$$"
@@ -117,6 +133,11 @@ sync_cache() {
 
 case "${1:-}" in
     sync)
+        sync_cache
+        ;;
+    refresh)
+        # Keep CUSTOM selected if the source is temporarily invalid.
+        REJECT_FALLBACK=0
         sync_cache
         ;;
     set)

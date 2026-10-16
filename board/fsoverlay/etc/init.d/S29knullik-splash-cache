@@ -1,11 +1,53 @@
 #!/bin/sh
-# Refresh the next boot's cached custom PNG after /userdata is mounted.
-# No video playback, no boot image writes and no action in default MOTD mode.
+# Auto-refresh the boot splash cache after SHARE/splash/boot.png changes.
+PIDFILE=/var/run/knullik-splash-watch.pid
+WATCHER=/usr/bin/knulli-splash-watch
+HELPER=/usr/bin/knulli-boot-splash
+LOG=/tmp/knullik-splash-sync.log
+
+# start-stop-daemon --exec cannot reliably recognize a shell-script executable
+# (its /proc/PID/exe is /bin/sh), so check the exact pidfile+cmdline instead.
+watcher_alive() {
+    [ -s "$PIDFILE" ] || return 1
+    read -r pid < "$PIDFILE" || return 1
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    command_line=$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null) || return 1
+    case "$command_line" in
+        "/bin/sh $WATCHER "|"sh $WATCHER ") return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 case "$1" in
     start)
-        [ -x /usr/bin/knulli-boot-splash ] || exit 0
-        [ "$(knulli-settings-get splash.screen.mode 2>/dev/null)" = custom ] || exit 0
-        /usr/bin/knulli-boot-splash sync >/tmp/knullik-splash-sync.log 2>&1 &
+        [ -x "$HELPER" ] || exit 0
+        mkdir -p /userdata/splash
+        if [ -x "$WATCHER" ] && command -v inotifywait >/dev/null 2>&1; then
+            if ! watcher_alive; then
+                rm -f "$PIDFILE"
+                start-stop-daemon -S -q -b -m -p "$PIDFILE" -x "$WATCHER" \
+                    -O /tmp/knullik-splash-watcher-stderr.log || true
+            fi
+        fi
+        # A PNG copied while powered off is picked up during normal startup.
+        if [ "$(knulli-settings-get splash.screen.mode 2>/dev/null)" = custom ]; then
+            "$HELPER" sync >"$LOG" 2>&1 &
+        fi
+        ;;
+    stop)
+        # rcK runs before the filesystems unmount; commit just before reboot.
+        if watcher_alive; then
+            kill "$pid" 2>/dev/null || true
+        fi
+        rm -f "$PIDFILE"
+        if [ "$(knulli-settings-get splash.screen.mode 2>/dev/null)" = custom ]; then
+            "$HELPER" sync >"$LOG" 2>&1 || true
+        fi
+        ;;
+    restart)
+        "$0" stop
+        "$0" start
         ;;
 esac
 exit 0
