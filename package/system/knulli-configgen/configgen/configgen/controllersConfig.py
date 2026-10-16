@@ -191,11 +191,16 @@ def getGamesMetaData(system: str, rom: str | Path) -> dict[str, str]:
         targetSystem = 'arcade'
 
     for nodesystem in root.findall(".//system"):
-        for sysname in nodesystem.get("name").split(','):
-            if sysname == targetSystem:
+        # Recent EmulationStation gamesdb.xml uses <system id="..."> and
+        # <game id="...">, whereas older metadata used name attributes.
+        # Accept both formats and skip unnamed entries without aborting ROM
+        # launches (including Tools scripts) with AttributeError.
+        system_names = (nodesystem.get("name") or nodesystem.get("id") or "").split(',')
+        for sysname in system_names:
+            if sysname.strip() == targetSystem:
                 # search the game named default
                 for nodegame in nodesystem.findall(".//game"):
-                    if nodegame.get("name") == "default":
+                    if (nodegame.get("id") or nodegame.get("name")) == "default":
                         for child in nodegame:
                             for attribute in child.attrib:
                                 key = "{}_{}".format(child.tag, attribute)
@@ -203,7 +208,8 @@ def getGamesMetaData(system: str, rom: str | Path) -> dict[str, str]:
                                 eslog.info("found game metadata {}={} (system level)".format(key, res[key]))
                         break
                 for nodegame in nodesystem.findall(".//game"):
-                    if nodegame.get("name") != "default" and nodegame.get("name") in game:
+                    game_key = nodegame.get("id") or nodegame.get("name")
+                    if game_key and game_key != "default" and game_key.lower() in game:
                         for child in nodegame:
                             for attribute in child.attrib:
                                 key = "{}_{}".format(child.tag, attribute)
