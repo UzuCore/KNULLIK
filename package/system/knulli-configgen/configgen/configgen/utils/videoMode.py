@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import logging
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -147,8 +148,26 @@ def checkModeExists(videomode: str) -> bool:
 
 def changeMouse(mode: bool) -> None:
     eslog.debug(f"changeMouseMode({mode})")
-    proc = subprocess.Popen([f"knulli-mouse {'show' if mode else 'hide'}"], stdout=subprocess.PIPE, shell=True)
-    (out, err) = proc.communicate()
+    # Bare-framebuffer platforms (for example H700) deliberately have no
+    # desktop cursor helper. Calling an absent helper through /bin/sh prints
+    # an error for every shell script/ROM launch; it is not an emulator error.
+    helper = shutil.which("knulli-mouse")
+    if helper is None:
+        eslog.debug("No desktop mouse helper on this platform; skipping cursor toggle")
+        return
+
+    # Keep the optional cursor handler from turning a game launch into a
+    # configgen failure (exit -1 appears as 255 in EmulationStation).
+    try:
+        proc = subprocess.run([helper, "show" if mode else "hide"],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, check=False)
+    except OSError as exc:
+        eslog.warning("Could not run knulli-mouse helper: %s", exc)
+        return
+    if proc.returncode != 0:
+        eslog.warning("knulli-mouse returned %s: %s", proc.returncode,
+                      proc.stderr.strip())
 
 def getGLVersion() -> float:
     try:
