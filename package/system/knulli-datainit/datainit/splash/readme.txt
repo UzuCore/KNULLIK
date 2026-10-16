@@ -10,11 +10,12 @@ When the graphics renderer cannot display a picture, the previous boot
 display remains the safe fallback.
 
 The renderer detects the active framebuffer geometry (320x480, 640x480,
-720x480, 1280x720 and other sizes), scales without cropping, centers the
-artwork, and adds black letterboxing where the aspect ratio differs. If the
-framebuffer scan-out is portrait while the image is landscape, it can rotate
-the artwork 90 degrees; known devices with opposite native panel direction
-use a 270-degree or unrotated preset instead.
+720x480, 1280x720 and other sizes) and STRETCHES the artwork to fill the
+ENTIRE screen. Source aspect ratio is intentionally not preserved: the logo
+can be wider or taller, but there are no added black borders, letterboxing,
+or crops. If the framebuffer scan-out is portrait while the image is
+landscape, the artwork is rotated 90 degrees first; known devices with
+opposite native panel direction use a 270-degree or unrotated preset instead.
 
 If a specific panel needs a different orientation, put a single line in
 the boot partition's boot/knullik-splash.rotate file: auto, 0, 90, 180, or

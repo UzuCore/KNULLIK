@@ -275,30 +275,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Rotate the surface 90 degrees counter-clockwise on portrait framebuffers.
-    // rotozoomSurface may produce a surface slightly larger than the target due
-    // to rotation padding, so we blit it centered into a clean surface of the
-    // exact target dimensions to avoid any border artifacts.
-    if (dynamicLogo) {
-        // SDL's output is already in logical landscape coordinates. Fit the
-        // artwork in the window without stretching or cropping the wordmark.
-        SDL_Surface* fitted = SDL_CreateRGBSurfaceWithFormat(0, screenWidth,
-                                                              screenHeight, 32,
-                                                              SDL_PIXELFORMAT_ARGB8888);
-        if (fitted) {
-            SDL_FillRect(fitted, NULL, SDL_MapRGB(fitted->format, 0, 0, 0));
-            SDL_Rect target = {0, 0, screenWidth, screenHeight};
-            if ((int64_t)screenWidth * bgSurface->h > (int64_t)screenHeight * bgSurface->w)
-                target.w = (int)((int64_t)screenHeight * bgSurface->w / bgSurface->h);
-            else
-                target.h = (int)((int64_t)screenWidth * bgSurface->h / bgSurface->w);
-            target.x = (screenWidth - target.w) / 2;
-            target.y = (screenHeight - target.h) / 2;
-            SDL_BlitScaled(bgSurface, NULL, fitted, &target);
-            SDL_FreeSurface(bgSurface);
-            bgSurface = fitted;
-        }
-    } else if (vinfo.xres < vinfo.yres) {
+    // The common KNULLIK image is already in logical landscape orientation.
+    // Below, SDL_RenderCopy(bgTexture, NULL, NULL) stretches it to the FULL
+    // window independently in X and Y (no padding, letterboxing or cropping).
+    // Preserve the pre-existing rotation only for legacy framebuffer assets.
+    if (!dynamicLogo && vinfo.xres < vinfo.yres) {
         SDL_Surface* rotatedSurface = rotozoomSurface(bgSurface, -90, 1.0, 0);
         SDL_FreeSurface(bgSurface);
         bgSurface = NULL;

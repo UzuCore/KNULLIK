@@ -394,17 +394,17 @@ int main(int argc, char *argv[]) {
     const int present_rot = (((portrait_fb ? 90 : 0) + extra_deg) % 360 + 360) % 360;
     const int logo_rot     = (360 - present_rot) % 360;
 
-    // Build the background logo, pre-scaled to the logical dimensions.
+    // Build the background logo at the full logical framebuffer dimensions.
+    bool stretchKnullikLogo = false;
     SDL_Surface *logo = NULL;
     {
-        bool dynamicLogo = false;
-        SDL_Surface *raw = load_boot_logo(vinfo.xres, vinfo.yres, &dynamicLogo);
+        SDL_Surface *raw = load_boot_logo(vinfo.xres, vinfo.yres, &stretchKnullikLogo);
         if (raw) {
             SDL_Surface *oriented = raw;
             // Old files are already authored for physical panel coordinates.
             // Our new bundled BMP is a logical landscape image: rotate the
             // final frame, not the source (pre-rotation would cancel it).
-            if (!dynamicLogo && logo_rot != 0) {
+            if (!stretchKnullikLogo && logo_rot != 0) {
                 SDL_Surface *r = rotozoomSurface(raw, logo_rot, 1.0, 0);
                 if (r) oriented = r;
             }
@@ -412,18 +412,10 @@ int main(int argc, char *argv[]) {
                                                   SDL_PIXELFORMAT_ARGB8888);
             if (logo) {
                 SDL_FillRect(logo, NULL, SDL_MapRGB(logo->format, 0, 0, 0));
-                if (dynamicLogo) {
-                    SDL_Rect target = {0, 0, screenWidth, screenHeight};
-                    if ((int64_t)screenWidth * oriented->h > (int64_t)screenHeight * oriented->w)
-                        target.w = (int)((int64_t)screenHeight * oriented->w / oriented->h);
-                    else
-                        target.h = (int)((int64_t)screenWidth * oriented->h / oriented->w);
-                    target.x = (screenWidth - target.w) / 2;
-                    target.y = (screenHeight - target.h) / 2;
-                    SDL_BlitScaled(oriented, NULL, logo, &target);
-                } else {
-                    SDL_BlitScaled(oriented, NULL, logo, NULL);
-                }
+                // Scale both axes to screenWidth x screenHeight independently
+                // for the bundled/user KNULLIK image, so no black bars remain.
+                // The old legacy progressbar asset keeps its prior blit logic.
+                SDL_BlitScaled(oriented, NULL, logo, NULL);
             }
             if (oriented != raw) SDL_FreeSurface(oriented);
             SDL_FreeSurface(raw);
@@ -514,9 +506,16 @@ int main(int argc, char *argv[]) {
                                                                    32, SDL_PIXELFORMAT_ARGB8888);
                 if (phys) {
                     SDL_FillRect(phys, NULL, SDL_MapRGB(phys->format, 0, 0, 0));
-                    SDL_Rect dr = {((int)vinfo.xres - rot->w) / 2,
-                                   ((int)vinfo.yres - rot->h) / 2, rot->w, rot->h};
-                    SDL_BlitSurface(rot, NULL, phys, &dr);
+                    if (stretchKnullikLogo) {
+                        // rotozoomSurface can round the rotated size by 1px.
+                        // Map all pixels to the real panel, not a centered
+                        // smaller rectangle with a thin black fringe.
+                        SDL_BlitScaled(rot, NULL, phys, NULL);
+                    } else {
+                        SDL_Rect dr = {((int)vinfo.xres - rot->w) / 2,
+                                       ((int)vinfo.yres - rot->h) / 2, rot->w, rot->h};
+                        SDL_BlitSurface(rot, NULL, phys, &dr);
+                    }
                     blit_to_fb(phys);
                     SDL_FreeSurface(phys);
                 }

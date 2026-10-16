@@ -650,24 +650,20 @@ static int draw_boot_bmp(struct fbctx *fb, const char *path, const char *rotatio
         received += (size_t)n;
     }
 
-    // First rotate logical source dimensions, then letterbox without cropping.
-    // Nearest-neighbor interpolation keeps fine pixel-art details crisp.
+    // Rotate first, then stretch to the entire native framebuffer, scaling X
+    // and Y independently. No aspect-ratio lock, cropping, or letterbox bars.
+    // Nearest-neighbor interpolation keeps the pixel-art logo crisp.
     int degrees = splash_rotation(rotation, fb->xres, fb->yres, width, source_height);
     if (degrees < 0) goto done;
     int rw = degrees == 90 || degrees == 270 ? source_height : width;
     int rh = degrees == 90 || degrees == 270 ? width : source_height;
-    int dw = fb->xres, dh = fb->yres;
-    if ((int64_t)dw * rh > (int64_t)dh * rw)
-        dw = (int)((int64_t)dh * rw / rh);
-    else
-        dh = (int)((int64_t)dw * rh / rw);
-    if (dw <= 0 || dh <= 0) goto done;
-    int left = (fb->xres - dw) / 2, top = (fb->yres - dh) / 2;
-    clear_screen(fb, make_color(fb, 0, 0, 0));
-    for (int y = 0; y < dh; y++) {
-        int ry = (int)((int64_t)y * rh / dh);
-        for (int x = 0; x < dw; x++) {
-            int rx = (int)((int64_t)x * rw / dw);
+    if (fb->xres <= 0 || fb->yres <= 0) goto done;
+    // Every output pixel is replaced, so an extra framebuffer clear would
+    // introduce unnecessary writes and can cause a visible black flash.
+    for (int y = 0; y < fb->yres; y++) {
+        int ry = (int)((int64_t)y * rh / fb->yres);
+        for (int x = 0; x < fb->xres; x++) {
+            int rx = (int)((int64_t)x * rw / fb->xres);
             int sx, sy;
             switch (degrees) {
                 case 90:  sx = ry;             sy = source_height - 1 - rx; break;
@@ -678,7 +674,7 @@ static int draw_boot_bmp(struct fbctx *fb, const char *path, const char *rotatio
             if (height > 0) sy = source_height - 1 - sy; // BMP bottom-up storage
             const uint8_t *src = image + (size_t)sy * row_bytes;
             const uint8_t *pixel = src + (size_t)sx * 3;
-            put_pixel(fb, left + x, top + y,
+            put_pixel(fb, x, y,
                       make_color(fb, pixel[2], pixel[1], pixel[0]));
         }
     }

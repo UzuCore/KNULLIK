@@ -1,5 +1,5 @@
 #!/bin/sh
-# KNULLIK boot screen selector: default MOTD or /userdata/splash/boot.png.
+# KNULLIK boot screen selector: built-in logo, user PNG, or explicit MOTD.
 # Initramfs cannot decode PNG or access /userdata, so we pre-cache a small BMP
 # and mode flag in /boot/boot. This never modifies the boot partition/kernel.
 set -eu
@@ -14,6 +14,10 @@ BOOT=/boot/boot
 MODE_FILE="$BOOT/knullik-splash.mode"
 BMP_FILE="$BOOT/knullik-splash.bmp"
 HASH_FILE="$BOOT/knullik-splash.sha256"
+# Invalidate old cached BMPs that had black letterbox bars baked into them.
+# The checksum remains the real, unmodified SHA-256 of the source PNG.
+CACHE_FORMAT_FILE="$BOOT/knullik-splash.format"
+CACHE_FORMAT=stretch-v1
 LOCK=/var/run/knulli-boot-splash.lock
 
 usage() {
@@ -92,17 +96,19 @@ sync_cache() {
     }
     digest=$(sha256sum "$PNG" | cut -d ' ' -f 1)
     if [ -s "$BMP_FILE" ] && [ "$(cat "$HASH_FILE" 2>/dev/null || true)" = "$digest" ] &&
+       [ "$(cat "$CACHE_FORMAT_FILE" 2>/dev/null || true)" = "$CACHE_FORMAT" ] &&
        [ "$(cat "$MODE_FILE" 2>/dev/null || true)" = custom ]; then
         return 0
     fi
 
-    # ffmpeg runs in the full rootfs only. Letterbox to 720x480, preserving
-    # the original aspect ratio; the fbboot renderer adapts to other panels.
+    # ffmpeg runs in the full rootfs only. Resize X and Y independently to
+    # 720x480, with NO aspect ratio preservation, padding, or cropping. The
+    # framebuffer renderer then stretches this full image to the actual panel.
     tmp=$(mktemp /tmp/knullik-custom-splash.XXXXXX.bmp)
     trap 'rm -f "$tmp"' EXIT HUP INT TERM
     timeout 30 ffmpeg -hide_banner -nostdin -loglevel error -y \
         -i "$PNG" \
-        -vf 'scale=720:480:force_original_aspect_ratio=decrease,pad=720:480:(ow-iw)/2:(oh-ih)/2:black' \
+        -vf 'scale=720:480:flags=neighbor' \
         -frames:v 1 -pix_fmt bgr24 -c:v bmp -f image2 "$tmp" || {
         reject_custom 'Cannot decode custom boot PNG'
         return 1
@@ -120,11 +126,13 @@ sync_cache() {
     }
 
     mount -o remount,rw /boot || return 1
-    trap 'rm -f "$tmp"; rm -f "$BMP_FILE.tmp.$$" "$HASH_FILE.tmp.$$" "$MODE_FILE.tmp.$$"; restore_boot_readonly' EXIT HUP INT TERM
+    trap 'rm -f "$tmp"; rm -f "$BMP_FILE.tmp.$$" "$HASH_FILE.tmp.$$" "$CACHE_FORMAT_FILE.tmp.$$" "$MODE_FILE.tmp.$$"; restore_boot_readonly' EXIT HUP INT TERM
     cp "$tmp" "$BMP_FILE.tmp.$$"
     mv -f "$BMP_FILE.tmp.$$" "$BMP_FILE"
     printf '%s\n' "$digest" > "$HASH_FILE.tmp.$$"
     mv -f "$HASH_FILE.tmp.$$" "$HASH_FILE"
+    printf '%s\n' "$CACHE_FORMAT" > "$CACHE_FORMAT_FILE.tmp.$$"
+    mv -f "$CACHE_FORMAT_FILE.tmp.$$" "$CACHE_FORMAT_FILE"
     # Commit mode last: never select custom mode without a complete BMP.
     write_mode custom
     sync
