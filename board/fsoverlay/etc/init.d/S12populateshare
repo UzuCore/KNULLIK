@@ -127,6 +127,23 @@ for FILE in music bios extractions kodi library saves screenshots recordings spl
             bios/ps2 \
             system/configs/pironman5
 do
+    # Seed packaged splash assets (including the default boot.png) only when
+    # absent. Users can replace SHARE/splash/boot.png with their own image;
+    # firmware updates must never overwrite that custom image.
+    if [ "$FILE" = "splash" ]; then
+        mkdir -p "${OUT}/splash"
+        if [ -d "${IN}/splash" ]; then
+            for SOURCE_FILE in "${IN}/splash/"*; do
+                [ -f "$SOURCE_FILE" ] || continue
+                DEST_FILE="${OUT}/splash/$(basename "$SOURCE_FILE")"
+                if [ ! -e "$DEST_FILE" ] && [ ! -L "$DEST_FILE" ]; then
+                    cp -p "$SOURCE_FILE" "$DEST_FILE"
+                fi
+            done
+        fi
+        continue
+    fi
+
     # Skip updating specific files
     if [ "$FILE" = "system/configs/emulationstation/${es_settings}" ] || [ "$FILE" = "system/knulli.conf" ] || [ "$FILE" = "system/.kodi/userdata/guisettings.xml" ]; then
         # Check if the file doesn't exist, then create it
