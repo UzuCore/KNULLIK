@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Do not overwrite the user's full-screen PNG with status text.
+if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
+   [ -s /boot/boot/knullik-splash.bmp ]; then
+    exit 0
+fi
+
 # Lightweight fb0 boot status helper.
 # Usage:
 #   knulli-boot-status "Starting EmulationStation"
@@ -26,7 +32,9 @@ case "$1" in
     --done|done|clear|--clear)
         : > "$STOP_FILE"
         rm -f "$LAST_FILE"
-        [ -x "$FBBOOT" ] && "$FBBOOT" clear-status >/dev/null 2>&1 || true
+        if ! /usr/bin/knulli-text-console clear-status >/dev/null 2>&1; then
+            [ -x "$FBBOOT" ] && "$FBBOOT" clear-status >/dev/null 2>&1 || true
+        fi
         exit 0
         ;;
 esac
@@ -40,6 +48,8 @@ if [ -f "$LAST_FILE" ] && [ "$(cat "$LAST_FILE" 2>/dev/null)" = "$formatted" ]; 
 fi
 
 printf '%s\n' "$formatted" > "$LAST_FILE"
-"$FBBOOT" msg "$formatted" >/dev/null 2>&1 || true
+if ! /usr/bin/knulli-text-console msg "$formatted" >/dev/null 2>&1; then
+    "$FBBOOT" msg "$formatted" >/dev/null 2>&1 || true
+fi
 
 exit 0

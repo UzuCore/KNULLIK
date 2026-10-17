@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Render the canonical KNULLIK MOTD on fb0 from 30-welcome.sh.
+# Render the canonical KNULLIK MOTD on fb0 (or the H700 text VT if available).
 # Single source of truth after rootfs starts:
 #   /etc/profile.d/30-welcome.sh
 #
@@ -11,11 +11,22 @@ FBBOOT=/usr/bin/knulli-fbboot
 MOTD_SCRIPT=/etc/profile.d/30-welcome.sh
 VERSION_FILE=/usr/share/knulli/knulli.version
 MOTD_FALLBACK=/usr/share/knulli/boot-motd
+CONSOLE_MOTD_FALLBACK=/usr/share/knulli/console-motd
 RAW_CACHE=/tmp/knulli-fbboot.raw-motd
 COMPACT_CACHE=/tmp/knulli-fbboot.compact-motd
+CONSOLE_CACHE=/tmp/knulli-console-motd.txt
 LOCK=/tmp/knulli-console-motd-real-rendered
 
 [ -x "$FBBOOT" ] || exit 0
+
+# Custom mode displays a user image instead of the ASCII MOTD.
+if [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
+   [ -s /boot/boot/knullik-splash.bmp ]; then
+    if "$FBBOOT" bmp /boot/boot/knullik-splash.bmp >/dev/null 2>&1; then
+        : > "$LOCK"
+        exit 0
+    fi
+fi
 
 strip_ansi() {
     sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g'
@@ -31,7 +42,7 @@ first_existing_file_line() {
 }
 
 make_compact_motd() {
-    rm -f "$RAW_CACHE" "$COMPACT_CACHE" /tmp/knulli-fbboot.plain-motd /tmp/knulli-fbboot.logo-motd
+    rm -f "$RAW_CACHE" "$COMPACT_CACHE" "$CONSOLE_CACHE" /tmp/knulli-fbboot.plain-motd /tmp/knulli-fbboot.logo-motd
 
     if [ -f "$MOTD_SCRIPT" ]; then
         HOME=/root TERM=linux /bin/sh "$MOTD_SCRIPT" > "$RAW_CACHE" 2>/dev/null || true
@@ -52,7 +63,7 @@ make_compact_motd() {
     # In case the shell MOTD is unavailable, use the generated build-time
     # output, never an independently maintained ASCII fallback logo.
     if [ ! -s /tmp/knulli-fbboot.logo-motd ]; then
-        for FALLBACK in "$MOTD_FALLBACK"; do
+        for FALLBACK in "$CONSOLE_MOTD_FALLBACK" "$MOTD_FALLBACK"; do
             [ -s "$FALLBACK" ] || continue
             awk '
                 /^[[:space:]]*([Mm][Oo][Dd][Ee][Ll]|[Bb][Uu][Ii][Ll][Dd]|[Oo][Ss][[:space:]]+[Vv][Ee][Rr][Ss][Ii][Oo][Nn])[[:space:]]*:/ { exit }
@@ -94,11 +105,15 @@ make_compact_motd() {
         printf '\033[36mMODEL:\033[0m %s\n' "$MODEL"
         printf '\033[36mBUILD:\033[0m %s\n' "$BUILD"
     } > "$COMPACT_CACHE"
+    cp "$COMPACT_CACHE" "$CONSOLE_CACHE"
 }
 
 render_compact_motd() {
     make_compact_motd
-    if [ -s "$COMPACT_CACHE" ]; then
+    if [ -x /usr/bin/knulli-text-console ] && [ -s "$CONSOLE_CACHE" ] && \
+        /usr/bin/knulli-text-console reset "$CONSOLE_CACHE"; then
+        /usr/bin/knulli-text-console msg "Loading, please wait" >/dev/null 2>&1 || true
+    elif [ -s "$COMPACT_CACHE" ]; then
         "$FBBOOT" file "$COMPACT_CACHE" >/dev/null 2>&1 || true
     elif [ -s "$MOTD_FALLBACK" ]; then
         "$FBBOOT" file "$MOTD_FALLBACK" >/dev/null 2>&1 || true
@@ -111,7 +126,9 @@ if [ ! -e "$LOCK" ]; then
     : > "$LOCK"
     render_compact_motd
 else
-    "$FBBOOT" msg "Loading, please wait" >/dev/null 2>&1 || true
+    if ! /usr/bin/knulli-text-console msg "Loading, please wait" >/dev/null 2>&1; then
+        "$FBBOOT" msg "Loading, please wait" >/dev/null 2>&1 || true
+    fi
 fi
 
 exit 0

@@ -1,7 +1,27 @@
 #!/bin/ash
 
 fbboot() {
-    /bin/knulli-fbboot "$@" >/dev/null 2>&1 || true
+    action="$1"
+    shift
+    # The user-selected mode lives on the boot FAT. Wait for the mount before
+    # drawing, so CUSTOM mode never flashes the MOTD first.
+    [ "${KNULLIK_SPLASH_MODE_KNOWN:-0}" = "1" ] || return 0
+    # A successfully drawn custom PNG owns the display until ES starts.
+    [ "${KNULLIK_CUSTOM_SPLASH_ACTIVE:-0}" = "1" ] && return 0
+
+    case "$action" in
+        reset)
+            /bin/knulli-text-console reset /etc/knulli-console-motd && return 0
+            ;;
+        msg)
+            /bin/knulli-text-console msg "$@" && return 0
+            ;;
+        clear-status)
+            /bin/knulli-text-console clear-status && return 0
+            ;;
+    esac
+
+    /bin/knulli-fbboot "$action" "$@" >/dev/null 2>&1 || true
 }
 
 do_mount() {
@@ -19,9 +39,8 @@ do_root() {
     mount -t sysfs -o nodev,noexec,nosuid sysfs /sys    || return 1
     mount -t devtmpfs none /dev
 
-    # ROCKNIXK: early fake boot console on framebuffer.
-    fbboot reset "KNULLIK"
-    fbboot msg "Initramfs started"
+    # All drawing begins after boot root is mounted and the mode is known.
+    # This prevents an unwanted MOTD flash in Custom Image mode.
 
     # read the parameters
     read -r cmdline < /proc/cmdline
@@ -71,6 +90,20 @@ do_root() {
             fi
         done
     done
+
+    # The boot FAT is now mounted. Custom PNG was converted into a small BMP
+    # cache by the rootfs, so initramfs needs no PNG decoder or userdata.
+    KNULLIK_SPLASH_MODE_KNOWN=1
+    if [ "$(cat /boot_root/boot/knullik-splash.mode 2>/dev/null)" = custom ] &&
+       [ -s /boot_root/boot/knullik-splash.bmp ]; then
+        if /bin/knulli-fbboot bmp /boot_root/boot/knullik-splash.bmp >/dev/null 2>&1; then
+            KNULLIK_CUSTOM_SPLASH_ACTIVE=1
+        fi
+    fi
+    if [ "${KNULLIK_CUSTOM_SPLASH_ACTIVE:-0}" != "1" ]; then
+        fbboot reset "KNULLIK"
+        fbboot msg "Mounted boot root"
+    fi
 
     # update the squashfs
     if test -e /boot_root/boot/knulli.update

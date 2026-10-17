@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Watches KNULLI's boot status file and mirrors useful progress messages to fb0.
+# Watches KNULLI's boot status file and mirrors useful progress to the boot display.
 # It exits as soon as the frontend is ready or a boot hook calls
 # `knulli-boot-status --done`, preventing late flicker over EmulationStation.
 

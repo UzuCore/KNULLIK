@@ -14,7 +14,7 @@ case "$1" in
         fi
 
         # Dynamic lower-line updater. It watches /tmp/status.txt, which KNULLI
-        # already updates during init, and mirrors friendly progress messages to fb0.
+        # already updates during init, and mirrors progress to the boot console.
         if [ -x /usr/bin/knulli-boot-status-watcher ]; then
             /usr/bin/knulli-boot-status-watcher >/dev/null 2>&1 &
         fi

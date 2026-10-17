@@ -17,6 +17,12 @@ KNULLI_INITRAMFS_FBBOOT_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli
 KNULLI_INITRAMFS_BOOT_MOTD_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/etc/profile.d/30-welcome.sh
 KNULLI_INITRAMFS_BOOT_MOTD_GEN = $(BR2_EXTERNAL_KNULLI_PATH)/scripts/rocknixk-generate-boot-motd-from-welcome.py
 KNULLI_INITRAMFS_BOOT_MOTD_GENERATED = $(BUILD_DIR)/knulli-boot-motd/default-motd.txt
+KNULLI_INITRAMFS_CONSOLE_MOTD_GENERATED = $(BUILD_DIR)/knulli-boot-motd/console-motd.txt
+KNULLI_INITRAMFS_TEXT_CONSOLE_SOURCE = $(BR2_EXTERNAL_KNULLI_PATH)/board/fsoverlay/usr/bin/knulli-text-console
+
+ifeq ($(BR2_PACKAGE_BATOCERA_TARGET_H700),y)
+KNULLI_INITRAMFS_TEXT_CONSOLE_MARKER = y
+endif
 
 KNULLI_INITRAMFS_KCONFIG_FILE = \
     $(BR2_EXTERNAL_KNULLI_PATH)/package/boot/knulli-initramfs/busybox.config
@@ -74,10 +80,14 @@ define KNULLI_INITRAMFS_INSTALL_TARGET_CMDS
         mkdir -p $(INITRAMFS_DIR)/bin $(TARGET_DIR)/usr/bin
         cp $(@D)/knulli-fbboot $(INITRAMFS_DIR)/bin/knulli-fbboot
         cp $(@D)/knulli-fbboot $(TARGET_DIR)/usr/bin/knulli-fbboot
+	cp $(KNULLI_INITRAMFS_TEXT_CONSOLE_SOURCE) $(INITRAMFS_DIR)/bin/knulli-text-console
+	cp $(KNULLI_INITRAMFS_TEXT_CONSOLE_SOURCE) $(TARGET_DIR)/usr/bin/knulli-text-console
+	chmod 0755 $(INITRAMFS_DIR)/bin/knulli-text-console $(TARGET_DIR)/usr/bin/knulli-text-console
 	# KNULLI-KR generated boot MOTD install hook BEGIN
 	@mkdir -p $(INITRAMFS_DIR)/etc $(TARGET_DIR)/usr/share/knulli $(dir $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED))
-	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE); then 		BUILD_TEXT="$$(cat $(TARGET_DIR)/usr/share/knulli/knulli.version 2>/dev/null || true)"; 		KNULLI_BOOT_MOTD_MODEL="KNULLIK" KNULLI_BOOT_MOTD_BUILD="$${BUILD_TEXT:-INITIALIZING}" 			python3 $(KNULLI_INITRAMFS_BOOT_MOTD_GEN) 			--welcome $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) 			--output $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) 			--max-logo-lines 9; 	else 		echo "WARNING: $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) not found; using compiled fallback"; 	fi
-	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED); then 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(INITRAMFS_DIR)/etc/knulli-boot-motd; 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(TARGET_DIR)/usr/share/knulli/boot-motd; 		echo "Installed generated KNULLI-KR boot MOTD from 30-welcome.sh"; 	fi
+	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE); then 		BUILD_TEXT="$$(cat $(TARGET_DIR)/usr/share/knulli/knulli.version 2>/dev/null || true)"; 		KNULLI_BOOT_MOTD_MODEL="KNULLIK" KNULLI_BOOT_MOTD_BUILD="$${BUILD_TEXT:-INITIALIZING}" 			python3 $(KNULLI_INITRAMFS_BOOT_MOTD_GEN) 			--welcome $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) 			--output $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) 			--console-output $(KNULLI_INITRAMFS_CONSOLE_MOTD_GENERATED) 			--max-logo-lines 9; 	else 		echo "WARNING: $(KNULLI_INITRAMFS_BOOT_MOTD_SOURCE) not found; using compiled fallback"; 	fi
+	@if test -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED); then 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(INITRAMFS_DIR)/etc/knulli-boot-motd; 		cp -f $(KNULLI_INITRAMFS_BOOT_MOTD_GENERATED) $(TARGET_DIR)/usr/share/knulli/boot-motd; 		if test -f $(KNULLI_INITRAMFS_CONSOLE_MOTD_GENERATED); then 			cp -f $(KNULLI_INITRAMFS_CONSOLE_MOTD_GENERATED) $(INITRAMFS_DIR)/etc/knulli-console-motd; 			cp -f $(KNULLI_INITRAMFS_CONSOLE_MOTD_GENERATED) $(TARGET_DIR)/usr/share/knulli/console-motd; 		fi; 		echo "Installed generated KNULLI-KR boot MOTD from 30-welcome.sh"; 	fi
+	@if test "$(KNULLI_INITRAMFS_TEXT_CONSOLE_MARKER)" = "y"; then 		mkdir -p $(INITRAMFS_DIR)/etc; 		touch $(INITRAMFS_DIR)/etc/knulli-text-console; 	else 		rm -f $(INITRAMFS_DIR)/etc/knulli-text-console; 	fi
 	# KNULLI-KR generated boot MOTD install hook END
 
         (cd $(INITRAMFS_DIR) && find . | cpio -H newc -o > $(BINARIES_DIR)/initrd)

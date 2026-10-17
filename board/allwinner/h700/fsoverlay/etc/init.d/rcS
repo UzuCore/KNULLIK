@@ -24,8 +24,22 @@ else
     /usr/bin/charger
 fi
 
-# Start the progress bar
-/usr/bin/progressbar &
+# Use the kernel framebuffer text console when it is bound to fb0. Keep the
+# SDL renderer as a fallback for kernels or devices without fbcon.
+HAVE_FBCON=no
+for VTCON in /sys/class/vtconsole/vtcon*; do
+    [ -r "$VTCON/name" ] || continue
+    if [ "$(cat "$VTCON/name")" = "frame buffer device" ] && [ "$(cat "$VTCON/bind" 2>/dev/null)" = "1" ]; then
+        HAVE_FBCON=yes
+        break
+    fi
+done
+
+if [ "$HAVE_FBCON" != "yes" ] &&
+   { [ "$(cat /boot/boot/knullik-splash.mode 2>/dev/null)" != custom ] ||
+     [ ! -s /boot/boot/knullik-splash.bmp ]; }; then
+    /usr/bin/progressbar &
+fi
 
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.

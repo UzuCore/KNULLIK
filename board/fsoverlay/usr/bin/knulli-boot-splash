@@ -1,0 +1,140 @@
+#!/bin/sh
+# KNULLIK boot screen selector: default MOTD or /userdata/splash/boot.png.
+# Initramfs cannot decode PNG or access /userdata, so we pre-cache a small BMP
+# and mode flag in /boot/boot. This never modifies the boot partition/kernel.
+set -eu
+
+PNG=/userdata/splash/boot.png
+BOOT=/boot/boot
+MODE_FILE="$BOOT/knullik-splash.mode"
+BMP_FILE="$BOOT/knullik-splash.bmp"
+HASH_FILE="$BOOT/knullik-splash.sha256"
+LOCK=/var/run/knulli-boot-splash.lock
+
+usage() {
+    echo 'Usage: knulli-boot-splash sync | set motd | set custom | status' >&2
+    exit 2
+}
+
+read_mode() {
+    value=$(knulli-settings-get splash.screen.mode 2>/dev/null || true)
+    case "$value" in
+        custom) printf 'custom\n' ;;
+        *) printf 'motd\n' ;;
+    esac
+}
+
+write_mode() {
+    value=$1
+    current=$(cat "$MODE_FILE" 2>/dev/null || true)
+    [ "$current" = "$value" ] && return 0
+    printf '%s\n' "$value" > "$MODE_FILE.tmp.$$"
+    mv -f "$MODE_FILE.tmp.$$" "$MODE_FILE"
+}
+
+restore_boot_readonly() {
+    sync || true
+    mount -o remount,ro /boot || true
+}
+
+reject_custom() {
+    # If a previously selected custom PNG is removed/corrupt, deactivate the
+    # early boot cache as well; never get stuck showing an obsolete image.
+    echo "$1 (boot will use MOTD)" >&2
+    # Keep the EmulationStation preference consistent with the safe boot flag.
+    # In particular, selecting Custom Image before copying boot.png must not
+    # leave the menu stuck on Custom after the next reboot.
+    knulli-settings-set splash.screen.mode motd >/dev/null 2>&1 || true
+    if [ "$(cat "$MODE_FILE" 2>/dev/null || true)" = custom ]; then
+        mount -o remount,rw /boot || return 1
+        trap restore_boot_readonly EXIT HUP INT TERM
+        write_mode motd
+    fi
+    return 1
+}
+
+sync_cache() {
+    [ -d "$BOOT" ] || { echo 'Boot folder missing' >&2; return 1; }
+    exec 9>"$LOCK"
+    flock -x 9
+    selected=$(read_mode)
+    if [ "$selected" = motd ]; then
+        [ "$(cat "$MODE_FILE" 2>/dev/null || true)" = motd ] && return 0
+        mount -o remount,rw /boot || return 1
+        trap restore_boot_readonly EXIT HUP INT TERM
+        write_mode motd
+        return 0
+    fi
+
+    # Only PNG files, no symbolic links or other codecs masquerading as PNG.
+    if [ ! -f "$PNG" ] || [ -L "$PNG" ]; then
+        reject_custom "Custom PNG missing: $PNG"
+        return 1
+    fi
+    signature=$(head -c 8 "$PNG" | od -An -tx1 | tr -d ' \n')
+    [ "$signature" = 89504e470d0a1a0a ] || {
+        reject_custom "Invalid PNG signature: $PNG"
+        return 1
+    }
+    size=$(stat -c %s "$PNG")
+    [ "$size" -ge 67 ] && [ "$size" -le 20971520 ] || {
+        reject_custom 'PNG must be between 67 bytes and 20 MiB'
+        return 1
+    }
+    digest=$(sha256sum "$PNG" | cut -d ' ' -f 1)
+    if [ -s "$BMP_FILE" ] && [ "$(cat "$HASH_FILE" 2>/dev/null || true)" = "$digest" ] &&
+       [ "$(cat "$MODE_FILE" 2>/dev/null || true)" = custom ]; then
+        return 0
+    fi
+
+    # ffmpeg runs in the full rootfs only. Letterbox to 720x480, preserving
+    # the original aspect ratio; the fbboot renderer adapts to other panels.
+    tmp=$(mktemp /tmp/knullik-custom-splash.XXXXXX.bmp)
+    trap 'rm -f "$tmp"' EXIT HUP INT TERM
+    timeout 30 ffmpeg -hide_banner -nostdin -loglevel error -y \
+        -i "$PNG" \
+        -vf 'scale=720:480:force_original_aspect_ratio=decrease,pad=720:480:(ow-iw)/2:(oh-ih)/2:black' \
+        -frames:v 1 -pix_fmt bgr24 -c:v bmp -f image2 "$tmp" || {
+        reject_custom 'Cannot decode custom boot PNG'
+        return 1
+    }
+    [ "$(head -c 2 "$tmp")" = BM ] && [ "$(stat -c %s "$tmp")" -le 2097152 ] || {
+        reject_custom 'Generated BMP is invalid or too large'
+        return 1
+    }
+
+    mount -o remount,rw /boot || return 1
+    trap 'rm -f "$tmp"; rm -f "$BMP_FILE.tmp.$$" "$HASH_FILE.tmp.$$" "$MODE_FILE.tmp.$$"; restore_boot_readonly' EXIT HUP INT TERM
+    cp "$tmp" "$BMP_FILE.tmp.$$"
+    mv -f "$BMP_FILE.tmp.$$" "$BMP_FILE"
+    printf '%s\n' "$digest" > "$HASH_FILE.tmp.$$"
+    mv -f "$HASH_FILE.tmp.$$" "$HASH_FILE"
+    # Commit mode last: never select custom mode without a complete BMP.
+    write_mode custom
+    sync
+    echo "Custom KNULLIK boot PNG cached: $PNG"
+}
+
+case "${1:-}" in
+    sync)
+        sync_cache
+        ;;
+    set)
+        case "${2:-}" in
+            motd|custom)
+                # Save the selected mode as an ordinary EmulationStation setting.
+                knulli-settings-set splash.screen.mode "$2"
+                sync_cache
+                ;;
+            *) usage ;;
+        esac
+        ;;
+    status)
+        printf 'selected=%s\n' "$(read_mode)"
+        printf 'boot_cache_mode=%s\n' "$(cat "$MODE_FILE" 2>/dev/null || echo motd)"
+        printf 'png=%s\n' "$PNG"
+        [ -s "$PNG" ] && echo png_present=yes || echo png_present=no
+        [ -s "$BMP_FILE" ] && echo bmp_present=yes || echo bmp_present=no
+        ;;
+    *) usage ;;
+esac

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+# Route the H700 boot MOTD to the active Linux VT when fbcon is available.
+# Other targets keep using the framebuffer renderer.
+ARCH_FILE=/usr/share/knulli/knulli.arch
+INITRAMFS_MARKER=/etc/knulli-text-console
+
+[ -e "$INITRAMFS_MARKER" ] || [ "$(cat "$ARCH_FILE" 2>/dev/null)" = "h700" ] || exit 1
+
+HAVE_FBCON=no
+for VTCON in /sys/class/vtconsole/vtcon*; do
+    [ -r "$VTCON/name" ] || continue
+    if [ "$(cat "$VTCON/name")" = "frame buffer device" ] && [ "$(cat "$VTCON/bind" 2>/dev/null)" = "1" ]; then
+        HAVE_FBCON=yes
+        break
+    fi
+done
+[ "$HAVE_FBCON" = "yes" ] || exit 1
+
+ACTIVE_TTY=$(cat /sys/class/tty/tty0/active 2>/dev/null)
+case "$ACTIVE_TTY" in
+    tty[1-9]|tty[1-9][0-9]) TTY="/dev/$ACTIVE_TTY" ;;
+    *) exit 1 ;;
+esac
+[ -c "$TTY" ] || exit 1
+
+case "$1" in
+    reset)
+        printf '\033[2J\033[H' > "$TTY" || exit 1
+        if [ -n "$2" ] && [ -r "$2" ]; then
+            cat "$2" > "$TTY" || exit 1
+        else
+            printf 'KNULLIK\n' > "$TTY"
+        fi
+        printf '\n' > "$TTY"
+        ;;
+    msg)
+        shift
+        [ -n "$*" ] || set -- 'Loading, please wait'
+        printf '\033[1000H\033[2K==> %s' "$*" > "$TTY"
+        ;;
+    clear-status)
+        printf '\033[1000H\033[2K' > "$TTY"
+        ;;
+    *)
+        exit 2
+        ;;
+esac
