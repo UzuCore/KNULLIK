@@ -1,7 +1,0 @@
-#!/bin/sh
-
-test "${1}" != start && exit 0
-
-swapon /dev/mmcblk0p3 
-
-exit 0

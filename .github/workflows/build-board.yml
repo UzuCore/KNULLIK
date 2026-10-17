@@ -2548,25 +2548,6 @@ jobs:
         run: |
           echo "::warning title=ccache 업로드 실패::cache repo($CACHE_REPO)에 build ccache 업로드 실패. 다음 빌드 속도에 영향. 확인사항: 1) ${{ github.repository_owner }}/$CACHE_REPO 레포 존재? 2) CACHE_PAT가 그 레포에 Contents:write 권한 있음?"
 
-      # TEMP-DU-RECON (2026-10-17): rk3128 이미지 비대 원인 특정을 위한 일회성
-      # 계측. 원인 확정 후 삭제한다. 이미지는 그대로 만든다.
-      - name: Debug rootfs disk usage
-        if: ${{ !cancelled() }}
-        run: |
-          R="output/${{ inputs.BOARD }}"
-          echo "=== $R/target top (rootfs staging, uncompressed) ==="
-          du -sh "$R/target" 2>/dev/null || true
-          du -sh "$R/target/"* 2>/dev/null | sort -rh | head -15 || true
-          echo "=== $R/target/usr top ==="
-          du -sh "$R/target/usr/"* 2>/dev/null | sort -rh | head -15 || true
-          echo "=== $R/target/usr/lib top ==="
-          du -sh "$R/target/usr/lib/"* 2>/dev/null | sort -rh | head -12 || true
-          echo "=== $R/target/usr/share top ==="
-          du -sh "$R/target/usr/share/"* 2>/dev/null | sort -rh | head -15 || true
-          echo "=== biggest libretro cores ==="
-          du -s "$R/target/usr/lib/libretro/"* 2>/dev/null | sort -rn | head -12 || true
-          echo "=== done ==="
-
       # Makefile 의 collect-build-artifacts 가 output/<board>/images/knulli 를
       # target/<board>/ 로 옮기고 원본을 지우므로 target/ 에서 수집한다.
       - name: Generate image checksums

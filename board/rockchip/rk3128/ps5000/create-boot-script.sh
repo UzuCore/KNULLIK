@@ -24,9 +24,4 @@ cp "${BINARIES_DIR}/rootfs.squashfs"    "${KNULLI_BINARIES_DIR}/boot/boot/knulli
 cp "${BINARIES_DIR}/rk3128-ps5000.dtb"     "${KNULLI_BINARIES_DIR}/boot/boot/"     || exit 1
 cp "${BOARD_DIR}/boot/extlinux.conf"    "${KNULLI_BINARIES_DIR}/boot/extlinux/" || exit 1
 
-# Create empty swap partition
-truncate -s 1024M "${KNULLI_BINARIES_DIR}/swap.img"
-chmod 0600 "${KNULLI_BINARIES_DIR}/swap.img"
-mkswap "${KNULLI_BINARIES_DIR}/swap.img"
-
 exit 0
